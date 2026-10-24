@@ -85,7 +85,7 @@
   /* A glimpse of the other list, not a second row of colours: grey and faded, in colour under the pointer. */
   opacity: 0.6;
   cursor: pointer;
-  touch-action: pan-x;
+  touch-action: manipulation;
   transition: opacity 0.45s ease, transform 0.2s ease;
 }
 .next-banner-other__cover:hover,

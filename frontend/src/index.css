@@ -82,4 +82,9 @@ code {
   .cover-host {
     -webkit-touch-callout: none;
   }
+
+  /* Nor does a finger held on a cover lift a copy of it, iOS's own drag: the covers that move are moved by the app. */
+  img {
+    -webkit-user-drag: none;
+  }
 }

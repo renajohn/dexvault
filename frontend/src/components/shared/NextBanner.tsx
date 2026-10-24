@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DndContext, PointerSensor, TouchSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors,
-  type Collision, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
+  type Collision, type CollisionDetection, type PointerSensorOptions, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { getEventCoordinates } from '@dnd-kit/utilities';
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -119,6 +119,23 @@ const STRIP_GAP_PX = 6;
 const STRIP_PAD_PX = 4;
 /** How long what was dragged takes to land on its place. */
 const LAND_MS = 180;
+
+/**
+ * The pointer sensor for a mouse or a pen alone. Safari sends a touch's
+ * pointerdown before its touchstart, so a plain PointerSensor took the finger
+ * first and a swipe along the row dragged its cover; a finger goes to the
+ * TouchSensor, which waits for it to hold.
+ */
+class MousePointerSensor extends PointerSensor {
+  static activators = [{
+    eventName: 'onPointerDown' as const,
+    handler: ({ nativeEvent: event }: React.PointerEvent, { onActivation }: PointerSensorOptions) => {
+      if (!event.isPrimary || event.button !== 0 || event.pointerType === 'touch') return false;
+      onActivation?.({ event });
+      return true;
+    },
+  }];
+}
 
 /** Somewhere a card or a small cover can be dropped, inside a NextBanner: lit while one is over it. */
 export const NextBannerDrop: React.FC<{ id: string; className?: string; inline?: boolean; children: React.ReactNode }> = ({ id, className = '', inline = false, children }) => {
@@ -373,7 +390,7 @@ const NextBanner: React.FC<NextBannerProps> = ({
 
   // A few pixels before a mouse drags, so that a click stays a click; a touch holds first, so that a swipe scrolls.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MousePointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
 

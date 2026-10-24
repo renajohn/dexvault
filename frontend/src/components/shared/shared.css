@@ -745,7 +745,8 @@
 
 /* A card dragged into a new order: it follows the pointer at once, above the others, which make room for it. */
 .next-banner__card--sortable {
-  touch-action: pan-x;
+  /* A finger scrolls both ways from a cover: it drags only once held (the TouchSensor's delay). */
+  touch-action: manipulation;
 }
 
 .next-banner__card--dragging {
