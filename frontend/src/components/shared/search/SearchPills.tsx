@@ -89,6 +89,8 @@ type OpenGroup = Extract<SearchGuessGroup, { kind: 'open' }>;
 
 /** A guess good enough to write its name grey after the letters: its name or one of its words begins with them. */
 const GHOST_SCORE = 70;
+/** How long the empty field waits before its menu of filters shows (ms). */
+const IDLE_MENU_DELAY = 2000;
 
 /** Whether a line is one of the guesses (a thing to open, a person to make a pill of). */
 const isGuess = (s: Suggestion): boolean => s.kind === 'guess' || (s.kind === 'value' && s.score != null);
@@ -458,7 +460,17 @@ const SearchPills: React.FC<SearchPillsProps> = ({
     return text.trim() ? 0 : -1;
   })();
   const menuIndex = nav && nav.ctx === ctx ? nav.index : defaultIndex;
-  const menuVisible = focused && menuShown && suggestions.length > 0;
+  // The field empty, the menu lists every filter: it would cover a phone's screen at each tap,
+  // so it waits until the field has stood empty a while, and only before any pill (↓ opens it at once).
+  const idle = !open && !text;
+  const [idleShown, setIdleShown] = useState(false);
+  useEffect(() => {
+    setIdleShown(false);
+    if (!focused || !idle || items.length) return undefined;
+    const timer = window.setTimeout(() => setIdleShown(true), IDLE_MENU_DELAY);
+    return () => window.clearTimeout(timer);
+  }, [focused, idle, items.length]);
+  const menuVisible = focused && menuShown && suggestions.length > 0 && (!idle || idleShown);
 
   // What the handlers read: the render's own view of the menu.
   const chosen = !!nav && nav.ctx === ctx && nav.keys;
@@ -638,7 +650,7 @@ const SearchPills: React.FC<SearchPillsProps> = ({
   const move = (e: React.KeyboardEvent, by: number) => {
     e.preventDefault();
     const { suggestions: list, menuIndex: index, menuVisible: shown } = view.current;
-    if (!shown) { setMenuShown(true); return; }
+    if (!shown) { setMenuShown(true); setIdleShown(true); return; }
     const next = Math.max(-1, Math.min(list.length - 1, index + by));
     setNav({ ctx, index: next, keys: true });
   };

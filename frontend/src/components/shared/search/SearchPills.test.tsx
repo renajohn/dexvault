@@ -199,12 +199,33 @@ describe('SearchPills', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('shows the keys by group in the empty field, and the recent searches', () => {
-    render(<SearchPills schema={schema} value="" onChange={() => undefined} recentKey="test-recent" />);
-    fireEvent.focus(input());
-    const list = screen.getByRole('listbox');
-    expect(within(list).getByText('Who')).toBeInTheDocument();
-    expect(within(list).getByText('composer:Bach')).toBeInTheDocument();
+  it('shows the keys by group in the empty field, and the recent searches, after two seconds', () => {
+    vi.useFakeTimers();
+    try {
+      render(<SearchPills schema={schema} value="" onChange={() => undefined} recentKey="test-recent" />);
+      fireEvent.focus(input());
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      act(() => { vi.advanceTimersByTime(2000); });
+      const list = screen.getByRole('listbox');
+      expect(within(list).getByText('Who')).toBeInTheDocument();
+      expect(within(list).getByText('composer:Bach')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not show the keys once there is a pill, unless ↓ asks for them', () => {
+    vi.useFakeTimers();
+    try {
+      render(<Harness initial="cd:yes" />);
+      fireEvent.focus(input());
+      act(() => { vi.advanceTimersByTime(3000); });
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      fireEvent.keyDown(input(), { key: 'ArrowDown' });
+      expect(within(screen.getByRole('listbox')).getByText('composer:Bach')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows two rows at rest, "+N" for the pills that do not fit', () => {
@@ -372,6 +393,7 @@ describe('SearchPills', () => {
     });
     render(<SearchPills schema={schema} value="" onChange={() => undefined} recentKey="test-recent-pills" />);
     fireEvent.focus(input());
+    fireEvent.keyDown(input(), { key: 'ArrowDown' });
     const recent = within(screen.getByRole('listbox')).getAllByRole('option')[0];
     const pill = recent.querySelector('.search-pills__tok')!;
     expect(pill.querySelector('.search-pill__not')).toHaveTextContent('!');
