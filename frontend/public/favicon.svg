@@ -1,26 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>DexVault — Slate</title>
+  <style>@media (max-width: 64px) { .media { display: none; } }</style>
   <defs>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#fbbf24"/>
-      <stop offset="100%" stop-color="#d97706"/>
-    </linearGradient>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2a2a2a"/>
-      <stop offset="100%" stop-color="#1a1a1a"/>
-    </linearGradient>
+    <!-- Six units of clearance inside the D; one contour for all shelves. -->
+    <clipPath id="shelves">
+      <path d="M50 34H66C82 34 90 44 90 64S82 94 66 94H50Z"/>
+    </clipPath>
   </defs>
-
-  <!-- Rounded dark background -->
-  <rect x="1" y="1" width="30" height="30" rx="6" fill="url(#bg)" stroke="url(#gold)" stroke-width="1.5"/>
-
-  <!-- Three stacked media spines (film, vinyl, book) -->
-  <!-- Book spine -->
-  <rect x="7" y="8" width="4" height="17" rx="1" fill="url(#gold)" opacity="0.6"/>
-  <!-- Disc case spine -->
-  <rect x="12.5" y="6" width="4" height="19" rx="1" fill="url(#gold)" opacity="0.8"/>
-  <!-- Film case spine -->
-  <rect x="18" y="9" width="4" height="16" rx="1" fill="url(#gold)" opacity="1"/>
-
-  <!-- Small "D" letter hint at bottom -->
-  <text x="16" y="29.5" text-anchor="middle" font-family="Georgia,serif" font-size="5" font-weight="bold" fill="#fbbf24" opacity="0.5">DV</text>
+  <!-- Full-bleed square artwork: the operating system applies its own mask. -->
+  <rect width="128" height="128" fill="#202938"/>
+  <!-- The open vault door forms the stem of the D. -->
+  <path d="M24 20Q20 17 20 22V106Q20 111 24 108L42 96Q44 95 44 92V36Q44 33 42 32Z" fill="#f5f6f8"/>
+  <circle cx="32" cy="64" r="4.5" fill="#202938"/>
+  <path d="M34 16H66C94 16 108 34 108 64S94 112 66 112H34L51 100H66C86 100 96 88 96 64S86 28 66 28H51Z" fill="#f5f6f8"/>
+  <g clip-path="url(#shelves)">
+    <rect x="50" y="34" width="40" height="16" rx="2" fill="#8596f5"/>
+    <rect x="50" y="56" width="40" height="16" rx="2" fill="#afc1f8"/>
+    <rect x="50" y="78" width="40" height="16" rx="2" fill="#dbe7f5"/>
+  </g>
+  <g class="media" fill="#202938">
+    <!-- Film, music and books. -->
+    <!-- Curved end shelves have an area centre near x=66.8, not x=70. -->
+    <path transform="translate(-2.25 0)" fill-rule="evenodd" d="M62 36H76V48H62ZM66 38V41H72V38ZM66 43V46H72V43ZM63 38V40H64V38ZM63 44V46H64V44ZM74 38V40H75V38ZM74 44V46H75V44Z"/>
+    <!-- Slender eighth notes: narrow heads and 1.25-unit stems. -->
+    <g transform="translate(1 0)">
+      <path d="M66 60L74 58V60L67.25 61.7V68H66Z"/>
+      <path d="M72.75 59H74V66.5H72.75Z"/>
+      <ellipse cx="64.75" cy="68" rx="2.5" ry="1.7"/>
+      <ellipse cx="71.5" cy="66.5" rx="2.5" ry="1.7"/>
+    </g>
+    <path transform="translate(-2.25 0)" d="M62 81Q65 79 68 81V91Q65 89 62 91ZM70 81Q73 79 76 81V91Q73 89 70 91Z"/>
+  </g>
 </svg>
