@@ -199,8 +199,8 @@ npm run docker:run
 ```yaml
 version: '3.8'
 services:
-  filmdex:
-    image: filmdex:latest
+  dexvault:
+    image: dexvault:latest
     ports:
       - "3001:3001"
     volumes:

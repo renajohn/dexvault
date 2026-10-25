@@ -1,4 +1,4 @@
-# Security Guidelines for FilmDex
+# Security Guidelines for DexVault
 
 ## 🔒 Environment Variables & API Keys
 
@@ -69,15 +69,15 @@ npm run dev
 #### Production Deployment
 ```bash
 # Environment variables are passed at runtime
-docker run -e TMDB_API_KEY=xxx -e OMDB_API_KEY=yyy filmdex:latest
+docker run -e TMDB_API_KEY=xxx -e OMDB_API_KEY=yyy dexvault:latest
 ```
 
 #### Docker Compose
 ```yaml
 version: '3.8'
 services:
-  filmdex:
-    image: filmdex:latest
+  dexvault:
+    image: dexvault:latest
     ports:
       - "3001:3001"
     volumes:

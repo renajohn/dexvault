@@ -17,9 +17,9 @@
         "test:prod": "npm run build:prod && npm start",
         "version": "node scripts/get-version.js",
         "release": "node scripts/create-release.js",
-        "docker:build": "docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/renajohn/filmdex:latest -t ghcr.io/renajohn/filmdex:$(node scripts/get-version.js) --load .",
+        "docker:build": "docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/renajohn/dexvault:latest -t ghcr.io/renajohn/dexvault:$(node scripts/get-version.js) --load .",
         "docker:run": "docker compose up -d",
-        "docker:publish": "docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/renajohn/filmdex:latest -t ghcr.io/renajohn/filmdex:$(node scripts/get-version.js) --push .",
+        "docker:publish": "docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/renajohn/dexvault:latest -t ghcr.io/renajohn/dexvault:$(node scripts/get-version.js) --push .",
         "clean": "rm -rf dist",
         "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install"
     },

@@ -12,7 +12,7 @@ class BuildSystem {
     this.deploymentTarget = process.argv[2] || 'dev';
     this.version = this.generateVersion();
     
-    console.log(`🚀 Building FilmDex for target: ${this.deploymentTarget}`);
+    console.log(`🚀 Building DexVault for target: ${this.deploymentTarget}`);
     console.log(`📦 Version: ${this.version}`);
   }
 
@@ -155,11 +155,11 @@ class BuildSystem {
     console.log('📝 Creating start script...');
     
     const startScript = `#!/bin/bash
-# FilmDex Start Script
+# DexVault Start Script
 # Version: ${this.version}
 # Target: ${this.deploymentTarget}
 
-echo "🚀 Starting FilmDex ${this.version} (${this.deploymentTarget})"
+echo "🚀 Starting DexVault ${this.version} (${this.deploymentTarget})"
 
 # Change to backend directory
 cd backend
@@ -171,10 +171,10 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Start the application with deployment config from parent directory
-echo "🎬 Starting FilmDex backend..."
+echo "🎬 Starting DexVault backend..."
 npx tsx index.ts --deployment=../deployment.json
 
-echo "👋 FilmDex stopped"
+echo "👋 DexVault stopped"
 `;
 
     const scriptPath = path.join(this.distDir, 'start.sh');

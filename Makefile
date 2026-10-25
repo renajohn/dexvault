@@ -1,4 +1,4 @@
-IMAGE := ghcr.io/renajohn/filmdex
+IMAGE := ghcr.io/renajohn/dexvault
 VERSION := $(shell node scripts/get-version.js)
 
 .PHONY: dev run stop publish build logs status clean install test lint typecheck
@@ -41,7 +41,7 @@ test:               ## Build and run locally (no push)
 publish:            ## Push to main (CI builds and pushes to GHCR)
 	git push origin main
 	@echo "CI will publish $(IMAGE):$(VERSION)"
-	@echo "Watch: https://github.com/renajohn/filmdex/actions"
+	@echo "Watch: https://github.com/renajohn/dexvault/actions"
 
 clean:              ## Remove dist/ and stop containers
 	docker compose down 2>/dev/null || true

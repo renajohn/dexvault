@@ -558,9 +558,9 @@ app.get('/.well-known/appspecific/com.chrome.devtools.json', (req: Request, res:
   app.get('/', (req: Request, res: Response) => {
     res.send(`
       <html>
-        <head><title>FilmDex</title></head>
+        <head><title>DexVault</title></head>
         <body>
-          <h1>FilmDex Backend</h1>
+          <h1>DexVault Backend</h1>
           <p>Backend is running. Frontend build not found.</p>
           <p>API available at <a href="/api/config">/api/config</a></p>
         </body>

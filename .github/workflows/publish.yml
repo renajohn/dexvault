@@ -48,7 +48,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ghcr.io/renajohn/filmdex:latest
-            ghcr.io/renajohn/filmdex:${{ steps.version.outputs.version }}
+            ghcr.io/renajohn/dexvault:latest
+            ghcr.io/renajohn/dexvault:${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
