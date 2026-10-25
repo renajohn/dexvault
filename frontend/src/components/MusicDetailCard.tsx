@@ -15,7 +15,9 @@ import { discCredits, workGroups, type TrackPerformer } from '../utils/trackCred
 import { canUsePicard, openInPicard } from '../utils/picard';
 import { isAppleMobile, openListen, trackListenUrl } from '../utils/navidrome';
 import { ripFileFor } from '../utils/trackDetail';
-import { player, usePlayer } from '../services/player';
+import { localOutputName, player, sameOutput, usePlayer, type PlayerOutput } from '../services/player';
+import { useOutputs } from '../services/outputs';
+import { isComputer } from '../utils/isComputer';
 import { playerAlbumOf, playerTracksOf } from '../utils/playAlbum';
 import { playingTime, ripSummary, urlLabel } from '../utils/albumHead';
 import TrackDetails from './TrackDetails';
@@ -35,7 +37,7 @@ import toast from './shared/Toast';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
 import MixtapeMenu from './MixtapeMenu';
 import { useMixtapes } from '../utils/mixtapeStore';
-import { BsCassetteFill, BsXLg, BsLaptop } from 'react-icons/bs';
+import { BsCassetteFill, BsXLg, BsLaptop, BsPhone, BsSpeaker } from 'react-icons/bs';
 import remote, { useRemotePlayers, type RemotePlayer } from '../services/remote';
 import { discsInWords, heldOf } from '../utils/listenNextEntry';
 
@@ -586,9 +588,11 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
 
   const ripAlbum = rip?.found ? rip.album : undefined;
 
-  // DexVault's own player, on a computer; an iPhone plays in Amperfy, as before.
+  // DexVault's own player, on a computer; an iPhone plays in Amperfy, as before, unless its output is an appliance (Salon).
   const playerTracks = playerTracksOf(cd, rip);
-  const ownPlayer = !appleMobile && playerTracks.length > 0;
+  const output = usePlayer(state => state.output);
+  const onAppliance = output.kind === 'renderer';
+  const ownPlayer = (!appleMobile || onAppliance) && playerTracks.length > 0;
   const playerAlbum = () => playerAlbumOf(cd, rip);
   const nowAlbumId = usePlayer(state => state.album?.id ?? null);
   const nowTrack = usePlayer(state => state.tracks[state.index]);
@@ -605,6 +609,24 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       .then(() => toast(`Playing on ${target.name}`, { tone: 'success' }))
       .catch(e => toast((e as Error).message, { tone: 'danger' }));
   };
+  // The other outputs, this browser and the appliances that answer: the album played there, which is then the output.
+  const known = useOutputs();
+  const elsewhere: PlayerOutput[] = known.length === 0 || playerTracks.length === 0 ? [] : [
+    { kind: 'local' } as PlayerOutput,
+    ...known.filter(one => one.reachable).map(one => ({ kind: 'renderer', id: one.id, name: one.name }) as PlayerOutput),
+  ].filter(one => !sameOutput(one, output));
+  const playElsewhere = (target: PlayerOutput, disc?: number, no?: number) => {
+    const index = disc == null ? 0 : Math.max(0, playerTracks.findIndex(track => track.disc === disc && track.no === no));
+    player.setOutput(target, { transfer: false });
+    player.playAlbum(playerAlbum(), playerTracks, index);
+  };
+  const outputItems = (disc?: number, no?: number) => elsewhere.map(target => (
+    <Menu.Item key={target.kind === 'local' ? 'local' : target.id}
+      icon={target.kind === 'renderer' ? <BsSpeaker /> : isComputer() ? <BsLaptop /> : <BsPhone />}
+      onSelect={() => playElsewhere(target, disc, no)}>
+      {target.kind === 'renderer' ? target.name : localOutputName()}
+    </Menu.Item>
+  ));
   /** Plays the album from a track, the rest of it after. */
   const playFrom = (disc: number, no: number) => {
     const index = playerTracks.findIndex(track => track.disc === disc && track.no === no);
@@ -1100,13 +1122,14 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                               onKeyDown={own} aria-label={`${current && nowPlaying ? 'Pause' : 'Play'} ${track.title}`} title={current && nowPlaying ? 'Pause' : 'Play'}>
                               {current && nowPlaying ? <BsPauseFill aria-hidden="true" /> : <BsPlayFill aria-hidden="true" />}
                             </button>
-                          ) : playUrl && computers.length > 0 ? (
-                            // A computer listening: this track here in Amperfy, or there from it on.
+                          ) : playUrl && (computers.length > 0 || elsewhere.length > 0) ? (
+                            // A computer listening, or an appliance: this track here in Amperfy, or there from it on.
                             <span onClick={own} onKeyDown={own}>
                               <Menu label={`Play ${track.title}`} trigger={props => (
                                 <button type="button" {...props} className="track-play" aria-label={`Play ${track.title}`} title="Play"><BsPlayFill aria-hidden="true" /></button>
                               )}>
                                 <Menu.Item icon={<BsPlayFill />} onSelect={() => { window.location.href = playUrl; }}>Play here, in {appleMobile ? 'Amperfy' : 'Navidrome'}</Menu.Item>
+                                {outputItems(disc.number, Number(track.no))}
                                 {computers.map(target => (
                                   <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target, disc.number, Number(track.no))}>Play on {target.name}</Menu.Item>
                                 ))}
@@ -1199,6 +1222,8 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
               }}>
                 {playingHere && nowPlaying ? <BsPauseFill className="me-1" /> : <BsPlayFill className="me-1" />}
                 {playingHere ? (nowPlaying ? 'Pause' : 'Resume') : resumeHere ? 'Resume' : 'Play'}
+                {/* On an appliance, which one. */}
+                {onAppliance && !resumeHere && <span className="music-detail-play-where">{' · '}{output.name}</span>}
                 {resumeHere && (
                   <span className="music-detail-play-where">
                     {' · '}{resumeHere.tracks[resumeHere.index]?.title} {Math.floor(resumeHere.position / 60)}:{String(Math.floor(resumeHere.position % 60)).padStart(2, '0')}
@@ -1210,17 +1235,24 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                   <MenuChevron open={open} />
                 </Button>
               )}>
+                {/* Played on another output, which is then the output: the appliances, this browser. */}
+                {elsewhere.length > 0 && <Menu.Section title="Play on" />}
+                {outputItems()}
+                {elsewhere.length > 0 && <Menu.Separator />}
                 {(playingHere || resumeHere) && (
                   <Menu.Item icon={<BsArrowCounterclockwise />} onSelect={() => player.playAlbum(playerAlbum(), playerTracks, 0)}>Play from the start</Menu.Item>
                 )}
-                <Menu.Item icon={<BsBoxArrowUpRight />} hint="new tab" onSelect={() => openListen(ripAlbum)}>Open in Navidrome</Menu.Item>
+                {/* On an iPhone playing on an appliance, Amperfy still a click away. */}
+                <Menu.Item icon={<BsBoxArrowUpRight />} hint={appleMobile ? undefined : 'new tab'} onSelect={() => openListen(ripAlbum)}>
+                  {appleMobile ? 'Open in Amperfy' : 'Open in Navidrome'}
+                </Menu.Item>
                 {computers.map(target => (
                   <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target)}>Play on {target.name}</Menu.Item>
                 ))}
               </Menu>
             </ButtonGroup>
-          ) : ripAlbum && computers.length > 0 ? (
-            // A phone with a computer listening: Amperfy here, or the computer, as the remote.
+          ) : ripAlbum && (computers.length > 0 || elsewhere.length > 0) ? (
+            // A phone with a computer listening or an appliance: Amperfy here, or there.
             <ButtonGroup className="music-detail-play">
               <Button variant="primary" icon={<BsPlayFill />} onClick={() => openListen(ripAlbum)}>Listen</Button>
               <Menu drop="up" label="Where to listen" trigger={(props, open) => (
@@ -1228,6 +1260,8 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                   <MenuChevron open={open} />
                 </Button>
               )}>
+                {elsewhere.length > 0 && <Menu.Section title="Play on" />}
+                {outputItems()}
                 {computers.map(target => (
                   <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target)}>Play on {target.name}</Menu.Item>
                 ))}

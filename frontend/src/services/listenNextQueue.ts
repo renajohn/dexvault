@@ -1,5 +1,6 @@
 import musicService from './musicService';
-import { LISTEN_NEXT_LEFT_EVENT, player, registerQueue, type PlayerAlbum, type PlayOptions } from './player';
+import { LISTEN_NEXT_LEFT_EVENT, player, registerQueue, reportOutputError, type PlayerAlbum, type PlayOptions } from './player';
+import outputs, { type OutputError } from './outputs';
 import { playAlbumById } from '../utils/playAlbum';
 import { readStored, writeStored } from '../utils/safeStorage';
 import { entryKey, keyOf, parseEntryKey, type EntryKey } from '../utils/listenNextEntry';
@@ -21,7 +22,22 @@ import { entryKey, keyOf, parseEntryKey, type EntryKey } from '../utils/listenNe
  *
  * Each entry of the list is an album whole or one of its discs, named by its
  * key ("12:0", "12:2"): two discs of an album are two turns, each played alone.
+ *
+ * On an appliance of the house (Salon) the server plays the turn by the same
+ * rules: the page only starts it there, or jumps in it.
  */
+
+/** Listen Next started on the appliance the bar plays on: false when it has nothing to play. */
+const onRenderer = async (id: string, body: { key?: EntryKey; index?: number }): Promise<boolean> => {
+  try {
+    await outputs.listenNext(id, body);
+    return true;
+  } catch (error) {
+    if ((error as OutputError).code === 404) return false;
+    reportOutputError(error);
+    return true;
+  }
+};
 
 /** The list as last read, the entry playing kept at its place even once out of it. */
 let order: EntryKey[] = [];
@@ -219,6 +235,8 @@ export const listenNextQueue = {
 
   /** Plays Listen Next from entry `key`, from the top without it. False when nothing could be played. */
   start: async (key?: EntryKey): Promise<boolean> => {
+    const renderer = player.rendererId();
+    if (renderer) return onRenderer(renderer, key ? { key } : {});
     played.clear();
     writeStored(SESSION_KEY, JSON.stringify({ ...emptySession(), startedAt: Math.floor(Date.now() / 1000) }));
     order = await listIds();
@@ -233,7 +251,7 @@ export const listenNextQueue = {
 
   /** The list as the page just read it, for an entry taken out by hand to be noticed. */
   noteList: (ids: EntryKey[]): void => {
-    if (player.getState().queue !== 'listenNext') return;
+    if (player.getState().queue !== 'listenNext' || player.rendererId()) return;
     order = withCurrent(ids, order, currentKey);
     listed = ids;
   },
@@ -245,6 +263,14 @@ export const listenNextQueue = {
    * nothing could be played.
    */
   jumpTo: async (key: EntryKey, index: number): Promise<boolean> => {
+    const renderer = player.rendererId();
+    if (renderer) {
+      if (key === playingKey(player.getState().album)) {
+        player.playTrack(index);
+        return true;
+      }
+      return onRenderer(renderer, { key, index });
+    }
     if (currentKey == null) return false;
     if (key === currentKey) {
       player.playTrack(index);
@@ -267,6 +293,11 @@ export const listenNextQueue = {
   /** The entries the tracks' dialog shows, the list read again. */
   albums: async (): Promise<{ gone: EntryKey[]; listed: EntryKey[] }> => {
     const ids = await listIds();
+    // On an appliance: the list, and the entry playing there when it has left it already.
+    if (player.rendererId()) {
+      const playing = playingKey(player.getState().album);
+      return { gone: playing && !ids.includes(playing) ? [playing] : [], listed: ids };
+    }
     listed = ids;
     return sessionAlbums(readSession(), ids, currentKey);
   },

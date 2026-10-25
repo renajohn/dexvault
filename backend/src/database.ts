@@ -573,6 +573,21 @@ const runAutoMigrations = async (): Promise<void> => {
         });
         console.log('  ✓ Added age_source column');
       }
+    },
+    {
+      name: '030_outputs',
+      up: async () => {
+        // The appliances DexVault plays on (UPnP): the name and volume ceiling the owner gave each, where it was last
+        // seen, and what plays there, in JSON, to outlive a restart.
+        for (const sql of [
+          `CREATE TABLE IF NOT EXISTS output_settings (
+             id TEXT PRIMARY KEY, name TEXT, max_volume INTEGER, location TEXT, device_name TEXT, model TEXT)`,
+          'CREATE TABLE IF NOT EXISTS output_sessions (id TEXT PRIMARY KEY, state TEXT NOT NULL, updated_at INTEGER)',
+        ]) {
+          await new Promise<void>((resolve, reject) => currentDb.run(sql, (err: Error | null) => (err ? reject(err) : resolve())));
+        }
+        console.log('  ✓ Added output_settings and output_sessions');
+      }
     }
   ];
 

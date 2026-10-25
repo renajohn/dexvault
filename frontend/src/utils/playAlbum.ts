@@ -1,5 +1,6 @@
 import musicService, { type RipTracks } from '../services/musicService';
-import { player, type PlayerAlbum, type PlayOptions, type PlayerTrack } from '../services/player';
+import { player, reportOutputError, type PlayerAlbum, type PlayOptions, type PlayerTrack } from '../services/player';
+import outputs, { type OutputError } from '../services/outputs';
 import { ripFileFor } from './trackDetail';
 import { amperfyUrl, openListen } from './navidrome';
 import { isMixtape, mixtapeArtists } from './mixtape';
@@ -100,8 +101,20 @@ export const loadPlayable = async (albumId: number | string, { listenNext = fals
  * `shuffle` plays them in an order drawn at random, from the first drawn;
  * `disc`, that disc of it alone.
  * False when it has no rip to play, for the caller to offer something else.
+ * On an appliance the server loads it and plays it there.
  */
 export const playAlbumById = async (albumId: number | string, options?: PlayOptions, index = 0, shuffle = false, disc = 0): Promise<boolean> => {
+  const renderer = player.rendererId();
+  if (renderer) {
+    try {
+      await outputs.play(renderer, { albumId: Number(albumId), disc, index, shuffle, listenNext: options?.queue === 'listenNext' });
+      return true;
+    } catch (error) {
+      if ((error as OutputError).code === 404) return false;
+      reportOutputError(error);
+      return true;
+    }
+  }
   const { album, tracks } = await loadPlayable(albumId, { listenNext: options?.queue === 'listenNext', disc });
   if (tracks.length === 0) return false;
   if (shuffle) player.playAlbum(album, shuffledTracks(tracks), 0, 0, options);
@@ -110,10 +123,11 @@ export const playAlbumById = async (albumId: number | string, options?: PlayOpti
 };
 
 /**
- * On an iPhone, the album plays in Amperfy, as its card's Listen does: false
- * when it has no rip to play.
+ * On an iPhone, the album plays in Amperfy, as its card's Listen does, or on
+ * the appliance chosen as the output: false when it has no rip to play.
  */
 export const listenAlbumById = async (albumId: number | string): Promise<boolean> => {
+  if (player.rendererId()) return playAlbumById(albumId);
   const rip = await musicService.getNavidromeTracks(albumId).catch(() => null);
   if (!rip?.found || !rip.album) {
     // A mixtape: Amperfy plays its playlist.

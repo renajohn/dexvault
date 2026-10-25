@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { DeploymentConfig, DataConfig, ApiKeys } from './types';
+import { upnpOptionsOf, type UpnpOptions } from './services/upnp/options';
 
 class ConfigManager {
   deploymentConfig: DeploymentConfig | null;
@@ -146,6 +147,11 @@ class ConfigManager {
       doesthedogdie: process.env.DOES_DOG_DIE || dataConfig.doesthedogdie_api_key,
       googleBooks: process.env.GOOGLE_BOOKS_API_KEY || dataConfig.google_books_api_key
     };
+  }
+
+  // The appliances to play on (UPnP), and the media listener they reach
+  getUpnpOptions(): UpnpOptions {
+    return upnpOptionsOf(this.deploymentConfig as unknown as Record<string, unknown>, this.dataConfig as Record<string, unknown> | null);
   }
 
   // Get log level

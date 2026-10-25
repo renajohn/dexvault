@@ -25,6 +25,7 @@ import { BsX, BsCollectionFill, BsBookmark, BsDisc, BsArrowLeft, BsBarChart, BsF
 import 'bootstrap/dist/css/bootstrap.min.css';
 // After Bootstrap, so that its radios and checkboxes wear DexVault's look.
 import './components/shared/check.css';
+import './components/shared/range.css';
 import './App.css';
 import { readStored, writeStored } from './utils/safeStorage';
 import { useDigitalLibrary } from './utils/digitalLibrary';
@@ -36,6 +37,7 @@ import { toast, toneOf, ToastHost } from './components/shared/Toast';
 import { TooltipHost } from './components/shared/Tooltip';
 import RemoteReporter from './components/RemoteReporter';
 import RemoteBar from './components/RemoteBar';
+import { connectOutputs } from './services/outputs';
 import { isComputer } from './services/remote';
 
 interface SearchCriteria {
@@ -58,6 +60,9 @@ function AppContent() {
   const musicDexRef = useRef<any>(null);
   const bookDexRef = useRef<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // The appliances of the house the player can play on (Salon), and what plays there, as it changes.
+  useEffect(() => { void connectOutputs(); }, []);
   const navigate = useNavigate();
   const location = useLocation();
   // ⌘F (Ctrl+F) goes to the search, its words selected, where a section has one; elsewhere the browser finds.

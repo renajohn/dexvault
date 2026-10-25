@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import navidromeService from '../services/navidromeService';
-import listenNextPlayService from '../services/listenNextPlayService';
+import { scrobble } from '../services/scrobble';
 import logger from '../logger';
 
 /** A Navidrome song id: letters, digits, dashes and underscores, never a path. */
@@ -53,21 +53,14 @@ const playerController = {
       return;
     }
     const submission = req.body?.submission === true;
+    let left = null;
     try {
-      await navidromeService.scrobble(id, submission);
+      // A play counted: the album of Listen Next it ends leaves it, and the page is told at once.
+      ({ left } = await scrobble(id, submission));
     } catch (error) {
       logger.warn(`Scrobbling song ${id}: ${(error as Error).message}`);
       res.status(502).json({ error: (error as Error).message });
       return;
-    }
-    // A play counted: the album of Listen Next it ends leaves it, and the page is told at once.
-    let left = null;
-    if (submission) {
-      try {
-        left = await listenNextPlayService.noteScrobble(process.env.NAVIDROME_USER || '', id);
-      } catch (error) {
-        logger.warn(`Listen Next after song ${id}: ${(error as Error).message}`);
-      }
     }
     res.json({ ok: true, left });
   },

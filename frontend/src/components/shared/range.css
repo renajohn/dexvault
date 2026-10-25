@@ -1,0 +1,71 @@
+/*
+ * A slider (`<input type="range" class="ui-range">`): a thin groove of the
+ * page's glass, the part up to the thumb in the words' light grey, a white
+ * thumb. Not gold: a level is neither on nor to do. The part filled is
+ * `--range-fill`, a percentage the component sets as the value moves.
+ */
+.ui-range {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  --range-fill: 0%;
+}
+
+.ui-range:focus {
+  outline: none;
+}
+
+.ui-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--dv-text) var(--range-fill), var(--dv-edge-hover) var(--range-fill));
+}
+
+.ui-range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--dv-edge-hover);
+}
+
+.ui-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--dv-text);
+}
+
+.ui-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.ui-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.ui-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--dv-ring);
+}
+
+.ui-range:focus-visible::-moz-range-thumb {
+  box-shadow: var(--dv-ring);
+}
+
+.ui-range:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

@@ -1,10 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BsChatQuote, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill, BsSkipBackwardFill, BsSkipForwardFill, BsX } from 'react-icons/bs';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { BsChatQuote, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill, BsSkipBackwardFill, BsSkipForwardFill, BsSpeaker, BsThreeDots, BsX } from 'react-icons/bs';
 import { player, usePlayer } from '../services/player';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
+import { useOutputs, type Output } from '../services/outputs';
+import { isComputer } from '../utils/isComputer';
 import toast from './shared/Toast';
+import Button, { IconButton } from './shared/Button';
+import Menu, { MenuChevron } from './shared/Menu';
 import PlayerTracks from './PlayerTracks';
+import OutputMenu, { OutputEntries } from './OutputMenu';
+import OutputSettings from './OutputSettings';
 // Listen Next registers itself with the player, to go on after a reload whatever the page; the bar asks it what comes next.
 import { listenNextQueue, playingKey } from '../services/listenNextQueue';
 import { parseEntryKey } from '../utils/listenNextEntry';
@@ -30,9 +36,11 @@ interface Ahead {
  * Of Listen Next, what is left after the album playing: read as an album
  * starts (`started`, its tracks, change even when the same album starts
  * again) and as it plays on after a pause, the list having moved meanwhile.
+ * On an appliance, the entries to come are the server's (`upcoming`).
  */
-const useListenNextAhead = (playingEntry: string | null, fromListenNext: boolean, started: unknown, playing: boolean): Ahead | null => {
+const useListenNextAhead = (playingEntry: string | null, fromListenNext: boolean, started: unknown, playing: boolean, upcoming: string[] | null): Ahead | null => {
   const [ahead, setAhead] = useState<Ahead | null>(null);
+  const coming = upcoming ? upcoming.join(',') : null;
   useEffect(() => {
     // Kept while read again, for the time left not to jump; gone out of Listen Next.
     if (!fromListenNext || playingEntry == null) {
@@ -40,7 +48,7 @@ const useListenNextAhead = (playingEntry: string | null, fromListenNext: boolean
       return undefined;
     }
     let live = true;
-    const ids = listenNextQueue.upcoming(playingEntry);
+    const ids = coming != null ? (coming ? coming.split(',') : []) : listenNextQueue.upcoming(playingEntry);
     const next = ids.length > 0 ? parseEntryKey(ids[0]) : null;
     Promise.all([
       musicService.getListenNextPlay().catch(() => null),
@@ -52,7 +60,7 @@ const useListenNextAhead = (playingEntry: string | null, fromListenNext: boolean
       setAhead({ seconds, first: track ? { title: track.title, artist: track.artist ?? next!.album.artist } : null });
     });
     return () => { live = false; };
-  }, [playingEntry, fromListenNext, started, playing]);
+  }, [playingEntry, fromListenNext, started, playing, coming]);
   return ahead;
 };
 
@@ -64,10 +72,36 @@ const leftText = (seconds: number): string => {
 };
 
 /**
+ * On a phone whose output is an appliance playing nothing, in MusicDex: the
+ * appliance, to choose another, and Listen Next to start there.
+ */
+const IdleBar: React.FC<{ name: string; away: boolean }> = ({ name, away }) => (
+  <div className="player-bar player-bar-out player-bar--idle" role="region" aria-label={`Nothing playing on ${name}`}>
+    <div className="player-bar-idle">
+      <span className="player-bar-idle__words">Nothing playing</span>
+      <OutputMenu drop="up" align="start" trigger={(props, open) => (
+        <button type="button" {...props} className="menu-pill player-bar-idle__output">
+          <span className="menu-pill__lead"><BsSpeaker /></span>
+          {away ? `${name}, away` : name}
+          <MenuChevron open={open} />
+        </button>
+      )} />
+      <span className="player-bar-idle__space" />
+      <Button size="sm" icon={<BsPlayFill />} disabled={away}
+        onClick={() => { void listenNextQueue.start().then(started => { if (!started) toast('Listen Next has nothing to play', { tone: 'warning' }); }); }}>
+        Listen Next
+      </Button>
+    </div>
+  </div>
+);
+
+/**
  * What DexVault plays, at the foot of every page: the cover, the track and
  * its album, ♥ and the words; ⏮ ⏯ ⏭ and the track's time; what is left
- * of the album, the tracks and ✕. It takes its own room, so nothing goes
- * under it: the pages and the album's card end above it.
+ * of the album, the tracks, the output and ✕. It takes its own room, so
+ * nothing goes under it: the pages and the album's card end above it.
+ * Its output may be an appliance of the house (Salon): the bar then shows
+ * what plays there, and its buttons command it.
  */
 const PlayerBar: React.FC = () => {
   const navigate = useNavigate();
@@ -83,14 +117,24 @@ const PlayerBar: React.FC = () => {
   const lyricsOpen = usePlayer(state => state.lyricsOpen);
   const favourite = useFavourite(track?.songId);
   const [tracksOpen, setTracksOpen] = useState(false);
+  const output = usePlayer(state => state.output);
+  const outputStatus = usePlayer(state => state.outputStatus);
+  const upcoming = usePlayer(state => state.upcoming);
+  const known = useOutputs();
+  const inMusic = useLocation().pathname.startsWith('/musicdex');
+  const outputName = output.kind === 'renderer' ? output.name : '';
+  // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
+  const idle = !shown && output.kind === 'renderer' && known.length > 0 && inMusic && !isComputer();
+  // The settings of an appliance, opened from the ⋯ of a phone's bar.
+  const [settingsFor, setSettingsFor] = useState<Output | null>(null);
 
   // The heart the track had when the album was started, unless the card has told a newer one since.
   useEffect(() => { if (track) seedFavourite(track.songId, track.starred, true); }, [track]);
 
   // The room the bar takes, for the pages and the cards: --player-h on the root.
   useEffect(() => {
-    document.documentElement.style.setProperty('--player-h', shown ? 'var(--player-bar-room)' : '0px');
-  }, [shown]);
+    document.documentElement.style.setProperty('--player-h', shown || idle ? 'var(--player-bar-room)' : '0px');
+  }, [shown, idle]);
 
   // What the bar last showed, kept while it slides away after ✕.
   const last = useRef<{ album: NonNullable<typeof album>; track: NonNullable<typeof track> } | null>(null);
@@ -108,7 +152,7 @@ const PlayerBar: React.FC = () => {
   const tracks = usePlayer(state => state.tracks);
   const index = usePlayer(state => state.index);
   const fromListenNext = usePlayer(state => state.queue === 'listenNext');
-  const ahead = useListenNextAhead(playingKey(album), fromListenNext, tracks, playing);
+  const ahead = useListenNextAhead(playingKey(album), fromListenNext, tracks, playing, upcoming);
   // What is left: this track's end, the tracks after it, and of Listen Next the albums after this one.
   const left = Math.max(0, length - position) + tracks.slice(index + 1).reduce((sum, one) => sum + (one.durationSec || 0), 0)
     + (ahead?.seconds ?? 0);
@@ -122,8 +166,13 @@ const PlayerBar: React.FC = () => {
     if (length > 0) player.seek(((event.clientX - box.left) / box.width) * length);
   };
 
+  if (idle) return <IdleBar name={outputName} away={outputStatus === 'unreachable'} />;
+  const away = outputStatus === 'unreachable';
+  const taken = outputStatus === 'taken';
+
   return (
-    <div className={`player-bar${out ? ' player-bar-out' : ''}`} role="region" aria-label="Player" aria-hidden={!out}>
+    <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}`} role="region"
+      aria-label={outputName ? `Playing on ${outputName}` : 'Player'} aria-hidden={!out}>
       {last.current && (() => {
         const { album, track } = last.current;
         // A song of a mixtape shows the cover of its CD, and leads there.
@@ -153,7 +202,10 @@ const PlayerBar: React.FC = () => {
                     {track.title}
                   </button>
                   <span className="player-bar-from">
-                    {error || (track.artist != null ? (
+                    {/* An appliance away: its name, greyed, says so; the rest of the bar waits for it. */}
+                    {/* On a phone, which appliance plays it, its speaker gone into ⋯. */}
+                    {!away && outputName && <span className="player-bar-where"><BsSpeaker aria-hidden="true" /> {outputName} · </span>}
+                    {away ? `${outputName}, away` : error || (track.artist != null ? (
                       <>
                         {track.artist} · <button type="button" className="player-bar-mixtape" title={`Open ${album.title}`}
                           onClick={event => { event.stopPropagation(); if (album.id != null) navigate(`/musicdex?album=${album.id}`); }}>
@@ -180,6 +232,13 @@ const PlayerBar: React.FC = () => {
                 {favourite ? <BsHeartFill aria-hidden="true" /> : <BsHeart aria-hidden="true" />}
               </button>
             </div>
+            {taken ? (
+              // The appliance plays something else (another input, its own app): Resume takes it back at the same place.
+              <div className="player-bar-transport player-bar-transport--taken">
+                <span className="player-bar-taken">{outputName} is playing something else</span>
+                <Button size="sm" icon={<BsPlayFill />} onClick={() => player.resume()}>Resume</Button>
+              </div>
+            ) : (
             <div className="player-bar-transport">
               <span className="player-bar-time player-bar-time--now">{time(position)}</span>
               <button type="button" className="player-bar-button player-bar-previous" onClick={() => player.previous()} aria-label="Previous">
@@ -193,6 +252,7 @@ const PlayerBar: React.FC = () => {
               </button>
               <span className="player-bar-time">{time(length)}</span>
             </div>
+            )}
             <div className="player-bar-tools">
               {/* What is left to hear, of the album or the mixtape, or of Listen Next; in a track's
                   last seconds, what comes next fades in before it, and out once it plays. */}
@@ -215,16 +275,38 @@ const PlayerBar: React.FC = () => {
                 onClick={() => setTracksOpen(true)} aria-label="Tracks" aria-pressed={tracksOpen} title="Tracks">
                 <BsMusicNoteList aria-hidden="true" />
               </button>
+              {/* Where it plays: this browser, or an appliance of the house, with its volume. */}
+              <OutputMenu />
               <span className="player-bar-rule" aria-hidden="true" />
               <button type="button" className="player-bar-button player-bar-stop" onClick={() => player.stop()} aria-label="Stop" title="Stop">
                 <BsX aria-hidden="true" />
               </button>
+              {/* On a phone, ♥, the tracks, the output and ✕ in one menu: the track's name keeps its room. */}
+              <Menu drop="up" align="end" label="More" className="output-menu" trigger={props => (
+                <IconButton {...props} className="player-bar-more" label="More"><BsThreeDots /></IconButton>
+              )}>
+                <Menu.Item icon={favourite ? <BsHeartFill /> : <BsHeart />}
+                  onSelect={() => setFavourite(track.songId, !favourite)
+                    .catch(error => toast(`Could not change the favourite: ${(error as Error).message}`, { tone: 'danger' }))}>
+                  {favourite ? 'Remove from the favourites' : 'Add to the favourites'}
+                </Menu.Item>
+                <Menu.Item icon={<BsMusicNoteList />} onSelect={() => setTracksOpen(true)}>Tracks</Menu.Item>
+                {known.length > 0 && (
+                  <>
+                    <Menu.Separator />
+                    <OutputEntries onSettings={setSettingsFor} />
+                  </>
+                )}
+                <Menu.Separator />
+                <Menu.Item icon={<BsX />} onSelect={() => player.stop()}>Stop</Menu.Item>
+              </Menu>
             </div>
           </div>
         </>
         );
       })()}
       <PlayerTracks show={tracksOpen && out} onClose={() => setTracksOpen(false)} />
+      {settingsFor && <OutputSettings output={settingsFor} onClose={() => setSettingsFor(null)} />}
     </div>
   );
 };

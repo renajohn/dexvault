@@ -95,7 +95,8 @@ const RemoteReporter: React.FC = () => {
   const speaker = useSpeaker(playing);
 
   const tell = () => {
-    const state = player.getState();
+    // On an appliance (Salon), the computer itself plays nothing: the remote is told so.
+    const state = player.getState().output.kind === 'local' ? player.getState() : { ...player.getState(), playing: false, album: null, tracks: [], index: 0, duration: 0, error: null };
     const track = state.tracks[state.index];
     remote.report({
       name: name.current,

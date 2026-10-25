@@ -14,6 +14,7 @@ import mixtapeController from './src/controllers/mixtapeController';
 import musicService from './src/services/musicService';
 import bookController from './src/controllers/bookController';
 import remoteController from './src/controllers/remoteController';
+import outputController from './src/controllers/outputController';
 import bookService from './src/services/bookService';
 import backupController from './src/controllers/backupController';
 import dropboxBackupController from './src/controllers/dropboxBackupController';
@@ -45,6 +46,7 @@ import { startNightlyBackup } from './src/services/nightlyBackupService';
 import albumRatingService from './src/services/albumRatingService';
 import listenHistoryService from './src/services/listenHistoryService';
 import navidromeService from './src/services/navidromeService';
+import outputs from './src/services/upnp/outputs';
 import ripStatusService from './src/services/ripStatusService';
 import trackPopularityService from './src/services/trackPopularityService';
 import { mountMcp } from './src/mcp/mount';
@@ -287,13 +289,30 @@ app.delete('/api/music/digital/:navidromeId/dismiss', musicController.setDigital
 app.get('/api/music/digital/:navidromeId/tracks', musicController.getDigitalTracks);
 app.get('/api/music/navidrome-cover/:navidromeId', musicController.getNavidromeCover);
 app.get('/api/music/navidrome/stream/:id', playerController.stream);
-// The remote: what plays in which browser, and commands to it from another device
-app.get('/api/remote/players', remoteController.players);
-app.put('/api/remote/players/:id', remoteController.report);
-app.get('/api/remote/players/:id/commands', remoteController.commands);
-app.put('/api/remote/players/:id/name', remoteController.rename);
-app.post('/api/remote/players/:id/commands', remoteController.command);
-app.post('/api/remote/acks/:commandId', remoteController.acknowledge);
+// The remote: what plays in which browser, and commands to it from another device.
+// Kept, behind REMOTE_ENABLED, until playing on the appliances (UPnP) is trusted.
+if (configManager.getUpnpOptions().remoteEnabled) {
+  app.get('/api/remote/players', remoteController.players);
+  app.put('/api/remote/players/:id', remoteController.report);
+  app.get('/api/remote/players/:id/commands', remoteController.commands);
+  app.put('/api/remote/players/:id/name', remoteController.rename);
+  app.post('/api/remote/players/:id/commands', remoteController.command);
+  app.post('/api/remote/acks/:commandId', remoteController.acknowledge);
+}
+// The appliances DexVault plays on (UPnP: the Onkyo, the WiiM), and what plays there
+app.get('/api/outputs', outputController.list);
+app.get('/api/outputs/events', outputController.events);
+app.post('/api/outputs/:id/play', outputController.play);
+app.post('/api/outputs/:id/listen-next', outputController.listenNext);
+app.post('/api/outputs/:id/toggle', outputController.toggle);
+app.post('/api/outputs/:id/next', outputController.next);
+app.post('/api/outputs/:id/previous', outputController.previous);
+app.post('/api/outputs/:id/stop', outputController.stop);
+app.post('/api/outputs/:id/resume', outputController.resume);
+app.post('/api/outputs/:id/track', outputController.track);
+app.post('/api/outputs/:id/seek', outputController.seek);
+app.put('/api/outputs/:id/volume', outputController.volume);
+app.put('/api/outputs/:id/settings', outputController.settings);
 app.post('/api/music/navidrome/scrobble/:id', playerController.scrobble);
 app.put('/api/music/navidrome/star/:id', playerController.star);
 app.delete('/api/music/navidrome/star/:id', playerController.star);
@@ -621,6 +640,8 @@ const serverReady = startServer().then(() => {
       .then(r => { if (r.movies) logger.info(`Actors' parts: ${r.filled} filled in ${r.movies} movies`); })
       .catch((error: Error) => logger.warn('Could not fill the actors\' parts:', error.message));
     movieService.localizeRemotePosters().catch((error: Error) => logger.warn('Could not bring the posters from TMDB:', error.message));
+    // The appliances to play on, and the media listener they fetch the files from: nothing without UPNP_MEDIA_BASE_URL.
+    outputs.init(configManager.getUpnpOptions()).catch((error: Error) => logger.warn('UPnP not started:', error.message));
   }
 }).catch((error: Error) => {
   logger.error('Failed to start server:', error);

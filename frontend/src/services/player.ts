@@ -1,5 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { readStored, writeStored } from '../utils/safeStorage';
+import { isComputer } from '../utils/isComputer';
+import type { EntryKey } from '../utils/listenNextEntry';
+import outputs, { knownOutputs, onOutputLeft, outputsLoaded, positionAt, subscribeOutputs, type OutputError, type OutputState } from './outputs';
+import toast from '../components/shared/Toast';
 
 /** A file of the rip, as the player plays it. */
 export interface PlayerTrack {
@@ -68,6 +72,13 @@ export interface PlayOptions {
   onCounted?: () => void;
 }
 
+/**
+ * Where the music plays: this browser (This computer, This iPhone), or an
+ * appliance of the house (Salon), which the server plays on and the bar
+ * then shows and commands, as its own.
+ */
+export type PlayerOutput = { kind: 'local' } | { kind: 'renderer'; id: string; name: string };
+
 export interface PlayerState {
   album: PlayerAlbum | null;
   /** The list the album is played from, null for an album played alone. */
@@ -85,6 +96,12 @@ export interface PlayerState {
   error: string | null;
   /** The words of the track, in their panel along the left edge, on a desktop. */
   lyricsOpen: boolean;
+  /** Where it plays: the output chosen, or one playing that the bar follows while nothing plays here. */
+  output: PlayerOutput;
+  /** An appliance that plays something else (taken), or does not answer (unreachable); null otherwise. */
+  outputStatus: 'taken' | 'unreachable' | null;
+  /** Of Listen Next played on an appliance, the entries to come, as the server counts them; null here. */
+  upcoming: EntryKey[] | null;
 }
 
 const RESUME_KEY = 'dexvault.player.resume';
@@ -112,15 +129,151 @@ const writeResume = (resume: PlayerResume | null) => writeStored(RESUME_KEY, res
 
 const readLyricsOpen = (): boolean => readStored(LYRICS_KEY) === '1';
 
+/** The output chosen in this browser, kept from one visit to the next. */
+const OUTPUT_KEY = 'dv.player.output';
+const LOCAL: PlayerOutput = { kind: 'local' };
+
+const readOutput = (): PlayerOutput => {
+  try {
+    const value = JSON.parse(readStored(OUTPUT_KEY) || 'null');
+    return value?.kind === 'renderer' && typeof value.id === 'string' ? { kind: 'renderer', id: value.id, name: String(value.name || '') } : LOCAL;
+  } catch {
+    return LOCAL;
+  }
+};
+
+/** What this browser is called as an output. */
+export const localOutputName = (agent = typeof navigator === 'undefined' ? '' : navigator.userAgent): string =>
+  /iPhone/.test(agent) ? 'This iPhone' : /iPad/.test(agent) ? 'This iPad' : isComputer() ? 'This computer' : 'This phone';
+
+export const sameOutput = (a: PlayerOutput, b: PlayerOutput): boolean =>
+  a.kind === b.kind && (a.kind === 'local' || a.id === (b as { id: string }).id);
+
+/** What plays in this browser: the audio elements' state. The bar shows it while the output is this browser. */
 let state: PlayerState = {
   album: null, queue: null, tracks: [], index: 0, playing: false, position: 0, duration: 0, barShown: false,
   resume: typeof window !== 'undefined' ? readResume() : null, error: null,
   lyricsOpen: typeof window !== 'undefined' ? readLyricsOpen() : false,
+  output: LOCAL, outputStatus: null, upcoming: null,
 };
+/** What the bar, the cards and Listen Next see: this browser's state, or an appliance's play. */
+let view: PlayerState = state;
+let chosen: PlayerOutput = typeof window !== 'undefined' ? readOutput() : LOCAL;
+/** An appliance playing that the bar shows while nothing plays here, as a remote would. */
+let followed: { id: string; name: string } | null = null;
+/** Appliances left by a choice while they played: not followed again until they stop playing. */
+const declined = new Set<string>();
+
 const listeners = new Set<() => void>();
 const set = (changes: Partial<PlayerState>) => {
   state = { ...state, ...changes };
+  refresh();
+};
+
+const sessionOf = (id: string): OutputState | null => knownOutputs().find(output => output.id === id)?.session ?? null;
+
+/**
+ * The bar follows an appliance that plays while nothing plays here and this
+ * browser is the output; it lets go once that one stops, or this one plays.
+ */
+const follow = () => {
+  for (const id of declined) if (sessionOf(id)?.status !== 'playing') declined.delete(id);
+  if (chosen.kind !== 'local' || state.playing) {
+    followed = null;
+    return;
+  }
+  if (followed) {
+    const session = sessionOf(followed.id);
+    if (!session?.album || session.status === 'stopped') followed = null;
+  }
+  if (!followed) {
+    const playing = knownOutputs().find(output => output.reachable && output.session?.status === 'playing' && output.session.album && !declined.has(output.id));
+    if (playing) followed = { id: playing.id, name: playing.name };
+  }
+};
+
+/** The output the bar plays on: the one chosen (an appliance gone from the list: this browser), else the one followed. */
+const effective = (): PlayerOutput => {
+  if (chosen.kind === 'renderer') {
+    const id = chosen.id;
+    if (!outputsLoaded()) return chosen;
+    const listed = knownOutputs().find(output => output.id === id);
+    if (listed) return { kind: 'renderer', id, name: listed.name };
+  }
+  return followed ? { kind: 'renderer', id: followed.id, name: knownOutputs().find(output => output.id === followed!.id)?.name ?? followed.name } : LOCAL;
+};
+
+const NO_TRACKS: PlayerTrack[] = [];
+// Kept while they say the same: the cards' and the bar's effects do not run again at every state.
+let lastOutput: PlayerOutput = LOCAL;
+let lastResume: { session: OutputState | null; resume: PlayerResume | null } = { session: null, resume: null };
+
+/** An appliance's play as the bar shows it: the same shape as this browser's. */
+const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState => {
+  const listed = knownOutputs().find(one => one.id === output.id);
+  const session = listed?.session ?? null;
+  const track = session?.tracks[session.index];
+  if (!sameOutput(lastOutput, output) || lastOutput.kind !== 'renderer' || lastOutput.name !== output.name) lastOutput = output;
+  if (lastResume.session !== session) {
+    lastResume = {
+      session,
+      resume: session?.album && session.status === 'stopped'
+        ? { album: session.album, tracks: session.tracks, index: session.index, position: session.position, queue: session.queue }
+        : null,
+    };
+  }
+  const away = (outputsLoaded() && !listed?.reachable) || session?.status === 'unreachable';
+  return {
+    album: session?.album ?? null,
+    queue: session?.queue ?? null,
+    tracks: session?.tracks ?? NO_TRACKS,
+    index: session?.index ?? 0,
+    playing: session?.status === 'playing',
+    position: session ? positionAt(session) : 0,
+    duration: session?.duration || track?.durationSec || 0,
+    barShown: Boolean(session?.album) && session?.status !== 'stopped',
+    resume: lastResume.resume,
+    error: session?.error ?? null,
+    lyricsOpen: state.lyricsOpen,
+    output: lastOutput,
+    outputStatus: away ? 'unreachable' : session?.status === 'taken' ? 'taken' : null,
+    upcoming: session?.queue === 'listenNext' ? session.upcoming : null,
+  };
+};
+
+/** The hand moves on between two states of an appliance playing. */
+let ticker: ReturnType<typeof setInterval> | null = null;
+const TICK_MS = 1000;
+
+const refresh = () => {
+  follow();
+  const output = effective();
+  view = output.kind === 'local' ? state : rendererView(output);
+  if (view.output.kind === 'renderer' && view.playing) {
+    if (!ticker) ticker = setInterval(refresh, TICK_MS);
+  } else if (ticker) {
+    clearInterval(ticker);
+    ticker = null;
+  }
   listeners.forEach(listener => listener());
+};
+
+/** The appliance the commands go to, while the bar shows one. */
+const rendererId = (): string | null => (view.output.kind === 'renderer' ? view.output.id : null);
+
+/** What went wrong on an appliance, said: away in orange, the rest in red. */
+export const reportOutputError = (error: unknown): void => {
+  const refused = error as OutputError;
+  if (refused?.status === 'unreachable') toast(refused.message, { tone: 'warning' });
+  else if (refused?.status === 'taken') toast(refused.message, { tone: 'info' });
+  else toast((error as Error)?.message || 'The command did not go through', { tone: 'danger' });
+};
+
+const onRenderer = (work: (id: string) => Promise<unknown>): boolean => {
+  const id = rendererId();
+  if (!id) return false;
+  work(id).catch(reportOutputError);
+  return true;
 };
 
 /*
@@ -358,10 +511,25 @@ const setUp = () => {
   }
 };
 
+/** ✕ here: stops, keeps where it was for Resume, and takes the bar away: a reload does not bring it back. */
+const stopHere = () => {
+  if (!state.album) return;
+  saveResume(false);
+  audios.forEach(audio => { audio.pause(); audio.removeAttribute('src'); audio.load(); });
+  options = {};
+  set({ album: null, queue: null, tracks: [], index: 0, playing: false, position: 0, duration: 0, barShown: false, resume: readResume() });
+  if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
+};
+
 export const player = {
   /** Plays an album's tracks from `index`, the rest of the album after it; a list goes on after it when given. */
   playAlbum: (album: PlayerAlbum, tracks: PlayerTrack[], index = 0, at = 0, playOptions: PlayOptions = {}) => {
     if (tracks.length === 0) return;
+    // On an appliance the server plays them, Listen Next's turn included; the page's callbacks are not needed there.
+    const { from: _from, ...sent } = album;
+    if (onRenderer(id => outputs.play(id, {
+      album: sent, tracks, index: Math.max(0, Math.min(index, tracks.length - 1)), position: at, listenNext: playOptions.queue === 'listenNext',
+    }))) return;
     setUp();
     holdAwake();
     options = playOptions;
@@ -374,6 +542,10 @@ export const player = {
 
   /** Pauses or plays on; `playing` forces one or the other, as the Mac's keys ask. */
   toggle: (playing?: boolean) => {
+    // An appliance taken by something else, or stopped: ▶ takes it back where it was.
+    if (onRenderer(id => (view.outputStatus === 'taken' || view.resume
+      ? outputs.resume(id)
+      : outputs.toggle(id, playing ?? !view.playing)))) return;
     if (!state.album) return;
     const audio = current();
     const want = playing ?? audio.paused;
@@ -385,23 +557,27 @@ export const player = {
 
   /** The next track; on the last one, the next album of the list it is played from. */
   next: () => {
+    if (onRenderer(id => outputs.next(id))) return;
     if (state.index + 1 < state.tracks.length) start(state.index + 1);
     else if (options.onAlbumEnd) endAlbum('skipped');
   },
 
   /** Another track of the album playing, from its start, the list it is played from kept. */
   playTrack: (index: number) => {
+    if (onRenderer(id => outputs.track(id, index))) return;
     if (!state.album || !state.tracks[index]) return;
     start(index);
   },
 
   /** Back to the start of the track, or to the one before in its first seconds. */
   previous: () => {
+    if (onRenderer(id => outputs.previous(id))) return;
     if (current().currentTime > RESTART_AFTER_SEC || state.index === 0) player.seek(0);
     else start(state.index - 1);
   },
 
   seek: (seconds: number) => {
+    if (onRenderer(id => outputs.seek(id, Math.max(0, seconds)))) return;
     const audio = current();
     if (!audio) return;
     audio.currentTime = Math.max(0, seconds);
@@ -410,16 +586,16 @@ export const player = {
 
   /** ✕: stops, keeps where it was for Resume, and takes the bar away: a reload does not bring it back. */
   stop: () => {
-    if (!state.album) return;
-    saveResume(false);
-    audios.forEach(audio => { audio.pause(); audio.removeAttribute('src'); audio.load(); });
-    options = {};
-    set({ album: null, queue: null, tracks: [], index: 0, playing: false, position: 0, duration: 0, barShown: false, resume: readResume() });
-    if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
+    if (onRenderer(id => outputs.stop(id))) {
+      followed = null;
+      return;
+    }
+    stopHere();
   },
 
-  /** Plays on from where ✕ or a reload left it. */
+  /** Plays on from where ✕ or a reload left it; on an appliance taken by something else, from where it was taken. */
   resume: () => {
+    if (onRenderer(id => outputs.resume(id))) return;
     const saved = state.resume;
     if (!saved) return;
     player.playAlbum(saved.album, saved.tracks, saved.index, saved.position);
@@ -433,9 +609,64 @@ export const player = {
   },
 
   /** Seconds into the track now, finer than `position`, which the audio element updates a few times a second. */
-  currentTime: (): number => current()?.currentTime ?? state.position,
+  currentTime: (): number => {
+    const id = rendererId();
+    if (id) {
+      const session = sessionOf(id);
+      return session ? positionAt(session) : 0;
+    }
+    return current()?.currentTime ?? state.position;
+  },
 
-  getState: (): PlayerState => state,
+  /** The appliance the bar plays on, null for this browser. */
+  rendererId,
+
+  /**
+   * Plays on another output from now. What plays goes along (`transfer`, the
+   * default): the same album, track and place there, Listen Next's turn
+   * included, and the output left falls silent. Without it, the output left
+   * only falls silent, for what is played next to start on the new one.
+   */
+  setOutput: (next: PlayerOutput, { transfer = true }: { transfer?: boolean } = {}) => {
+    const from = view.output;
+    const moving = transfer && view.playing && view.album !== null && view.tracks.length > 0;
+    chosen = next.kind === 'local' ? LOCAL : { kind: 'renderer', id: next.id, name: next.name };
+    writeStored(OUTPUT_KEY, chosen.kind === 'local' ? '' : JSON.stringify(chosen));
+    followed = null;
+    for (const output of knownOutputs()) if (output.session?.status === 'playing' && !(next.kind === 'renderer' && next.id === output.id)) declined.add(output.id);
+    if (sameOutput(from, next)) {
+      refresh();
+      return;
+    }
+    if (from.kind === 'local') {
+      const carried = state.album ? {
+        album: state.album, tracks: state.tracks, index: state.index, position: current()?.currentTime ?? state.position, queue: state.queue,
+      } : null;
+      if (state.playing) stopHere();
+      refresh();
+      if (moving && carried && next.kind === 'renderer') {
+        const { from: _from, ...album } = carried.album;
+        outputs.play(next.id, { album, tracks: carried.tracks, index: carried.index, position: carried.position, listenNext: carried.queue === 'listenNext' })
+          .catch(reportOutputError);
+      }
+      return;
+    }
+    const session = sessionOf(from.id);
+    refresh();
+    if (moving && session?.album) {
+      if (next.kind === 'renderer') {
+        outputs.play(next.id, { from: from.id }).catch(reportOutputError);
+        return;
+      }
+      // Here: it plays first, while the click still lets a browser play, then the appliance falls silent.
+      const restore = session.queue && session.album.id != null ? queues.get(session.queue) : undefined;
+      player.playAlbum(session.album, session.tracks, session.index, positionAt(session),
+        restore ? restore(session.album as PlayerAlbum & { id: number }) : { queue: session.queue ?? undefined });
+    }
+    if (session?.status === 'playing') outputs.toggle(from.id, false).catch(() => undefined);
+  },
+
+  getState: (): PlayerState => view,
 };
 
 /**
@@ -495,7 +726,7 @@ const subscribe = (listener: () => void) => {
 
 /** A slice of the player's state; a component re-renders only when its slice changes. */
 export function usePlayer<T>(select: (state: PlayerState) => T): T {
-  return useSyncExternalStore(subscribe, () => select(state));
+  return useSyncExternalStore(subscribe, () => select(view));
 }
 
 /** For tests: back to nothing playing. */
@@ -509,8 +740,19 @@ export const resetPlayer = () => {
   if (keepAwakeRelease) clearTimeout(keepAwakeRelease);
   keepAwakeRelease = null;
   state = { album: null, queue: null, tracks: [], index: 0, playing: false, position: 0, duration: 0, barShown: false, resume: readResume(), error: null,
-    lyricsOpen: readLyricsOpen() };
-  listeners.forEach(listener => listener());
+    lyricsOpen: readLyricsOpen(), output: LOCAL, outputStatus: null, upcoming: null };
+  chosen = readOutput();
+  followed = null;
+  declined.clear();
+  lastOutput = LOCAL;
+  lastResume = { session: null, resume: null };
+  refresh();
 };
+
+// What the appliances play shows as it changes; an album leaving Listen Next there is told as a page's scrobble tells it.
+subscribeOutputs(refresh);
+onOutputLeft(left => {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(LISTEN_NEXT_LEFT_EVENT, { detail: left }));
+});
 
 if (typeof window !== 'undefined') restorePlayer();

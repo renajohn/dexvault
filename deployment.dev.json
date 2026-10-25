@@ -1,5 +1,7 @@
 {
     "data_path": "../data",
     "platform": "localhost",
-    "deployment": "dev"
+    "deployment": "dev",
+    "upnp_discovery": "ssdp",
+    "upnp_media_port": 3002
 }

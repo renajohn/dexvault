@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BsArrowCounterclockwise, BsBoxArrowUpRight, BsCheckLg, BsPauseFill, BsPlayFill, BsRepeat } from 'react-icons/bs';
+import { BsArrowCounterclockwise, BsBoxArrowUpRight, BsCheckLg, BsLaptop, BsPauseFill, BsPhone, BsPlayFill, BsRepeat, BsSpeaker } from 'react-icons/bs';
 import musicService, { type AlbumLength, type ListenNextDeparture, type ListenNextPlayState } from '../services/musicService';
-import { LISTEN_NEXT_LEFT_EVENT, player, usePlayer, type PlayerState } from '../services/player';
+import { LISTEN_NEXT_LEFT_EVENT, localOutputName, player, sameOutput, usePlayer, type PlayerOutput, type PlayerState } from '../services/player';
+import { useOutputs } from '../services/outputs';
+import { isComputer } from '../utils/isComputer';
 import { listenNextQueue, playingKey } from '../services/listenNextQueue';
 import { entryKey, keyOf, type EntryKey } from '../utils/listenNextEntry';
 import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
 import { readStored, writeStored } from '../utils/safeStorage';
 import CoverButton from './shared/CoverButton';
 import Button from './shared/Button';
+import Menu, { MenuChevron } from './shared/Menu';
 import './ListenNextPlay.css';
 
 /** How long an album played to its end stays on the page, greyed, to be kept. */
@@ -198,19 +201,21 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
   const playing = usePlayer(state => state.playing);
   const [starting, setStarting] = useState(false);
   const appleMobile = isAppleMobile();
+  // An iPhone plays in Amperfy, unless its output is an appliance of the house (Salon): then as a computer, there.
+  const output = usePlayer(state => state.output);
+  const amperfy = appleMobile && output.kind === 'local';
+  const known = useOutputs();
   const repeat = play?.repeat ?? false;
-  const nothing = play !== null && (appleMobile ? !play.playlistId : play.ripped.length === 0);
+  const nothing = play !== null && (amperfy ? !play.playlistId : play.ripped.length === 0);
   const albums = `${count} album${count === 1 ? '' : 's'}`;
+  const openAmperfy = () => { if (play?.playlistId) window.location.href = amperfyUrl(play.playlistId, 'playlist', { repeat }); };
+  // The other outputs, to start Listen Next there, which is then the output; an iPhone's own is Amperfy, apart.
+  const elsewhere: PlayerOutput[] = known.length === 0 ? [] : [
+    ...(appleMobile ? [] : [{ kind: 'local' } as PlayerOutput]),
+    ...known.filter(one => one.reachable).map(one => ({ kind: 'renderer', id: one.id, name: one.name }) as PlayerOutput),
+  ].filter(one => !sameOutput(one, output));
 
-  const click = async () => {
-    if (appleMobile) {
-      if (play?.playlistId) window.location.href = amperfyUrl(play.playlistId, 'playlist', { repeat });
-      return;
-    }
-    if (here) {
-      player.toggle();
-      return;
-    }
+  const start = async () => {
     setStarting(true);
     try {
       await listenNextQueue.start();
@@ -219,8 +224,23 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
     }
   };
 
+  const click = async () => {
+    if (amperfy) {
+      openAmperfy();
+      return;
+    }
+    if (here) {
+      player.toggle();
+      return;
+    }
+    await start();
+  };
+
   const pause = here && playing;
-  const title = nothing ? 'Nothing ripped yet' : pause ? 'Pause Listen Next' : `Play Listen Next · ${albums}${appleMobile ? ' in Amperfy' : ''}`;
+  const where = amperfy ? ' in Amperfy' : output.kind === 'renderer' ? ` on ${output.name}` : '';
+  const title = nothing ? 'Nothing ripped yet' : pause ? 'Pause Listen Next' : `Play Listen Next · ${albums}${where}`;
+  // Its ▾: the other outputs; Amperfy on an iPhone playing on an appliance.
+  const more = elsewhere.length > 0 || (appleMobile && !amperfy && Boolean(play?.playlistId));
   return (
     <span className="listen-next-controls">
       {/* Navidrome's own player, in a tab of its own: on an iPhone ▶ opens Amperfy already. Before ▶ and Repeat, so they
@@ -236,6 +256,29 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
         <Button className="listen-next-controls__button" active={here || undefined} loading={starting}
           onClick={click} disabled={nothing} title={title} aria-label={title}
           icon={pause ? <BsPauseFill /> : <BsPlayFill />} />
+        {more && (
+          <Menu align="end" label="Where to play Listen Next" trigger={(props, open) => (
+            <Button {...props} className="listen-next-controls__button ui-button--split" active={here || undefined}
+              aria-label="Where to play Listen Next" title="Where to play">
+              <MenuChevron open={open} />
+            </Button>
+          )}>
+            {elsewhere.length > 0 && <Menu.Section title="Play on" />}
+            {elsewhere.map(target => (
+              <Menu.Item key={target.kind === 'local' ? 'local' : target.id}
+                icon={target.kind === 'renderer' ? <BsSpeaker /> : isComputer() ? <BsLaptop /> : <BsPhone />}
+                onSelect={() => { player.setOutput(target, { transfer: false }); void start(); }}>
+                {target.kind === 'renderer' ? target.name : localOutputName()}
+              </Menu.Item>
+            ))}
+            {appleMobile && !amperfy && play?.playlistId && (
+              <>
+                {elsewhere.length > 0 && <Menu.Separator />}
+                <Menu.Item icon={<BsBoxArrowUpRight />} onSelect={openAmperfy}>Open in Amperfy</Menu.Item>
+              </>
+            )}
+          </Menu>
+        )}
         <Button className="listen-next-controls__button" active={repeat} onClick={() => onRepeat(!repeat)} aria-pressed={repeat}
           title={repeat ? 'Repeat: keep albums once played' : 'Albums leave the list once played'}
           aria-label="Repeat" icon={<BsRepeat />} />

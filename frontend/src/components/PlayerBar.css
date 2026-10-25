@@ -394,6 +394,82 @@
   .player-bar-rule {
     display: none;
   }
+
+  /* ♥, the tracks, the output and ✕ go into ⋯: cover, name, ⏯ ⏭ and ⋯ are all a phone's width holds. */
+  .player-bar-favourite,
+  .player-bar-tracks,
+  .player-bar-output,
+  .player-bar-stop {
+    display: none;
+  }
+
+}
+
+/* ⋯ and the appliance's name under the track are a phone's: a desktop has room for each button. */
+.player-bar-more,
+.player-bar-where {
+  display: none;
+}
+
+.player-bar-where svg {
+  vertical-align: -1px;
+}
+
+/* An appliance that does not answer: the bar greyed, its name saying "away", the buttons there still to try. */
+.player-bar--away .player-bar-inner {
+  opacity: 0.55;
+}
+
+/* An appliance playing something else: what it says in place of the times, Resume beside it. */
+.player-bar-transport--taken {
+  gap: 10px;
+}
+
+.player-bar-taken {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.8rem;
+  color: #9aa4b2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* On a phone, an appliance playing nothing: its name to choose another, and Listen Next. */
+.player-bar-idle {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 max(14px, var(--safe-right)) 0 max(14px, var(--safe-left));
+}
+
+.player-bar-idle__words {
+  flex: none;
+  font-size: 0.8rem;
+  color: #9aa4b2;
+}
+
+.player-bar-idle__output {
+  min-width: 0;
+}
+
+.player-bar-idle__space {
+  flex: 1;
+}
+
+@media (max-width: 767px) {
+  .player-bar-taken {
+    display: none;
+  }
+
+  /* After their desktop rule: ⋯ and the appliance's name under the track. */
+  .player-bar-more {
+    display: inline-flex;
+  }
+
+  .player-bar-where {
+    display: inline;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

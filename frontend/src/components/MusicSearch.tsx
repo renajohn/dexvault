@@ -25,6 +25,7 @@ import { INSTEAD, ListenNextSwitch, MediumIcon, MoveButton, OtherListName, askSt
 import { toast } from './shared/Toast';
 import type { ClassicalChoice, ListenNextMedium } from '../services/musicService';
 import { listenNextQueue } from '../services/listenNextQueue';
+import { usePlayer } from '../services/player';
 import { heldOf, keyOf, listenNextTitle } from '../utils/listenNextEntry';
 import CoverTag, { CoverTagStack } from './shared/CoverTag';
 import { DigitalChips, DigitalNotices, type DigitalFilter } from './DigitalStrip';
@@ -129,6 +130,8 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   const [sortLoading, setSortLoading] = useState(false);
   // The shelves' order, read by sortCds through the ref: it arrives after the albums.
   const albumOrder = useAlbumOrder();
+  // On an appliance of the house (Salon) an iPhone plays as a computer does, there.
+  const onAppliance = usePlayer(state => state.output.kind === 'renderer');
   const albumOrderRef = useRef(albumOrder);
   albumOrderRef.current = albumOrder;
   const byArtistSort = sortBy === 'artist' || sortBy === 'artistReverse';
@@ -1407,8 +1410,9 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
           onReorder={handleListenNextReorder}
           canReorder={(album) => !listenNext.departureOf(keyOf(album))}
           renderPlay={nextMedium === 'cd' ? undefined : (album) => (
-            // ▶ plays Listen Next in DexVault from this album; one with no rip opens its card instead. An iPhone plays in Amperfy.
-            <AlbumPlayButton albumId={album.id} title={album.title || ''} offerPlay={!isAppleMobile()}
+            // ▶ plays Listen Next in DexVault from this album; one with no rip opens its card instead. An iPhone plays in Amperfy,
+            // or on the appliance it plays on.
+            <AlbumPlayButton albumId={album.id} title={album.title || ''} offerPlay={!isAppleMobile() || onAppliance}
               onPlay={() => listenNextQueue.start(keyOf(album))}
               onUnripped={() => handleCdClick(album.id, 'listenNext')} className="next-banner__play" />
           )}

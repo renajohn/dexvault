@@ -22,6 +22,8 @@ jest.mock('../src/config', () => ({
   getLogLevel: () => 'error',
   getMaxUploadMb: () => 20,
   getMaxUploadBytes: () => 20 * 1024 * 1024,
+  // No appliance, no media listener: a test that needs them builds its own.
+  getUpnpOptions: () => jest.requireActual('../src/services/upnp/options').upnpOptionsOf({}, {}, {}),
 }));
 
 // Wait for app initialization (database tables, migrations, etc.)

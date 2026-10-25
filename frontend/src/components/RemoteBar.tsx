@@ -6,6 +6,7 @@ import Menu, { MenuChevron } from './shared/Menu';
 import Dialog from './shared/Dialog';
 import { TextField } from './shared/TextField';
 import { usePlayer } from '../services/player';
+import { useOutputs } from '../services/outputs';
 import musicService from '../services/musicService';
 import toast from './shared/Toast';
 import Button from './shared/Button';
@@ -23,12 +24,15 @@ const time = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.flo
  * nothing plays. Out while this phone plays nothing itself, over its own bar
  * paused (a play kept from before) when the computer plays; for a computer
  * with no album, in MusicDex alone, not over the films and the books.
+ * Away while an appliance of the house answers: the player's own bar plays
+ * there, from this phone as from the computer.
  */
 const RemoteBar: React.FC = () => {
   const players = useRemotePlayers();
   const localShown = usePlayer(state => state.barShown);
   const localPlaying = usePlayer(state => state.playing);
   const inMusic = useLocation().pathname.startsWith('/musicdex');
+  const appliances = useOutputs().some(output => output.reachable);
   // The computer chosen in its menu, kept while it is there; else the last one started playing.
   const [chosen, setChosen] = useState<string | null>(() => chosenTarget());
   const target = targetOf(players, chosen);
@@ -52,9 +56,9 @@ const RemoteBar: React.FC = () => {
 
   // This phone's own bar comes first while it plays, or while it is out (a play kept from before, paused) and
   // the computer plays nothing; a computer playing covers this phone's bar paused.
-  const out = Boolean(target) && (Boolean(target?.album) || inMusic) && !localPlaying && !(localShown && !target?.playing);
+  const out = !appliances && Boolean(target) && (Boolean(target?.album) || inMusic) && !localPlaying && !(localShown && !target?.playing);
   useEffect(() => {
-    if (localShown) return;
+    if (localShown || appliances) return;
     document.documentElement.style.setProperty('--player-h', out ? 'var(--player-bar-room)' : '0px');
   }, [out, localShown]);
 

@@ -1,6 +1,6 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MusicDetailCard from './MusicDetailCard';
 
 vi.mock('../services/musicService', () => ({
@@ -476,5 +476,57 @@ describe('MusicDetailCard Listen Next, streamed or on CD', () => {
     fireEvent.click(await screen.findByRole('menuitemradio', { name: /From the CD/ }));
     await waitFor(() => expect(musicService.toggleListenNext).toHaveBeenLastCalledWith(1, 2, 'cd'));
     (musicService.getListenNextAlbums as any).mockResolvedValue([]);
+  });
+});
+
+describe('MusicDetailCard on the outputs', () => {
+  const withIds = { ...ripped, tracks: ripped.tracks.map(file => ({ ...file, id: `song-${file.track}` })) };
+  let sent: Array<{ url: string; body: unknown }> = [];
+
+  beforeEach(async () => {
+    sent = [];
+    const stored = new Map<string, string>();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => stored.set(key, value), removeItem: (key: string) => stored.delete(key) },
+    });
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+      sent.push({ url, body: init?.body ? JSON.parse(init.body as string) : null });
+      const salon = { id: 'uuid:salon', name: 'Salon', deviceName: 'Salon', model: 'TX-RZ70', manufacturer: 'ONKYO', reachable: true, gapless: true, volume: 30, muted: false, maxVolume: 70, session: null };
+      // The outputs answer; the rest of the page stays offline.
+      if (url === '/api/outputs') return Promise.resolve(new Response(JSON.stringify([salon])));
+      return String(url).startsWith('/api/outputs/') ? Promise.resolve(new Response('{}')) : Promise.reject(new Error('offline'));
+    }));
+    const { resetOutputs, default: outputs } = await import('../services/outputs');
+    const { resetPlayer } = await import('../services/player');
+    resetOutputs();
+    resetPlayer();
+    await outputs.list();
+  });
+
+  afterEach(async () => {
+    const { resetOutputs } = await import('../services/outputs');
+    const { resetPlayer } = await import('../services/player');
+    act(() => { resetOutputs(); resetPlayer(); });
+    vi.unstubAllGlobals();
+  });
+
+  it('plays on Salon from its ▾, which is then the output; Play goes there next', async () => {
+    (musicService.getNavidromeTracks as any).mockResolvedValue(withIds);
+    const { player } = await import('../services/player');
+    render(<MusicDetailCard cd={cd()} onClose={() => {}} onDelete={() => {}} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'More ways to listen' }));
+    expect(screen.getByText('Play on')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Salon' }));
+
+    expect(player.getState().output).toEqual({ kind: 'renderer', id: 'uuid:salon', name: 'Salon' });
+    const play = sent.find(call => call.url === '/api/outputs/uuid%3Asalon/play');
+    expect(play?.body).toMatchObject({ album: { id: 1, title: 'Abbey Road' }, index: 0, tracks: [{ songId: 'song-1' }, { songId: 'song-2' }, { songId: 'song-3' }] });
+
+    // The gold Play says where it plays; this browser is now in the ▾.
+    expect(await screen.findByText(/· Salon/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to listen' }));
+    expect(screen.getByRole('menuitem', { name: /^This / })).toBeInTheDocument();
   });
 });

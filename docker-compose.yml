@@ -10,6 +10,13 @@ services:
       - /home/rjl/Music:/music
     networks:
       - web
+    # The media listener for the appliances DexVault plays on (UPnP: the Onkyo,
+    # the WiiM). Plain HTTP on a port of its own, past Traefik on purpose:
+    # Traefik sends all HTTP to HTTPS, which an appliance may not follow. It
+    # serves only files and covers by a play's token, on the LAN (the router
+    # does not publish it), never the API nor Navidrome's credentials.
+    ports:
+      - "3002:3002"
     # Google's resolvers, which the router forwards to, answer SERVFAIL for
     # bnf.fr: the BnF's catalogue, which completes the French books, was out of
     # reach. Docker's own DNS still answers for the containers (next-mtp,
@@ -56,6 +63,20 @@ services:
       - NAVIDROME_PLUGIN_TOKEN=${NAVIDROME_PLUGIN_TOKEN:-}
       # The mount above, where Navidrome's song paths are resolved.
       - MUSIC_LIBRARY_PATH=/music
+      # The appliances to play on, by the URL of their description: they answer
+      # no search from inside Docker's bridge (DHCP reservations on the router
+      # for .47, .20 and p-cloud's .50). Without UPNP_MEDIA_BASE_URL nothing of
+      # it runs: no listener, no appliance, only "This computer" on the page.
+      - UPNP_RENDERERS=${UPNP_RENDERERS:-http://192.168.86.47:8888/upnp_descriptor_0,http://192.168.86.20:49152/description.xml}
+      - UPNP_MEDIA_PORT=3002
+      # What the appliances call, resolved by the LAN's DNS to p-cloud:
+      # http://dexvault.lab.crog.org:3002, set in the stack's variables once
+      # the play on the Onkyo is to be tried; empty, UPnP stays off.
+      - UPNP_MEDIA_BASE_URL=${UPNP_MEDIA_BASE_URL:-}
+      # The volume DexVault never sets above, unless an appliance has its own.
+      - UPNP_MAX_VOLUME=${UPNP_MAX_VOLUME:-70}
+      # The remote for the browsers, kept until playing on the appliances is trusted.
+      - REMOTE_ENABLED=${REMOTE_ENABLED:-true}
       # The backup runs at 3 a.m. local time: without TZ the container runs on UTC.
       - TZ=Europe/Zurich
     restart: unless-stopped

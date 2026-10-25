@@ -1,0 +1,26 @@
+/* The output's menu (OutputMenu): wide enough for a name and its hint, the volume under them. */
+.output-menu {
+  min-width: 260px;
+}
+
+/* Muted, −, the slider, +, the value: one row, the menu's entries' margins. */
+.output-volume {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+}
+
+.output-volume__slider {
+  flex: 1;
+  min-width: 100px;
+  margin: 0 4px;
+}
+
+.output-volume__value {
+  min-width: 2.2em;
+  text-align: right;
+  color: var(--dv-text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
