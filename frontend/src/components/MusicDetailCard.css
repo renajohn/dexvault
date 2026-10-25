@@ -408,6 +408,18 @@
     text-overflow: ellipsis;
   }
 
+  /* Except the lines of links (the other albums, the scores): a button is cut whole,
+     so a long title would leave "Also on …" alone. They wrap instead. */
+  .album-head-rest > .album-head-overlaps,
+  .album-head-rest > .album-head-scores {
+    white-space: normal;
+  }
+
+  .album-head-overlaps button,
+  .album-head-scores button {
+    text-align: left;
+  }
+
   .album-head-facts {
     grid-template-columns: 1fr;
     gap: 1px;
