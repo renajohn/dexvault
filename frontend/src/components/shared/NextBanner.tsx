@@ -780,7 +780,7 @@ const NextBanner: React.FC<NextBannerProps> = ({
         const to = landing.at ?? landing.from;
         return (
           <div className={`next-banner__drag-preview next-banner__drag-preview--landing${landing.at ? ' next-banner__drag-preview--landed' : ''}`} aria-hidden="true"
-            style={{ width: to.px, height: to.px, left: to.x - to.px / 2, top: to.y - to.px / 2, transitionDuration: `${LAND_MS}ms`, borderRadius: landing.at ? (to.px > SMALL_PX ? 12 : 4) : undefined }}>
+            style={{ width: to.px, height: to.px, left: to.x - to.px / 2, top: to.y - to.px / 2, transitionDuration: `${LAND_MS}ms`, borderRadius: landing.at ? (to.px > SMALL_PX ? Math.round(to.px / 15) : 4) : undefined }}>
             {landing.image ? <img src={landing.image} alt="" /> : <PlaceholderIcon size={28} />}
           </div>
         );

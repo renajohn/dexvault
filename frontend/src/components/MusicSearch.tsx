@@ -80,7 +80,7 @@ interface Album {
 
 /** Listen Next's list in sight, Digital or CD. */
 const NEXT_MEDIUM_KEY = 'dv.listenNext.medium';
-/** What Help me choose and the die draw: everything but classical, classical, or both. */
+/** What Help me choose and the die draw: everything but classical, or classical. */
 const NEXT_CLASSICAL_KEY = 'dv.listenNext.classical';
 /** What a draw takes, said after "drawn from": in the die's tooltip and the word after a draw. */
 const DRAWN_FROM: Record<ClassicalChoice, string> = { pop: 'pop', classical: 'classical', both: 'the whole collection' };
@@ -283,7 +283,8 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   const [nextMedium, setNextMedium] = useState<ListenNextMedium>(() => (readStored(NEXT_MEDIUM_KEY) === 'cd' ? 'cd' : 'digital'));
   const [nextClassical, setNextClassical] = useState<ClassicalChoice>(() => {
     const stored = readStored(NEXT_CLASSICAL_KEY);
-    return stored === 'classical' || stored === 'both' ? stored : 'pop';
+    // Both is no longer offered (Help me choose stays square on an iPhone): a choice of both kept from before draws pop.
+    return stored === 'classical' ? 'classical' : 'pop';
   });
   const chooseNextClassical = useCallback((choice: ClassicalChoice) => {
     setNextClassical(choice);
@@ -294,7 +295,6 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     <Segmented label="Draw from" size="sm" value={nextClassical} onChange={chooseNextClassical} options={[
       { value: 'pop', label: 'Pop', tooltip: 'Everything but classical' },
       { value: 'classical', label: 'Classical' },
-      { value: 'both', label: 'Both' },
     ]} />
   );
   const chooseNextMedium = useCallback((medium: ListenNextMedium) => {
