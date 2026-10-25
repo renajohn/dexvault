@@ -65,9 +65,10 @@ services:
       - MUSIC_LIBRARY_PATH=/music
       # The appliances to play on, by the URL of their description: they answer
       # no search from inside Docker's bridge (DHCP reservations on the router
-      # for .47, .20 and p-cloud's .50). Without UPNP_MEDIA_BASE_URL nothing of
-      # it runs: no listener, no appliance, only "This computer" on the page.
-      - UPNP_RENDERERS=${UPNP_RENDERERS:-http://192.168.86.47:8888/upnp_descriptor_0,http://192.168.86.20:49152/description.xml}
+      # for the Onkyo's cable at .55, the WiiM's .20 and p-cloud's .50). Without
+      # UPNP_MEDIA_BASE_URL nothing of it runs: no listener, no appliance, only
+      # "This computer" on the page.
+      - UPNP_RENDERERS=${UPNP_RENDERERS:-http://192.168.86.55:8888/upnp_descriptor_0,http://192.168.86.20:49152/description.xml}
       - UPNP_MEDIA_PORT=3002
       # What the appliances call, resolved by the LAN's DNS to p-cloud:
       # http://dexvault.lab.crog.org:3002, set in the stack's variables once
