@@ -1074,6 +1074,28 @@
   .next-banner__image--music {
     height: 140px;
   }
+
+  /* Help me choose as high as the covers, so that it does not make the row higher; as wide as Pop · Classical · Both needs. */
+  .next-banner__help-card {
+    width: auto;
+    min-width: 140px;
+  }
+
+  .next-banner__help-card--music {
+    height: 140px;
+  }
+
+  .next-banner__help-card--movie {
+    height: 210px;
+  }
+
+  .next-banner__help-action {
+    gap: 10px;
+  }
+
+  .next-banner__help-icon {
+    font-size: 1.6rem;
+  }
 }
 
 /* The play button of a Listen Next album, at the foot of its cover, on the left. */
