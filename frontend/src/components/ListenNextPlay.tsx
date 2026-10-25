@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BsArrowCounterclockwise, BsBoxArrowUpRight, BsCheckLg, BsLaptop, BsPauseFill, BsPhone, BsPlayFill, BsRepeat, BsSpeaker } from 'react-icons/bs';
+import { BsArrowCounterclockwise, BsBoxArrowUpRight, BsCheckLg, BsPauseFill, BsPlayFill, BsRepeat } from 'react-icons/bs';
 import musicService, { type AlbumLength, type ListenNextDeparture, type ListenNextPlayState } from '../services/musicService';
 import { LISTEN_NEXT_LEFT_EVENT, localOutputName, player, sameOutput, usePlayer, type PlayerOutput, type PlayerState } from '../services/player';
 import { useOutputs } from '../services/outputs';
-import { isComputer } from '../utils/isComputer';
 import { listenNextQueue, playingKey } from '../services/listenNextQueue';
 import { entryKey, keyOf, type EntryKey } from '../utils/listenNextEntry';
 import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
@@ -209,11 +208,12 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
   const nothing = play !== null && (amperfy ? !play.playlistId : play.ripped.length === 0);
   const albums = `${count} album${count === 1 ? '' : 's'}`;
   const openAmperfy = () => { if (play?.playlistId) window.location.href = amperfyUrl(play.playlistId, 'playlist', { repeat }); };
-  // The other outputs, to start Listen Next there, which is then the output; an iPhone's own is Amperfy, apart.
+  // The outputs, the current one ✓, to start Listen Next there, which is then the output; an iPhone's own is Amperfy, apart.
   const elsewhere: PlayerOutput[] = known.length === 0 ? [] : [
     ...(appleMobile ? [] : [{ kind: 'local' } as PlayerOutput]),
-    ...known.filter(one => one.reachable).map(one => ({ kind: 'renderer', id: one.id, name: one.name }) as PlayerOutput),
-  ].filter(one => !sameOutput(one, output));
+    ...known.filter(one => one.reachable || sameOutput(output, { kind: 'renderer', id: one.id, name: one.name }))
+      .map(one => ({ kind: 'renderer', id: one.id, name: one.name }) as PlayerOutput),
+  ];
 
   const start = async () => {
     setStarting(true);
@@ -265,11 +265,10 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
           )}>
             {elsewhere.length > 0 && <Menu.Section title="Play on" />}
             {elsewhere.map(target => (
-              <Menu.Item key={target.kind === 'local' ? 'local' : target.id}
-                icon={target.kind === 'renderer' ? <BsSpeaker /> : isComputer() ? <BsLaptop /> : <BsPhone />}
+              <Menu.Choice key={target.kind === 'local' ? 'local' : target.id} selected={sameOutput(target, output)}
                 onSelect={() => { player.setOutput(target, { transfer: false }); void start(); }}>
                 {target.kind === 'renderer' ? target.name : localOutputName()}
-              </Menu.Item>
+              </Menu.Choice>
             ))}
             {appleMobile && !amperfy && play?.playlistId && (
               <>

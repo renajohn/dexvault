@@ -518,15 +518,18 @@ describe('MusicDetailCard on the outputs', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'More ways to listen' }));
     expect(screen.getByText('Play on')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Salon' }));
+    // This browser among them, the output it is, ✓.
+    expect(screen.getByRole('menuitemradio', { name: /^This / })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Salon' }));
 
     expect(player.getState().output).toEqual({ kind: 'renderer', id: 'uuid:salon', name: 'Salon' });
     const play = sent.find(call => call.url === '/api/outputs/uuid%3Asalon/play');
     expect(play?.body).toMatchObject({ album: { id: 1, title: 'Abbey Road' }, index: 0, tracks: [{ songId: 'song-1' }, { songId: 'song-2' }, { songId: 'song-3' }] });
 
-    // The gold Play says where it plays; this browser is now in the ▾.
+    // The gold Play says where it plays; in the ▾ Salon is now the one ✓, this browser a choice.
     expect(await screen.findByText(/· Salon/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'More ways to listen' }));
-    expect(screen.getByRole('menuitem', { name: /^This / })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: 'Salon' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menuitemradio', { name: /^This / })).toHaveAttribute('aria-checked', 'false');
   });
 });
