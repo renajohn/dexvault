@@ -461,7 +461,11 @@ const start = (index: number, at = 0) => {
   set({ index, position: at, duration: track.durationSec || 0, playing: true, error: null });
   const play = () => {
     if (at > 0) audio.currentTime = at;
-    audio.play().catch(error => set({ playing: false, error: (error as Error).message }));
+    audio.play().catch(error => {
+      // Interrupted by a newer load or play (iOS does so as a track follows another): the sound goes on, nothing is wrong.
+      if ((error as Error).name === 'AbortError' || !audio.paused) return;
+      set({ playing: false, error: (error as Error).message });
+    });
   };
   if (at > 0 && audio.readyState < 1) audio.addEventListener('loadedmetadata', play, { once: true });
   else play();
@@ -489,7 +493,8 @@ const setUp = () => {
       if (!mine()) return;
       const position = audio.currentTime;
       const duration = Number.isFinite(audio.duration) ? audio.duration : state.duration;
-      set({ position, duration });
+      // ⏯ as the element is: a play refused or a pause told late never leaves Play shown while the sound goes on.
+      set(state.playing === !audio.paused ? { position, duration } : { position, duration, playing: !audio.paused });
       const track = state.tracks[state.index];
       if (track && !scrobbled && duration > 0 && (position >= duration / 2 || position >= SCROBBLE_AFTER_SEC)) {
         scrobbled = true;
