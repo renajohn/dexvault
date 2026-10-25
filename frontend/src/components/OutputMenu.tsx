@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BsDash, BsPlus, BsSliders, BsSpeaker, BsVolumeMuteFill, BsVolumeUpFill } from 'react-icons/bs';
+import { BsDash, BsPlus, BsSliders, BsSpeaker, BsVolumeDownFill, BsVolumeMuteFill, BsVolumeUpFill } from 'react-icons/bs';
 import Menu, { type MenuTriggerProps } from './shared/Menu';
 import { IconButton } from './shared/Button';
 import OutputSettings from './OutputSettings';
@@ -49,8 +49,12 @@ export const throttled = <T,>(send: (value: T) => void, ms = VOLUME_EVERY_MS) =>
   };
 };
 
-/** The volume of an appliance: muted, − and +, a slider up to its ceiling, the value in figures. */
-export const OutputVolume: React.FC<{ output: Output }> = ({ output }) => {
+/**
+ * The volume of an appliance: muted, − and +, a slider up to its ceiling, the
+ * value in figures. `slim`, on the phone's full screen: the slider alone
+ * between a quiet speaker (mute) and a loud one.
+ */
+export const OutputVolume: React.FC<{ output: Output; slim?: boolean }> = ({ output, slim = false }) => {
   const max = Math.max(0, output.maxVolume);
   const known = output.volume != null;
   const told = Math.min(max, output.volume ?? 0);
@@ -79,6 +83,30 @@ export const OutputVolume: React.FC<{ output: Output }> = ({ output }) => {
     if (now) sender.flush();
   };
 
+  const slider = (
+    <input type="range" className="ui-range output-volume__slider" min={0} max={max} step={1} value={value}
+      disabled={!known || !output.reachable} aria-label="Volume" aria-valuetext={`${value} of ${max}`}
+      title={`Up to ${max}, as set in its settings`}
+      style={{ '--range-fill': `${max > 0 ? (value / max) * 100 : 0}%` } as React.CSSProperties}
+      onChange={event => move(Number(event.target.value))}
+      onPointerUp={() => sender.flush()} onKeyUp={() => sender.flush()} onBlur={() => sender.flush()} />
+  );
+
+  if (slim) {
+    return (
+      <div className="output-volume output-volume--slim" role="group" aria-label={`Volume of ${output.name}`}>
+        <IconButton size="sm" label={output.muted ? 'Sound on' : 'Mute'} active={output.muted} disabled={!output.reachable}
+          onClick={() => outputs.volume(output.id, { muted: !output.muted }).catch(reportOutputError)}>
+          {output.muted ? <BsVolumeMuteFill /> : <BsVolumeDownFill />}
+        </IconButton>
+        {slider}
+        <IconButton size="sm" label="Volume up" disabled={!known || !output.reachable || value >= max} onClick={() => move(value + 1, true)}>
+          <BsVolumeUpFill />
+        </IconButton>
+      </div>
+    );
+  }
+
   return (
     <div className="output-volume" role="group" aria-label={`Volume of ${output.name}`}>
       <IconButton size="sm" label={output.muted ? 'Sound on' : 'Mute'} active={output.muted} disabled={!output.reachable}
@@ -88,12 +116,7 @@ export const OutputVolume: React.FC<{ output: Output }> = ({ output }) => {
       <IconButton size="sm" label="Volume down" disabled={!known || !output.reachable || value <= 0} onClick={() => move(value - 1, true)}>
         <BsDash />
       </IconButton>
-      <input type="range" className="ui-range output-volume__slider" min={0} max={max} step={1} value={value}
-        disabled={!known || !output.reachable} aria-label="Volume" aria-valuetext={`${value} of ${max}`}
-        title={`Up to ${max}, as set in its settings`}
-        style={{ '--range-fill': `${max > 0 ? (value / max) * 100 : 0}%` } as React.CSSProperties}
-        onChange={event => move(Number(event.target.value))}
-        onPointerUp={() => sender.flush()} onKeyUp={() => sender.flush()} onBlur={() => sender.flush()} />
+      {slider}
       <IconButton size="sm" label="Volume up" disabled={!known || !output.reachable || value >= max} onClick={() => move(value + 1, true)}>
         <BsPlus />
       </IconButton>
@@ -107,7 +130,7 @@ export const OutputVolume: React.FC<{ output: Output }> = ({ output }) => {
  * it plays on with the ✓; under them an appliance's volume and its settings.
  * In the output's own menu, and in the bar's ⋯ on a phone.
  */
-export const OutputEntries: React.FC<{ onSettings: (output: Output) => void }> = ({ onSettings }) => {
+export const OutputEntries: React.FC<{ onSettings: (output: Output) => void; volume?: boolean }> = ({ onSettings, volume = true }) => {
   const list = useOutputs();
   const output = usePlayer(state => state.output);
   const localPlaying = usePlayer(state => state.output.kind === 'local' && state.playing);
@@ -131,7 +154,7 @@ export const OutputEntries: React.FC<{ onSettings: (output: Output) => void }> =
       {current && (
         <>
           <Menu.Separator />
-          <OutputVolume output={current} />
+          {volume && <OutputVolume output={current} />}
           <Menu.Item icon={<BsSliders />} onSelect={() => onSettings(current)}>Output settings…</Menu.Item>
         </>
       )}
@@ -144,6 +167,8 @@ interface OutputMenuProps {
   trigger?: (props: MenuTriggerProps, open: boolean, output: PlayerOutput) => React.ReactElement;
   drop?: 'up' | 'down';
   align?: 'start' | 'end';
+  /** The appliance's volume under the outputs; off where it has its own slider (the phone's full screen). */
+  volume?: boolean;
 }
 
 /**
@@ -153,7 +178,7 @@ interface OutputMenuProps {
  * chosen, at the same place. Under them, an appliance's volume and its
  * settings. Nothing when the house has no appliance (UPnP off).
  */
-const OutputMenu: React.FC<OutputMenuProps> = ({ trigger, drop = 'up', align = 'end' }) => {
+const OutputMenu: React.FC<OutputMenuProps> = ({ trigger, drop = 'up', align = 'end', volume = true }) => {
   const list = useOutputs();
   const output = usePlayer(state => state.output);
   const [settings, setSettings] = useState<Output | null>(null);
@@ -167,7 +192,7 @@ const OutputMenu: React.FC<OutputMenuProps> = ({ trigger, drop = 'up', align = '
           <BsSpeaker />
         </IconButton>
       ))}>
-        <OutputEntries onSettings={setSettings} />
+        <OutputEntries onSettings={setSettings} volume={volume} />
       </Menu>
       {settings && <OutputSettings output={settings} onClose={() => setSettings(null)} />}
     </>

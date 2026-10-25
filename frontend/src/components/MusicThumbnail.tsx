@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import { BsDisc, BsBookmark, BsBookmarkFill, BsCassetteFill, BsHeadphones, BsXLg } from 'react-icons/bs';
 import type { ListenNextMedium } from '../services/musicService';
 import musicService from '../services/musicService';
-import { isAppleMobile } from '../utils/navidrome';
 import './MusicThumbnail.css';
 import ShelfCode from './shared/ShelfCode';
 import AlbumPlayButton from './shared/AlbumPlayButton';
@@ -11,7 +10,6 @@ import CoverButton from './shared/CoverButton';
 import CoverTag, { CoverTagStack } from './shared/CoverTag';
 import { isMixtape, mixtapeArtists } from '../utils/mixtape';
 import type { AlbumDigital } from '../utils/digitalLibrary';
-import { listenAlbumById } from '../utils/playAlbum';
 import { coverReady, thumbProps } from '../utils/thumb';
 
 interface CdData {
@@ -126,7 +124,7 @@ const MusicThumbnail: React.FC<MusicThumbnailProps> = ({ cd, onClick, onListenNe
           {mixtape ? <BsCassetteFill size={32} /> : <BsDisc size={32} />}
         </div>
         {/* ▶ under the pointer plays the album in DexVault; on an iPhone, always in sight, in Amperfy. One with no rip opens its card. */}
-        <AlbumPlayButton albumId={cd.id} title={cd.title} offerPlay onPlay={isAppleMobile() ? () => listenAlbumById(cd.id) : undefined}
+        <AlbumPlayButton albumId={cd.id} title={cd.title} offerPlay
           onUnripped={onClick} className="thumbnail-play" />
         <ShelfCode kind="album" id={cd.id} />
         {mixtape && (

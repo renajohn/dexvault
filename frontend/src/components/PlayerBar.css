@@ -359,8 +359,42 @@
 
 /* On a phone: the cover, the track and ♥ (the words are a desktop's); ⏯ ⏭; the tracks and ✕, without the times. */
 @media (max-width: 767px) {
+  /* A pill floating above the home bar, clear of the edges: the room it takes is its height and its margins. */
   :root {
     --player-bar-h: 64px;
+    --player-pill-gap: 8px;
+    --player-bar-room: calc(var(--player-bar-h) + var(--player-pill-gap) * 2 + var(--safe-bottom));
+  }
+
+  .player-bar {
+    left: max(var(--player-pill-gap), var(--safe-left));
+    right: max(var(--player-pill-gap), var(--safe-right));
+    bottom: calc(var(--player-pill-gap) + var(--safe-bottom));
+    height: var(--player-bar-h);
+    padding-bottom: 0;
+    overflow: hidden;
+    border: 1px solid var(--dv-surface-edge);
+    border-radius: calc(var(--player-bar-h) / 2);
+    background: var(--dv-surface);
+    box-shadow: var(--dv-surface-shadow);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    backdrop-filter: blur(20px) saturate(1.4);
+    transform: translateY(calc(100% + var(--player-pill-gap) * 2 + var(--safe-bottom)));
+  }
+
+  .player-bar.player-bar-out {
+    transform: none;
+  }
+
+  /* The progress, a line along the pill's foot, inside its round ends. */
+  .player-bar-progress,
+  .player-bar-progress:hover,
+  .player-bar-progress:focus-visible {
+    top: auto;
+    bottom: 0;
+    left: 24px;
+    right: 24px;
+    height: 2px;
   }
 
   .player-bar-inner {
@@ -416,7 +450,8 @@
 }
 
 /* An appliance that does not answer: the bar greyed, its name saying "away", the buttons there still to try. */
-.player-bar--away .player-bar-inner {
+.player-bar--away .player-bar-inner,
+.player-bar--away .player-pill {
   opacity: 0.55;
 }
 

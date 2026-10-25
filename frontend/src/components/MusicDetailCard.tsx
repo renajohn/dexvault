@@ -587,11 +587,11 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
 
   const ripAlbum = rip?.found ? rip.album : undefined;
 
-  // DexVault's own player, on a computer; an iPhone plays in Amperfy, as before, unless its output is an appliance (Salon).
+  // DexVault's own player, on a computer as on an iPhone (Amperfy in ▾), here or on an appliance (Salon).
   const playerTracks = playerTracksOf(cd, rip);
   const output = usePlayer(state => state.output);
   const onAppliance = output.kind === 'renderer';
-  const ownPlayer = (!appleMobile || onAppliance) && playerTracks.length > 0;
+  const ownPlayer = playerTracks.length > 0;
   const playerAlbum = () => playerAlbumOf(cd, rip);
   const nowAlbumId = usePlayer(state => state.album?.id ?? null);
   const nowTrack = usePlayer(state => state.tracks[state.index]);
@@ -1241,7 +1241,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                 {(playingHere || resumeHere) && (
                   <Menu.Item icon={<BsArrowCounterclockwise />} onSelect={() => player.playAlbum(playerAlbum(), playerTracks, 0)}>Play from the start</Menu.Item>
                 )}
-                {/* On an iPhone playing on an appliance, Amperfy still a click away. */}
+                {/* On an iPhone, Amperfy still a click away. */}
                 <Menu.Item icon={<BsBoxArrowUpRight />} hint={appleMobile ? undefined : 'new tab'} onSelect={() => openListen(ripAlbum)}>
                   {appleMobile ? 'Open in Amperfy' : 'Open in Navidrome'}
                 </Menu.Item>

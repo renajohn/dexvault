@@ -423,6 +423,27 @@ const updateMediaSession = () => {
     });
     navigator.mediaSession.playbackState = state.playing ? 'playing' : 'paused';
   } catch { /* an older browser: the keys still work through the audio element */ }
+  updatePositionState();
+};
+
+/**
+ * Where the track is, for the lock screen and the Control Center: Navidrome's
+ * stream tells no length before its end, so the system's bar stayed empty
+ * without the track's own. Told as it plays, pauses and moves.
+ */
+const updatePositionState = () => {
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+  const audio = audios[active];
+  if (!audio) return;
+  const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : state.duration;
+  if (!(duration > 0)) return;
+  try {
+    navigator.mediaSession.setPositionState({
+      duration,
+      position: Math.min(duration, Math.max(0, audio.currentTime || state.position)),
+      playbackRate: audio.playbackRate || 1,
+    });
+  } catch { /* a position past the end, an older browser */ }
 };
 
 /** Starts the track at `index` from `at` seconds, on the element already holding it when it is the spare. */
@@ -496,6 +517,9 @@ const setUp = () => {
       saveResume();
       updateMediaSession();
     });
+    // The system's bar follows a move, and the length once the stream tells it.
+    audio.addEventListener('seeked', () => { if (mine()) updatePositionState(); });
+    audio.addEventListener('durationchange', () => { if (mine()) updatePositionState(); });
     audio.addEventListener('ended', () => {
       if (!mine()) return;
       if (options.leaveAfterTrack?.()) endAlbum('removed');

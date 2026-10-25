@@ -17,7 +17,6 @@ import { findById, useDetailSteps } from '../utils/detailSteps';
 import { albumImages } from '../utils/detailImages';
 import { useAlbumOrder } from '../utils/shelfLocations';
 import { artistLetter, artistSortKey, artistSortName } from '../utils/artistOrder';
-import { isAppleMobile } from '../utils/navidrome';
 import AlbumPlayButton from './shared/AlbumPlayButton';
 import CoverButton from './shared/CoverButton';
 import { LeavingOverlay, ListenNextControls, ListenNextSummary, useListenNextPlay } from './ListenNextPlay';
@@ -131,7 +130,6 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   // The shelves' order, read by sortCds through the ref: it arrives after the albums.
   const albumOrder = useAlbumOrder();
   // On an appliance of the house (Salon) an iPhone plays as a computer does, there.
-  const onAppliance = usePlayer(state => state.output.kind === 'renderer');
   const albumOrderRef = useRef(albumOrder);
   albumOrderRef.current = albumOrder;
   const byArtistSort = sortBy === 'artist' || sortBy === 'artistReverse';
@@ -1410,9 +1408,8 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
           onReorder={handleListenNextReorder}
           canReorder={(album) => !listenNext.departureOf(keyOf(album))}
           renderPlay={nextMedium === 'cd' ? undefined : (album) => (
-            // ▶ plays Listen Next in DexVault from this album; one with no rip opens its card instead. An iPhone plays in Amperfy,
-            // or on the appliance it plays on.
-            <AlbumPlayButton albumId={album.id} title={album.title || ''} offerPlay={!isAppleMobile() || onAppliance}
+            // ▶ plays Listen Next in DexVault from this album, on an iPhone too; one with no rip opens its card instead.
+            <AlbumPlayButton albumId={album.id} title={album.title || ''} offerPlay
               onPlay={() => listenNextQueue.start(keyOf(album))}
               onUnripped={() => handleCdClick(album.id, 'listenNext')} className="next-banner__play" />
           )}

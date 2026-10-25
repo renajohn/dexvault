@@ -11,6 +11,9 @@ import Menu, { MenuChevron } from './shared/Menu';
 import PlayerTracks from './PlayerTracks';
 import OutputMenu, { OutputEntries } from './OutputMenu';
 import OutputSettings from './OutputSettings';
+import PhonePlayer from './PhonePlayer';
+import { useMedia } from '../utils/useNarrow';
+import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
 // Listen Next registers itself with the player, to go on after a reload whatever the page; the bar asks it what comes next.
 import { listenNextQueue, playingKey } from '../services/listenNextQueue';
 import { parseEntryKey } from '../utils/listenNextEntry';
@@ -127,6 +130,8 @@ const PlayerBar: React.FC = () => {
   const idle = !shown && output.kind === 'renderer' && known.length > 0 && inMusic && !isComputer();
   // The settings of an appliance, opened from the ⋯ of a phone's bar.
   const [settingsFor, setSettingsFor] = useState<Output | null>(null);
+  // A phone's width: a pill at the foot, full screen at a tap.
+  const phone = useMedia('(max-width: 767px)');
 
   // The heart the track had when the album was started, unless the card has told a newer one since.
   useEffect(() => { if (track) seedFavourite(track.songId, track.starred, true); }, [track]);
@@ -171,12 +176,40 @@ const PlayerBar: React.FC = () => {
   const taken = outputStatus === 'taken';
 
   return (
-    <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}`} role="region"
+    <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}${phone ? ' player-bar--pill' : ''}`} role="region"
       aria-label={outputName ? `Playing on ${outputName}` : 'Player'} aria-hidden={!out}>
       {last.current && (() => {
         const { album, track } = last.current;
         // A song of a mixtape shows the cover of its CD, and leads there.
         const cover = track.cover !== undefined ? { src: track.cover, title: `the album of ${track.title}` } : { src: album.cover, title: album.title };
+        const toggleFavourite = () => setFavourite(track.songId, !favourite)
+          .catch(error => toast(`Could not change the favourite: ${(error as Error).message}`, { tone: 'danger' }));
+        if (phone) {
+          return (
+            <PhonePlayer title={track.title} cover={cover} playing={playing} position={position} length={length} hasNext={hasNext}
+              subtitle={away ? `${outputName}, away` : error || (track.artist != null ? `${track.artist} · ${album.title}` : album.artist)}
+              where={outputName || null} outputId={output.kind === 'renderer' ? output.id : null}
+              controls={{
+                toggle: () => player.toggle(), next: () => player.next(), previous: () => player.previous(),
+                seek: seconds => player.seek(seconds), resume: () => player.resume(), stop: () => player.stop(),
+                playTrack: at => player.playTrack(at),
+              }}
+              lyricsOf={album.id != null ? { albumId: album.id, disc: track.disc, no: track.no } : null}
+              guideOf={track.albumId ?? album.id} mixtape={{ songId: track.songId, title: track.title }}
+              tracks={tracks} index={index} onAllTracks={fromListenNext ? () => setTracksOpen(true) : null}
+              onAmperfy={isAppleMobile() && album.navidromeId ? () => {
+                // Not both at once: DexVault's player pauses, and Amperfy starts the album.
+                player.toggle(false);
+                window.location.href = amperfyUrl(album.navidromeId!);
+              } : null}
+              favourite={{ on: favourite, toggle: () => { void toggleFavourite(); } }}
+              away={away} taken={taken ? outputName : null} following={following}
+              left={left > 0 ? `${leftText(left)} left of ${fromListenNext ? 'Listen Next' : album.title}` : null}
+              from={fromListenNext ? 'Listen Next' : album.title} onOpen={open}
+              onOpenMixtape={track.artist != null && album.id != null ? { title: album.title, open: () => navigate(`/musicdex?album=${album.id}`) } : null}
+              out={out} />
+          );
+        }
         return (
         <>
           <div className={`player-bar-progress${playing ? '' : ' player-bar-progress--paused'}`} role="slider" aria-label="Position in the track"

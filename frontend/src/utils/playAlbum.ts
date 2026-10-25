@@ -2,7 +2,6 @@ import musicService, { type RipTracks } from '../services/musicService';
 import { player, reportOutputError, type PlayerAlbum, type PlayOptions, type PlayerTrack } from '../services/player';
 import outputs, { type OutputError } from '../services/outputs';
 import { ripFileFor } from './trackDetail';
-import { amperfyUrl, openListen } from './navidrome';
 import { isMixtape, mixtapeArtists } from './mixtape';
 
 interface AlbumLike {
@@ -119,23 +118,5 @@ export const playAlbumById = async (albumId: number | string, options?: PlayOpti
   if (tracks.length === 0) return false;
   if (shuffle) player.playAlbum(album, shuffledTracks(tracks), 0, 0, options);
   else player.playAlbum(album, tracks, index, 0, options);
-  return true;
-};
-
-/**
- * On an iPhone, the album plays in Amperfy, as its card's Listen does, or on
- * the appliance chosen as the output: false when it has no rip to play.
- */
-export const listenAlbumById = async (albumId: number | string): Promise<boolean> => {
-  if (player.rendererId()) return playAlbumById(albumId);
-  const rip = await musicService.getNavidromeTracks(albumId).catch(() => null);
-  if (!rip?.found || !rip.album) {
-    // A mixtape: Amperfy plays its playlist.
-    const mixtape = await musicService.getMixtape(Number(albumId)).catch(() => null);
-    if (!mixtape || mixtape.songs.length === 0) return false;
-    window.location.href = amperfyUrl(mixtape.playlistId, 'playlist');
-    return true;
-  }
-  openListen(rip.album);
   return true;
 };

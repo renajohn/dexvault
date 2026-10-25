@@ -200,17 +200,16 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
   const playing = usePlayer(state => state.playing);
   const [starting, setStarting] = useState(false);
   const appleMobile = isAppleMobile();
-  // An iPhone plays in Amperfy, unless its output is an appliance of the house (Salon): then as a computer, there.
+  // An iPhone plays in DexVault too, as a computer, here or on an appliance of the house (Salon); Amperfy is in ▾.
   const output = usePlayer(state => state.output);
-  const amperfy = appleMobile && output.kind === 'local';
   const known = useOutputs();
   const repeat = play?.repeat ?? false;
-  const nothing = play !== null && (amperfy ? !play.playlistId : play.ripped.length === 0);
+  const nothing = play !== null && play.ripped.length === 0;
   const albums = `${count} album${count === 1 ? '' : 's'}`;
   const openAmperfy = () => { if (play?.playlistId) window.location.href = amperfyUrl(play.playlistId, 'playlist', { repeat }); };
-  // The outputs, the current one ✓, to start Listen Next there, which is then the output; an iPhone's own is Amperfy, apart.
+  // The outputs, the current one ✓, to start Listen Next there, which is then the output.
   const elsewhere: PlayerOutput[] = known.length === 0 ? [] : [
-    ...(appleMobile ? [] : [{ kind: 'local' } as PlayerOutput]),
+    { kind: 'local' } as PlayerOutput,
     ...known.filter(one => one.reachable || sameOutput(output, { kind: 'renderer', id: one.id, name: one.name }))
       .map(one => ({ kind: 'renderer', id: one.id, name: one.name }) as PlayerOutput),
   ];
@@ -225,10 +224,6 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
   };
 
   const click = async () => {
-    if (amperfy) {
-      openAmperfy();
-      return;
-    }
     if (here) {
       player.toggle();
       return;
@@ -237,13 +232,13 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
   };
 
   const pause = here && playing;
-  const where = amperfy ? ' in Amperfy' : output.kind === 'renderer' ? ` on ${output.name}` : '';
+  const where = output.kind === 'renderer' ? ` on ${output.name}` : '';
   const title = nothing ? 'Nothing ripped yet' : pause ? 'Pause Listen Next' : `Play Listen Next · ${albums}${where}`;
-  // Its ▾: the other outputs; Amperfy on an iPhone playing on an appliance.
-  const more = elsewhere.length > 0 || (appleMobile && !amperfy && Boolean(play?.playlistId));
+  // Its ▾: the other outputs; Amperfy on an iPhone.
+  const more = elsewhere.length > 0 || (appleMobile && Boolean(play?.playlistId));
   return (
     <span className="listen-next-controls">
-      {/* Navidrome's own player, in a tab of its own: on an iPhone ▶ opens Amperfy already. Before ▶ and Repeat, so they
+      {/* Navidrome's own player, in a tab of its own: on an iPhone Amperfy is in ▾. Before ▶ and Repeat, so they
           keep their place at the end whether it shows or not. */}
       {!appleMobile && play?.playlistUrl && (
         <a className="listen-next-controls__navidrome" href={play.playlistUrl} target="_blank" rel="noopener noreferrer"
@@ -270,7 +265,7 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
                 {target.kind === 'renderer' ? target.name : localOutputName()}
               </Menu.Choice>
             ))}
-            {appleMobile && !amperfy && play?.playlistId && (
+            {appleMobile && play?.playlistId && (
               <>
                 {elsewhere.length > 0 && <Menu.Separator />}
                 <Menu.Item icon={<BsBoxArrowUpRight />} onSelect={openAmperfy}>Open in Amperfy</Menu.Item>

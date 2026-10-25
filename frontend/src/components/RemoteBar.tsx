@@ -10,6 +10,8 @@ import { useOutputs } from '../services/outputs';
 import musicService from '../services/musicService';
 import toast from './shared/Toast';
 import Button from './shared/Button';
+import PhonePlayer from './PhonePlayer';
+import { useMedia } from '../utils/useNarrow';
 import './PlayerBar.css';
 import './RemoteBar.css';
 
@@ -40,6 +42,8 @@ const RemoteBar: React.FC = () => {
   // A toggle sent shows at once; the next report says how it went.
   const [pending, setPending] = useState<boolean | null>(null);
   const [now, setNow] = useState(Date.now());
+  // A phone's width: the pill of the player's own bar, full screen at a tap.
+  const phone = useMedia('(max-width: 767px)');
 
   useEffect(() => { setPending(null); }, [target?.playing, target?.reportedAt]);
   useEffect(() => {
@@ -110,7 +114,19 @@ const RemoteBar: React.FC = () => {
   return (
     <>
     {naming_}
-    <div className={`player-bar player-bar-out remote-bar${target.online ? '' : ' remote-bar--away'}`} role="region" aria-label={`Playing on ${target.name}`}>
+    <div className={`player-bar player-bar-out remote-bar${target.online ? '' : ' remote-bar--away player-bar--away'}${phone ? ' player-bar--pill' : ''}`}
+      role="region" aria-label={`Playing on ${target.name}`}>
+      {phone && target.album ? (
+        <PhonePlayer title={target.track?.title || target.album.title} cover={{ src: cover, title: target.album.title }}
+          subtitle={target.online ? target.error || `${target.album.artist} · ${target.album.title}` : `${target.name}, away`}
+          where={target.name} playing={playing} position={position} length={target.duration}
+          hasNext={target.online} away={!target.online} from={target.album.title} foot={which} out
+          controls={{
+            toggle: () => { if (!target.online) return; setPending(!playing); void send({ action: 'toggle' }); },
+            next: () => { if (target.online) void send({ action: 'next' }); },
+            previous: () => { if (target.online) void send({ action: 'previous' }); },
+          }} />
+      ) : (<>
       {target.duration > 0 && (
         <div className={`player-bar-progress${playing ? '' : ' player-bar-progress--paused'}`} aria-hidden="true">
           <span style={{ width: `${Math.min(100, (position / target.duration) * 100)}%` }} />
@@ -148,6 +164,7 @@ const RemoteBar: React.FC = () => {
           </>
         )}
       </div>
+      </>)}
     </div>
     </>
   );
