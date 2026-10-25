@@ -1,7 +1,7 @@
 /*
  * The player on a phone: a pill at the foot of the screen (PlayerBar.css
  * makes the bar one), and the full screen it opens. The full screen slides
- * up over the page, above the header, under the dialogs it opens (the tracks, 10100) and the menus;
+ * up over the page, above the header and a record's card (10100), under the dialogs it opens (12000) and the menus;
  * a finger drawing it down moves it along, and it goes back to the pill.
  */
 
@@ -111,11 +111,16 @@
   background: #8a8f98;
 }
 
+/* A dialog opened over the full screen (12000): its shade over it too, not under it. */
+.modal-backdrop.over-player-backdrop {
+  z-index: 11999;
+}
+
 /* The full screen. */
 .now-playing {
   position: fixed;
   inset: 0;
-  z-index: 10050;
+  z-index: 10500;
   overflow: hidden;
   background: var(--dv-page);
   color: var(--dv-text);

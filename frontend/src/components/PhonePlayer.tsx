@@ -259,11 +259,11 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
     return () => layers.forEach(layer => layer.removeEventListener('touchmove', hold));
   }, []);
 
-  // Open, the page under it holds still, Escape closes it, and the focus goes into it (not on a button, whose tooltip would show); closed, back to the pill.
+  // Open, Escape closes it, and the focus goes into it (not on a button, whose tooltip would show); closed, back to the pill.
+  // The body is left alone: the page under it holds still by its refused moves, and a record's card (Bootstrap)
+  // sets and gives back the body's overflow itself, which a second hand on it left stuck, the page no longer scrolling.
   useEffect(() => {
     if (!full) return undefined;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     sheetRef.current?.focus({ preventScroll: true });
     const key = (event: KeyboardEvent) => {
       // A menu or a dialog over it takes its own Escape.
@@ -271,7 +271,6 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
     };
     document.addEventListener('keydown', key);
     return () => {
-      document.body.style.overflow = overflow;
       document.removeEventListener('keydown', key);
       if (document.activeElement instanceof HTMLElement && document.activeElement.closest('.now-playing')) {
         pillButton.current?.focus({ preventScroll: true });

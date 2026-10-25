@@ -206,7 +206,7 @@ const PlayerTracks: React.FC<{ show: boolean; onClose: () => void }> = ({ show, 
   const fromListenNext = usePlayer(state => state.queue === 'listenNext');
   if (!show || !album) return null;
   return (
-    <Dialog onClose={onClose} size="lg" className="player-tracks-dialog" icon={<BsMusicNoteList />}
+    <Dialog onClose={onClose} size="lg" zIndex={12000} backdropClassName="over-player-backdrop" className="player-tracks-dialog" icon={<BsMusicNoteList />}
       title={fromListenNext ? 'Listen Next' : album.title} aside={fromListenNext ? undefined : album.artist}>
       <Tracks fromListenNext={fromListenNext} />
     </Dialog>

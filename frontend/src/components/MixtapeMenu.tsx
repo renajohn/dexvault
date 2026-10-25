@@ -72,7 +72,7 @@ export const NewMixtapeDialog: React.FC<{ songIds: string[]; title?: string; onC
   };
 
   return (
-    <Dialog onClose={onClose} size="sm" zIndex={12000} icon={<BsCassetteFill />} title="New mixtape">
+    <Dialog onClose={onClose} size="sm" zIndex={12000} backdropClassName="over-player-backdrop" icon={<BsCassetteFill />} title="New mixtape">
       <Dialog.Body>
         <p className="mixtape-menu-with">
           {unique.length === 1 && title ? <>With <b>{title}</b>.</> : <>With these {unique.length} tracks.</>} It is made in Navidrome

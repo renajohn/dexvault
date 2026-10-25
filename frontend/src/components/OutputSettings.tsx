@@ -31,7 +31,7 @@ const OutputSettings: React.FC<{ output: Output; onClose: () => void }> = ({ out
   };
 
   return (
-    <Dialog show onClose={onClose} size="sm" icon={<BsSpeaker />} title={`${output.name} settings`} aside={output.model || undefined}>
+    <Dialog show onClose={onClose} size="sm" zIndex={12000} backdropClassName="over-player-backdrop" icon={<BsSpeaker />} title={`${output.name} settings`} aside={output.model || undefined}>
       <Dialog.Body>
         <Form onSubmit={event => { event.preventDefault(); void save(); }}>
           <Form.Group className="mb-3" controlId="output-name">

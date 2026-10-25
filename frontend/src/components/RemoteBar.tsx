@@ -99,7 +99,7 @@ const RemoteBar: React.FC = () => {
     void remote.rename(target.id, naming || '').then(() => { setNaming(null); refreshPlayers(); }).catch(e => toast((e as Error).message, { tone: 'danger' }));
   };
   const naming_ = naming !== null && (
-    <Dialog show onClose={() => setNaming(null)} title={`Name ${target.name}`} size="sm">
+    <Dialog show onClose={() => setNaming(null)} title={`Name ${target.name}`} size="sm" zIndex={12000} backdropClassName="over-player-backdrop">
       <Dialog.Body>
         <TextField value={naming} autoFocus placeholder="MacBook du salon" aria-label="Its name" onChange={event => setNaming(event.target.value)}
           onKeyDown={event => { if (event.key === 'Enter') keepName(); }} />
