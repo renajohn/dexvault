@@ -494,35 +494,18 @@
   }
 }
 
-/* "Help me choose" Placeholder Card */
-/* Help me choose, and under it, where a cover has its title, what a draw takes. */
-.next-banner__help {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.next-banner__help-foot {
-  padding-top: 10px;
-  display: flex;
-  justify-content: center;
-}
-
+/* Help me choose: a dashed frame, the click in it, and at its foot, when there is one, what a draw takes. */
 .next-banner__help-card {
   flex-shrink: 0;
   width: 180px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
   background: transparent;
   border: 2px dashed rgba(251, 191, 36, 0.4);
   border-radius: 12px;
-  cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 20px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .next-banner__help-card--music {
@@ -533,19 +516,48 @@
   height: 270px; /* Match movie poster height */
 }
 
-.next-banner__help-card:hover:not(:disabled) {
+.next-banner__help-card:hover:not(.loading),
+.next-banner__help-card:has(.next-banner__help-action:focus-visible) {
   border-color: rgba(251, 191, 36, 0.7);
   background: rgba(251, 191, 36, 0.08);
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(251, 191, 36, 0.15);
 }
 
-.next-banner__help-card:active:not(:disabled) {
+.next-banner__help-card:active:not(.loading) {
   transform: translateY(-2px);
 }
 
-.next-banner__help-card:disabled {
+.next-banner__help-action {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.next-banner__help-action:disabled {
   cursor: wait;
+}
+
+/* With its foot under them, the words and the + draw closer. */
+.next-banner__help-action:has(+ .next-banner__help-foot) {
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.next-banner__help-foot {
+  display: flex;
+  justify-content: center;
+  padding: 0 4px 16px;
 }
 
 .next-banner__help-text {
@@ -560,10 +572,11 @@
   color: rgba(251, 191, 36, 0.7);
   font-size: 2rem;
   font-weight: 300;
+  line-height: 1;
   transition: transform 0.3s ease, color 0.3s ease;
 }
 
-.next-banner__help-card:hover:not(:disabled) .next-banner__help-icon {
+.next-banner__help-card:hover:not(.loading) .next-banner__help-icon {
   color: rgba(251, 191, 36, 1);
   transform: scale(1.2);
 }
@@ -893,30 +906,78 @@
   border: 1px solid rgba(251, 191, 36, 0.3);
 }
 
-/* Music-style info (always visible below cover) */
-.next-banner__info {
-  padding: 10px 4px 0;
+/*
+ * An album's title and artist, under the pointer: a tag of the covers' dark
+ * glass slid out of the cover's left edge, held against it (no edge on that
+ * side), above the ▶; its words a beat after it. Lower with no ▶ (the CDs).
+ */
+.next-banner__caption {
+  position: absolute;
+  left: 0;
+  bottom: 50px;
+  z-index: 15;
+  max-width: calc(100% - 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 12px 7px 10px;
+  background: var(--dv-glass-image);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset -1px 0 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  transform: translateX(-101%);
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.next-banner__info-title {
-  font-size: 0.95rem;
+.next-banner__caption--low {
+  bottom: 38px;
+}
+
+.next-banner__caption > span {
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity 0.2s ease 0.12s, transform 0.25s ease 0.12s;
+}
+
+.next-banner__card:hover .next-banner__caption,
+.next-banner__card:hover .next-banner__caption > span {
+  opacity: 1;
+  transform: none;
+}
+
+/* Being dragged, or just dropped under the pointer: the cover alone. */
+.next-banner__card--dragging .next-banner__caption,
+.next-banner__card--calm:hover .next-banner__caption {
+  transform: translateX(-101%);
+}
+
+.next-banner__caption-title {
+  color: #fff;
+  font-size: 0.84rem;
   font-weight: 600;
-  margin: 0 0 2px 0;
-  color: #eaeaea;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.next-banner__caption-subtitle {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.72rem;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.next-banner__info-subtitle {
-  font-size: 0.82rem;
-  color: #a3a3a3;
-  margin: 0;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+@media (prefers-reduced-motion: reduce) {
+  .next-banner__caption,
+  .next-banner__caption > span {
+    transition: opacity 0.15s ease;
+  }
 }
 
 /* ===================================================================

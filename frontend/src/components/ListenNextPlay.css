@@ -104,8 +104,8 @@
   display: none;
 }
 
-.next-banner__card--leaving .next-banner__info {
-  opacity: 0.45;
+.next-banner__card--leaving .next-banner__caption {
+  display: none;
 }
 
 .next-banner__card--leaving:hover {

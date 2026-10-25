@@ -38,7 +38,7 @@ interface NextBannerProps {
   renderBadges?: (item: NextBannerItem) => React.ReactNode;
   onSmartFill?: () => void;
   smartFillLoading?: boolean;
-  /** Under Help me choose, where a cover has its title: what a draw takes. */
+  /** In Help me choose's frame, at its foot: what a draw takes. */
   smartFillFoot?: React.ReactNode;
   onShuffle?: (item: NextBannerItem) => void;
   /** Whether a card offers the die (all of them by default): one drawn, say, not one put there by hand. */
@@ -187,18 +187,11 @@ export const NextBannerPending: React.FC<{
         {Array.from({ length: 8 }, (_, i) => (
           <div key={i} className="next-banner__card">
             <div className={`next-banner__image next-banner__image--${type} next-banner__image--pending`} />
-            {/* An album's title and artist under its cover, their lines held. */}
-            {type === 'music' && (
-              <div className="next-banner__info" aria-hidden="true">
-                <p className="next-banner__info-title">&nbsp;</p>
-                <p className="next-banner__info-subtitle">&nbsp;</p>
-              </div>
-            )}
           </div>
         ))}
         {smartFill && (
-          <div className="next-banner__help">
-            <button type="button" className={`next-banner__help-card next-banner__help-card--${type}`} disabled>
+          <div className={`next-banner__help-card next-banner__help-card--${type} loading`}>
+            <button type="button" className="next-banner__help-action" disabled>
               <span className="next-banner__help-text">Help me choose</span>
               <span className="next-banner__help-icon">+</span>
             </button>
@@ -697,6 +690,14 @@ const NextBanner: React.FC<NextBannerProps> = ({
                 {!renderCover && <ShelfCode kind={type === 'music' ? 'album' : 'movie'} id={item.id} />}
                 {renderOverlay && renderOverlay(item)}
 
+                {/* An album's title and artist under the pointer, in a tag slid out of the cover's left edge, above its ▶. */}
+                {type === 'music' && !renderCover && (
+                  <div className={`next-banner__caption${renderPlay ? '' : ' next-banner__caption--low'}`} aria-hidden="true">
+                    <span className="next-banner__caption-title">{getTitle ? getTitle(item) : item.title}</span>
+                    {getSubtitle && getSubtitle(item) && <span className="next-banner__caption-subtitle">{getSubtitle(item)}</span>}
+                  </div>
+                )}
+
                 {/* Movie-style hover overlay */}
                 {type === 'movie' && !renderCover && (
                   <div className="next-banner__overlay">
@@ -715,43 +716,27 @@ const NextBanner: React.FC<NextBannerProps> = ({
                 )}
               </div>
 
-              {/* Music-style info below cover */}
-              {type === 'music' && (
-                <div className="next-banner__info">
-                  <h3 className="next-banner__info-title" title={getTitle ? getTitle(item) : item.title}>
-                    {getTitle ? getTitle(item) : item.title}
-                  </h3>
-                  {getSubtitle && (
-                    <p className="next-banner__info-subtitle" title={getSubtitle(item)}>
-                      {getSubtitle(item)}
-                    </p>
-                  )}
-                </div>
-              )}
             </SortableCard>
           ))}
 
           {/* "Help me choose" placeholder card */}
           {showHelpMeChoose && (
-            <div className="next-banner__help">
-            <button
-              className={`next-banner__help-card next-banner__help-card--${type} ${smartFillLoading ? 'loading' : ''}`}
-              onClick={onSmartFill}
-              disabled={smartFillLoading}
-            >
-              {smartFillLoading ? (
-                <div className="next-banner__help-loading">
-                  <Spinner size="lg" />
-                  <span className="next-banner__help-loading-text">Choosing...</span>
-                </div>
-              ) : (
-                <>
-                  <span className="next-banner__help-text">Help me choose</span>
-                  <span className="next-banner__help-icon">+</span>
-                </>
-              )}
-            </button>
-            {smartFillFoot && <div className="next-banner__help-foot">{smartFillFoot}</div>}
+            // Its frame holds the click, and at its foot what a draw takes: the covers have no line under them for it.
+            <div className={`next-banner__help-card next-banner__help-card--${type}${smartFillLoading ? ' loading' : ''}`}>
+              <button type="button" className="next-banner__help-action" onClick={onSmartFill} disabled={smartFillLoading}>
+                {smartFillLoading ? (
+                  <span className="next-banner__help-loading">
+                    <Spinner size="lg" />
+                    <span className="next-banner__help-loading-text">Choosing...</span>
+                  </span>
+                ) : (
+                  <>
+                    <span className="next-banner__help-text">Help me choose</span>
+                    <span className="next-banner__help-icon">+</span>
+                  </>
+                )}
+              </button>
+              {smartFillFoot && <div className="next-banner__help-foot">{smartFillFoot}</div>}
             </div>
           )}
         </div>
