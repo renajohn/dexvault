@@ -9,7 +9,7 @@ require('dotenv').config();
 console.log('🔄 Starting backend development mode with nodemon...');
 console.log('📝 Nodemon will automatically restart on file changes');
 
-const backendProcess = spawn('npm', ['run', 'dev'], {
+const backendProcess = spawn('npm run dev', {
   stdio: 'inherit',
   shell: true,
   cwd: path.join(__dirname, 'backend'),

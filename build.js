@@ -72,16 +72,20 @@ class BuildSystem {
     const backendDir = path.join(this.distDir, 'backend');
     fs.mkdirSync(backendDir, { recursive: true });
     
+    // Compile the backend to JavaScript: Node 24 only erases types, and the
+    // backend is CommonJS with imports without extensions
+    execSync(`npx tsc --outDir "${backendDir}" --declaration false --declarationMap false`, {
+      cwd: path.join(this.projectRoot, 'backend'),
+      stdio: 'inherit'
+    });
+
     // Copy backend files (excluding node_modules - let Docker install fresh)
     const backendFiles = [
-      'index.ts',
-      'tsconfig.json',
       'package.json',
       'package-lock.json'
     ];
     
     const backendDirs = [
-      'src',
       'migrations'
       // Removed 'node_modules' - Docker will install fresh dependencies
     ];
@@ -172,7 +176,7 @@ fi
 
 # Start the application with deployment config from parent directory
 echo "🎬 Starting DexVault backend..."
-npx tsx index.ts --deployment=../deployment.json
+node --enable-source-maps index.js --deployment=../deployment.json
 
 echo "👋 DexVault stopped"
 `;
