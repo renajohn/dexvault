@@ -159,10 +159,15 @@ let state: PlayerState = {
 /** What the bar, the cards and Listen Next see: this browser's state, or an appliance's play. */
 let view: PlayerState = state;
 let chosen: PlayerOutput = typeof window !== 'undefined' ? readOutput() : LOCAL;
-/** An appliance playing that the bar shows while nothing plays here, as a remote would. */
+/** An appliance playing, or paused, that the bar shows while nothing plays here, as a remote would. */
 let followed: { id: string; name: string } | null = null;
-/** Appliances left by a choice while they played: not followed again until they stop playing. */
-const declined = new Set<string>();
+/**
+ * Appliances left by a choice while they held an album, with what they were
+ * doing then: not followed again until that changes (it plays, another album).
+ */
+const declined = new Map<string, string>();
+const markOf = (session: OutputState | null): string =>
+  (session?.album ? `${session.status}|${session.album.id ?? session.album.title}|${session.album.disc ?? 0}` : '');
 
 const listeners = new Set<() => void>();
 const set = (changes: Partial<PlayerState>) => {
@@ -174,21 +179,27 @@ const sessionOf = (id: string): OutputState | null => knownOutputs().find(output
 
 /**
  * The bar follows an appliance that plays while nothing plays here and this
- * browser is the output; it lets go once that one stops, or this one plays.
+ * browser is the output, or, when nothing is in this browser's player at all,
+ * one paused (the last one asked): Play on an album's card goes there, ▶
+ * takes it up again. It lets go once that one stops, or this one plays.
  */
 const follow = () => {
-  for (const id of declined) if (sessionOf(id)?.status !== 'playing') declined.delete(id);
+  for (const [id, mark] of declined) if (markOf(sessionOf(id)) !== mark) declined.delete(id);
   if (chosen.kind !== 'local' || state.playing) {
     followed = null;
     return;
   }
   if (followed) {
     const session = sessionOf(followed.id);
-    if (!session?.album || session.status === 'stopped') followed = null;
+    if (!session?.album || session.status === 'stopped' || declined.has(followed.id)) followed = null;
   }
   if (!followed) {
-    const playing = knownOutputs().find(output => output.reachable && output.session?.status === 'playing' && output.session.album && !declined.has(output.id));
-    if (playing) followed = { id: playing.id, name: playing.name };
+    const holding = knownOutputs().filter(output => output.reachable && output.session?.album && !declined.has(output.id));
+    const playing = holding.find(output => output.session!.status === 'playing');
+    const paused = state.album ? undefined
+      : holding.filter(output => output.session!.status === 'paused').sort((a, b) => b.session!.at - a.session!.at)[0];
+    const one = playing ?? paused;
+    if (one) followed = { id: one.id, name: one.name };
   }
 };
 
@@ -633,7 +644,9 @@ export const player = {
     chosen = next.kind === 'local' ? LOCAL : { kind: 'renderer', id: next.id, name: next.name };
     writeStored(OUTPUT_KEY, chosen.kind === 'local' ? '' : JSON.stringify(chosen));
     followed = null;
-    for (const output of knownOutputs()) if (output.session?.status === 'playing' && !(next.kind === 'renderer' && next.id === output.id)) declined.add(output.id);
+    for (const output of knownOutputs()) {
+      if (output.session?.album && output.session.status !== 'stopped' && !(next.kind === 'renderer' && next.id === output.id)) declined.set(output.id, markOf(output.session));
+    }
     if (sameOutput(from, next)) {
       refresh();
       return;

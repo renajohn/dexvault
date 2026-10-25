@@ -21,6 +21,7 @@ const listed = (id: string, name: string, changes: Partial<Output> = {}): Output
   id, name, deviceName: name, model: '', manufacturer: '', reachable: true, gapless: true, volume: 30, muted: false, maxVolume: 70, session: null, ...changes,
 });
 
+let audios: HTMLAudioElement[] = [];
 let fetched: Array<{ url: string; body: Record<string, unknown> | null }> = [];
 let list: Output[] = [];
 
@@ -28,7 +29,8 @@ beforeEach(async () => {
   fetched = [];
   list = [listed('uuid:salon', 'Salon'), listed('uuid:bureau', 'Bureau')];
   const RealAudio = window.Audio;
-  vi.stubGlobal('Audio', function Audio() { return new RealAudio(); });
+  audios = [];
+  vi.stubGlobal('Audio', function Audio() { const audio = new RealAudio(); audios.push(audio); return audio; });
   vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
   vi.spyOn(window.HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
   vi.spyOn(window.HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
@@ -113,6 +115,36 @@ describe('the player on an output', () => {
     expect(player.getState().output).toEqual(SALON);
     expect(player.getState().barShown).toBe(true);
     takeState(session({ status: 'stopped' }));
+    expect(player.getState().output).toEqual({ kind: 'local' });
+  });
+
+  it('follows an appliance paused when nothing is in the player here: an album’s Play goes there', () => {
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused' }));
+    expect(player.getState()).toMatchObject({ output: BUREAU, playing: false, barShown: true });
+
+    player.playAlbum(album, tracks, 0);
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Abureau/play', body: { index: 0 } });
+    expect(window.HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+  });
+
+  it('lets go of an appliance paused once this browser is chosen, until it plays again', () => {
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused' }));
+    player.setOutput({ kind: 'local' });
+    expect(player.getState().output).toEqual({ kind: 'local' });
+    // Told again, the same pause: still this browser.
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused', position: 41 }));
+    expect(player.getState().output).toEqual({ kind: 'local' });
+    // Played again from elsewhere (the Mac, the WiiM's app): the bar shows it.
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'playing' }));
+    expect(player.getState().output).toEqual(BUREAU);
+  });
+
+  it('does not follow an appliance paused over an album paused here', () => {
+    player.playAlbum(album, tracks, 0);
+    // Paused here: the audio element says so.
+    audios.forEach(audio => audio.dispatchEvent(new Event('pause')));
+    expect(player.getState()).toMatchObject({ playing: false, album });
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused' }));
     expect(player.getState().output).toEqual({ kind: 'local' });
   });
 

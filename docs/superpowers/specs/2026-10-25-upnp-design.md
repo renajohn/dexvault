@@ -684,8 +684,11 @@ et Listen Next reprend son tour côté page (`registerQueue`). Sans transfert (�
 sortie quittée se tait seulement. Un appareil qui n'est plus dans la liste ramène à ce navigateur.
 
 **Suivre** : quand ce navigateur est la sortie et ne joue pas, la barre montre l'appareil qui joue
-(comme `targetOf`), jusqu'à ce qu'il s'arrête ou que ce navigateur joue ; un appareil quitté par un
-choix n'est pas suivi de nouveau tant qu'il joue.
+(comme `targetOf`), jusqu'à ce qu'il s'arrête ou que ce navigateur joue. Depuis le 25.10.2026 (demande de
+l'utilisateur : « le Play d'un album doit aller sur la destination sélectionnée »), elle suit aussi un
+appareil **en pause** quand le lecteur de ce navigateur est vide (le dernier interrogé) : le Play d'une
+fiche y va, ▶ le reprend. Un appareil quitté par un choix n'est pas suivi de nouveau tant que son état
+ne change pas (il rejoue, un autre album).
 
 **SSE** (`services/outputs.ts`) : même reconnexion que `remote.ts` (refus → 1 s, 2 s… 30 s ; 45 s de
 silence → on rouvre), plus une réouverture immédiate au retour de la page au premier plan (l'iPhone
