@@ -502,7 +502,7 @@
   flex-direction: column;
   background: transparent;
   border: 2px dashed rgba(251, 191, 36, 0.4);
-  border-radius: 12px;
+  border-radius: 6.67%;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
   overflow: hidden;
@@ -514,6 +514,7 @@
 
 .next-banner__help-card--movie {
   height: 270px; /* Match movie poster height */
+  border-radius: 6.67% / 4.44%;
 }
 
 .next-banner__help-card:hover:not(.loading),
@@ -810,7 +811,8 @@
 .next-banner__image {
   position: relative;
   width: 180px;
-  border-radius: 12px;
+  /* Its corners in proportion to its side: 12px on 180, 9px on an iPhone's 140 (a poster's across and down). */
+  border-radius: 6.67%;
   overflow: hidden;
   background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
   box-shadow: 
@@ -823,6 +825,7 @@
 /* Movie posters are taller, album covers are square */
 .next-banner__image--movie {
   height: 270px;
+  border-radius: 6.67% / 4.44%;
 }
 
 /* Badges position themselves against .next-banner__image; the wrapper adds no box. */
@@ -1067,7 +1070,6 @@
   
   .next-banner__image {
     width: 140px;
-    border-radius: 9px;
   }
   
   .next-banner__image--movie {
@@ -1078,10 +1080,9 @@
     height: 140px;
   }
 
-  /* Help me choose a cover's square, its corners rounded as theirs: 12px on 180, 9px on 140. */
+  /* Help me choose a cover's square. */
   .next-banner__help-card {
     width: 140px;
-    border-radius: 9px;
   }
 
   .next-banner__help-card--music {

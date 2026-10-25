@@ -23,7 +23,8 @@
   width: 100%;
   padding-top: 150%; /* 2:3 aspect ratio for book covers */
   background-color: #f0f0f0;
-  border-radius: 4px;
+  /* Its corners in proportion to the cover: 4px on 153 x 229, across and down. */
+  border-radius: 2.6% / 1.75%;
   overflow: hidden;
   margin-bottom: 8px;
 }

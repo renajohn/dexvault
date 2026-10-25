@@ -1151,7 +1151,8 @@
 .movie-card-large {
   background: #1a1a1a;
   border: 1px solid #333;
-  border-radius: 8px;
+  /* Its corners in proportion to the poster: 8px on 210 x 314, across and down. */
+  border-radius: 3.8% / 2.55%;
   padding: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   position: relative;

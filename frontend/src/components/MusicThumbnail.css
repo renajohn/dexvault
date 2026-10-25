@@ -20,7 +20,8 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 12px;
+  /* Its corners in proportion to its side: 12px on 212, smaller on an iPhone's narrower covers. */
+  border-radius: 5.7%;
   box-shadow: 0 6px 16px rgba(0,0,0,0.18);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
