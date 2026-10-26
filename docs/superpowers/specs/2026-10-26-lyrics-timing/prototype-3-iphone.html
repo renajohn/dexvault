@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DexVault — recaler les paroles sur iPhone (prototype)</title>
+<style>
+  :root {
+    --dv-gold: #fbbf24; --dv-gold-hover: #fcd34d; --dv-gold-ink: #111;
+    --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-page: #1a1a1a; --dv-glass: rgba(255,255,255,.06); --dv-glass-hover: rgba(255,255,255,.11);
+    --dv-edge: rgba(255,255,255,.12); --dv-veil: rgba(255,255,255,.08);
+    --dv-surface: rgba(24,24,24,.86); --dv-surface-edge: rgba(255,255,255,.1);
+    --dv-radius-sm: 7px; --dv-radius-md: 9px; --dv-radius-lg: 12px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: #0e0e0e; color: var(--dv-text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 393px 1fr; gap: 32px; align-items: start; }
+  .note { color: var(--dv-text-muted); }
+  .note h1 { color: var(--dv-text); font-size: 20px; margin: 0 0 6px; }
+  .note h2 { color: var(--dv-text); font-size: 16px; margin: 18px 0 6px; }
+  .note ul { padding-left: 18px; margin: 6px 0; }
+  .pro { color: #a7d3a0; } .con { color: #f0b37e; }
+  .note .scen { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--dv-radius-md); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); margin: 8px 0; }
+  .note .scen button { all: unset; cursor: pointer; padding: 5px 11px; border-radius: var(--dv-radius-sm); font-weight: 600; font-size: 13px; }
+  .note .scen button.on { background: var(--dv-glass-hover); color: var(--dv-text); }
+
+  /* L'iPhone : 393 × 852, la barre d'état et l'indicateur d'accueil. */
+  .phone { position: relative; width: 393px; height: 852px; border-radius: 54px; overflow: hidden; background: #111; box-shadow: 0 0 0 10px #232323, 0 0 0 11px #3a3a3a, 0 30px 80px rgba(0,0,0,.6); }
+  .status { position: absolute; inset: 0 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; font-weight: 600; font-size: 16px; z-index: 9; }
+  .island { position: absolute; left: 50%; top: 11px; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 10; }
+  .home { position: absolute; left: 50%; bottom: 8px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.7); z-index: 10; }
+  .backdrop { position: absolute; inset: -40px; background: radial-gradient(70% 50% at 30% 20%, #6a2d4f, transparent 70%), radial-gradient(70% 60% at 80% 85%, #1f4466, transparent 70%), #141414; filter: saturate(1.2); }
+  .backdrop::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.35); }
+  .inner { position: absolute; inset: 54px 0 34px; display: flex; flex-direction: column; padding: 0 26px; }
+  .handle { align-self: center; width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); margin: 6px 0 12px; }
+  .head { display: flex; align-items: center; gap: 12px; }
+  .thumb { width: 52px; height: 52px; border-radius: 8px; background: linear-gradient(135deg, #b44a7a, #3a5f8f); flex: none; }
+  .head .words { flex: 1; min-width: 0; }
+  .head .t { font-weight: 700; font-size: 17px; }
+  .head .a { color: var(--dv-text-muted); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .round { all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.1); color: var(--dv-text); flex: none; }
+  .round.on { color: var(--dv-gold); }
+  .round svg { width: 17px; height: 17px; }
+
+  .lyrics { position: relative; flex: 1; min-height: 0; margin: 10px -26px 0; padding: 0 26px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 8%, #000 85%, transparent); mask-image: linear-gradient(to bottom, transparent, #000 8%, #000 85%, transparent); }
+  .lyrics ol { margin: 0; padding: 0; list-style: none; transition: transform .55s cubic-bezier(.22,.8,.3,1); }
+  .lyrics li { margin: 0 0 16px; font-size: 26px; font-weight: 700; line-height: 1.22; color: rgba(255,255,255,.32); transition: color .3s; }
+  .lyrics li.past { color: rgba(255,255,255,.22); }
+  .lyrics li.now { color: #fff; }
+  .fixing .lyrics li { font-size: 22px; margin-bottom: 12px; }
+
+  /* Ce qui est là d'habitude sous les paroles : la position, ⏮ ⏯ ⏭, le pied. */
+  .seek { margin-top: 8px; }
+  .seek .bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.2); overflow: hidden; }
+  .seek .bar i { display: block; height: 100%; background: rgba(255,255,255,.85); }
+  .seek .times { display: flex; justify-content: space-between; font-size: 12px; color: var(--dv-text-faint); margin-top: 5px; font-variant-numeric: tabular-nums; }
+  .transport { display: flex; justify-content: center; gap: 46px; align-items: center; margin: 14px 0 18px; }
+  .transport button { all: unset; cursor: pointer; color: #fff; display: grid; place-items: center; }
+  .transport .big svg { width: 46px; height: 46px; } .transport .side svg { width: 32px; height: 32px; }
+  .foot { display: flex; justify-content: space-around; padding: 4px 0 10px; }
+  .foot button { all: unset; cursor: pointer; width: 44px; height: 36px; display: grid; place-items: center; color: var(--dv-text-muted); border-radius: 10px; }
+  .foot button.on { color: var(--dv-text); background: rgba(255,255,255,.12); }
+  .foot svg { width: 22px; height: 22px; }
+
+  /* Le tiroir : il prend la place de la position, des boutons et du pied. */
+  .sheet { margin: 8px -12px 0; padding: 12px; border-radius: 18px; background: var(--dv-surface); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge), 0 -10px 30px rgba(0,0,0,.35); display: flex; flex-direction: column; gap: 10px; animation: up .25s ease-out; }
+  @keyframes up { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .value { font: 700 17px ui-monospace, Menlo, monospace; color: var(--dv-text); white-space: nowrap; min-width: 88px; }
+  .value.moved { color: var(--dv-gold); }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .seg button { all: unset; cursor: pointer; padding: 6px 11px; border-radius: 8px; font-weight: 600; font-size: 14px; color: var(--dv-text-muted); }
+  .seg button.on { background: var(--dv-glass-hover); color: var(--dv-gold); }
+  .wave { position: relative; height: 120px; border-radius: 12px; background: rgba(0,0,0,.4); box-shadow: inset 0 0 0 1px var(--dv-edge); touch-action: none; user-select: none; -webkit-user-select: none; }
+  .wave canvas { display: block; width: 100%; height: 100%; }
+  .slider { display: flex; align-items: center; gap: 4px; }
+  .slider input { flex: 1; accent-color: #fff; height: 32px; }
+  .step { all: unset; cursor: pointer; min-width: 52px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-weight: 600; color: var(--dv-text-muted); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .pins { display: flex; align-items: center; justify-content: space-between; color: var(--dv-gold); font-size: 13px; min-height: 0; }
+  .quiet { all: unset; cursor: pointer; padding: 6px 10px; border-radius: 8px; color: var(--dv-text-muted); font-weight: 600; }
+  .primary { all: unset; cursor: pointer; padding: 0 18px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--dv-gold); color: var(--dv-gold-ink); font-weight: 700; }
+  .check { display: inline-flex; align-items: center; gap: 8px; color: var(--dv-text-muted); font-size: 14px; flex: 1; }
+  .check input { width: 18px; height: 18px; accent-color: var(--dv-gold); }
+  .tip { position: absolute; left: 12px; right: 12px; bottom: calc(100% + 8px); padding: 10px 12px; border-radius: 12px; background: var(--dv-surface); backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge); font-size: 13px; color: var(--dv-text-muted); display: none; }
+  .tip.show { display: block; }
+  .toast { position: absolute; left: 16px; right: 16px; bottom: 60px; padding: 11px 14px; border-radius: 14px; background: var(--dv-surface); backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge); display: none; z-index: 8; }
+  .toast.show { display: block; }
+  .toast b { color: var(--dv-gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone" id="phone">
+    <div class="backdrop"></div>
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span style="font-size:13px">●●● ▮</span></div>
+    <div class="inner" id="inner">
+      <div class="handle"></div>
+      <div class="head">
+        <div class="thumb"></div>
+        <div class="words"><div class="t">Hold the Line</div><div class="a">The Trams · Evening Songs</div></div>
+        <button class="round" id="timing" aria-label="Fix timing">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Zm0 1a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Zm-.5 1.5v3.2l2.4 1.4.5-.8-1.9-1.1V6h-1ZM6 1h4v1H6z"/></svg>
+        </button>
+        <button class="round" aria-label="More">⋯</button>
+      </div>
+      <div class="lyrics" id="lyrics"><ol id="ol"></ol></div>
+      <div id="normal">
+        <div class="seek"><div class="bar"><i id="fill"></i></div><div class="times"><span id="tNow">0:00</span><span>−1:12</span></div></div>
+        <div class="transport">
+          <button class="side" aria-label="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
+          <button class="big" id="playBig" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor" id="bigIcon"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="side" aria-label="Next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+        </div>
+        <div class="foot">
+          <button class="on" aria-label="Lyrics"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v12H7l-3 3zM7 8h10v1.6H7zm0 3h7v1.6H7z"/></svg></button>
+          <button aria-label="Output"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18v11H3zm6 13h6v2H9z"/></svg></button>
+          <button aria-label="Tracks"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h12v2H4zm0 5h12v2H4zm0 5h8v2H4zm14-6v6.3a2.5 2.5 0 1 0 2 2.4V12h2v-2z"/></svg></button>
+        </div>
+      </div>
+      <div class="sheet" id="sheet" hidden>
+        <div class="tip" id="tip">The slider moves every line. Drag a mark to set its line alone: the music holds, and plays again from just before it. A double tap resets it. Drag the wave to go back or on in the track.</div>
+        <div class="row">
+          <span class="value" id="val">0.00 s</span>
+          <button class="round" id="info" aria-label="How it works" style="width:30px;height:30px;font-weight:700">i</button>
+          <span class="spacer"></span>
+          <button class="round" id="playSmall" aria-label="Play">▶</button>
+          <span class="seg" id="speed"><button data-r="1" class="on">1×</button><button data-r="0.5">0.5×</button></span>
+        </div>
+        <div class="wave" id="wave"><canvas id="cv"></canvas></div>
+        <div class="slider">
+          <button class="step" id="minus">−0.1</button>
+          <input type="range" id="slider" min="-10" max="10" step="0.05" value="0">
+          <button class="step" id="plus">+0.1</button>
+        </div>
+        <div class="pins" id="pins" hidden><span id="pinsWord"></span><button class="quiet" id="resetPins">Reset</button></div>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="into"> Into the lyrics</label>
+          <button class="quiet" id="cancel">Cancel</button>
+          <button class="primary" id="save">Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="toast" id="toast"></div>
+    <div class="home"></div>
+  </div>
+
+  <div class="note">
+    <h1>Recaler les paroles sur iPhone</h1>
+    <p>Le lecteur plein écran, vue paroles. Le son est synthétisé, comme dans le second prototype, et les paroles arrivent en retard. Touche ⏱ à côté du ⋯ pour régler.</p>
+    <div class="scen" id="scen"><button data-s="2.4" class="on">Paroles 2,4 s en retard</button><button data-s="-1.3">1,3 s trop tôt</button></div>
+    <h2>Ce qui change par rapport à l'ordinateur</h2>
+    <ul>
+      <li><b>Le tiroir prend la place</b> de la position, de ⏮ ⏯ ⏭ et du pied du lecteur : la forme d'onde sert de position (on la tire), et ▶ / ❚❚ est dans le tiroir. Les paroles restent au-dessus, un peu plus petites.</li>
+      <li><b>Plus grand pour le doigt :</b> forme d'onde de 120 px de haut, boutons ±0.1 de 36 px, et un repère s'attrape à 22 px de part et d'autre, pas 7.</li>
+      <li><b>Double-tap</b> sur un repère en or pour le rendre au curseur.</li>
+      <li><b>(i)</b> : le mode d'emploi s'affiche au toucher (il n'y a pas de survol sur un téléphone), et se referme au toucher suivant.</li>
+      <li>Le ⏱ n'apparaît que dans la vue paroles, et seulement quand la piste a des paroles minutées.</li>
+    </ul>
+    <h2>Ce que j'en pense</h2>
+    <ul>
+      <li class="pro">Même geste que sur l'ordinateur, donc rien à réapprendre ; le ralenti et la forme d'onde marchent dans Safari sur iOS.</li>
+      <li class="con">La forme d'onde demande de télécharger la piste entière (≈ 30 Mo pour 4 min de FLAC) : en 4G, ça se sent. On pourrait n'y charger que la forme d'onde, calculée une fois par le serveur avec ffmpeg (il est dans l'image Docker de p-cloud).</li>
+      <li class="con">8 s de forme d'onde sur 370 px : les repères de deux lignes rapprochées se touchent. Si c'est gênant, on peut zoomer à 5 s sur iPhone.</li>
+    </ul>
+  </div>
+</div>
+<script>
+const WORDS = [
+  'The tram goes by beneath my window', 'Another evening, the same old song', 'I count the lights along the river',
+  'And wonder where the day has gone', 'Oh, hold the line', 'Hold the line a little longer',
+  'The night is young and so are we', 'Oh, hold the line', 'Until the morning sets us free',
+  'The bells ring out across the water', 'A cello hums an old refrain', 'I write your name on fogged-up glass',
+  'And watch it vanish in the rain', 'Oh, hold the line', 'Hold the line a little longer', 'Until the morning sets us free',
+];
+const TRUE = [6.0, 9.6, 13.2, 16.8, 21.0, 23.4, 26.8, 30.6, 33.0, 40.0, 43.6, 47.2, 50.8, 55.0, 57.4, 61.0];
+const LENGTH = 72, SR = 22050, LEAD = 0.2, BEFORE = 2, AFTER = 6, REACH = 22, HEAR_BEFORE = 1.5;
+let late = 2.4, shift = 0, fixing = false, saved = null;
+let pins = new Map();
+const lrclibAt = i => TRUE[i] + late;
+const shownAt = i => (fixing ? (pins.has(i) ? pins.get(i) : Math.max(0, lrclibAt(i) + shift)) : saved ? saved[i] : lrclibAt(i));
+
+// Le son, comme dans le second prototype : une batterie, une nappe, une « voix ».
+const N = LENGTH * SR, pcm = new Float32Array(N);
+const MELODY = [220, 247, 262, 294, 262, 247, 220, 196, 220, 262, 294, 330];
+for (let n = 0; n < N; n++) {
+  const t = n / SR, beat = t % 0.6, half = (t + 0.3) % 0.6;
+  pcm[n] = 0.42 * Math.sin(2 * Math.PI * 52 * beat) * Math.exp(-beat * 16) + 0.05 * (Math.random() * 2 - 1) * Math.exp(-half * 55)
+    + 0.035 * Math.sin(2 * Math.PI * 110 * t) * (0.6 + 0.4 * Math.sin(t * 0.7));
+}
+TRUE.forEach((start, i) => {
+  const end = Math.min((TRUE[i + 1] ?? start + 3.5) - 0.35, start + 3.2), syl = WORDS[i].split(' ').length, d = (end - start) / syl;
+  for (let k = 0; k < syl; k++) {
+    const f = MELODY[(i * 3 + k) % MELODY.length], s0 = start + k * d;
+    for (let n = Math.floor(s0 * SR); n < Math.min(N, (s0 + d) * SR); n++) {
+      const u = n / SR - s0, env = Math.min(1, u / 0.025) * Math.min(1, (d - u) / 0.05), ph = 2 * Math.PI * f * (n / SR);
+      pcm[n] += 0.3 * env * (Math.sin(ph) + 0.5 * Math.sin(2 * ph) + 0.33 * Math.sin(3 * ph) + 0.2 * Math.sin(4 * ph)) / 2;
+    }
+  }
+});
+function wav(samples) {
+  const buf = new ArrayBuffer(44 + samples.length * 2), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, SR, true); v.setUint32(28, SR * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i] * 0.8)) * 32767, true);
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+const audio = new Audio(wav(pcm)); audio.preservesPitch = true;
+const BIN = 0.02, peaks = new Float32Array(Math.ceil(LENGTH / BIN));
+for (let b = 0; b < peaks.length; b++) {
+  let sum = 0; const a = Math.floor(b * BIN * SR), z = Math.min(N, Math.floor((b + 1) * BIN * SR));
+  for (let n = a; n < z; n++) sum += pcm[n] * pcm[n];
+  peaks[b] = Math.sqrt(sum / Math.max(1, z - a));
+}
+const loudest = Math.max(...peaks);
+
+const $ = id => document.getElementById(id);
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const label = v => `${v > 0.004 ? '+' : v < -0.004 ? '−' : ''}${Math.abs(v).toFixed(2)} s`;
+WORDS.forEach(w => { const li = document.createElement('li'); li.textContent = w; $('ol').appendChild(li); });
+const lineAt = s => { let k = -1; for (let i = 0; i < WORDS.length && shownAt(i) <= s; i++) k = i; return k; };
+
+function setShift(v) {
+  shift = Math.round(Math.max(-10, Math.min(10, v)) * 100) / 100;
+  $('slider').value = shift; $('val').textContent = label(shift); $('val').classList.toggle('moved', Math.abs(shift) > 0.004);
+}
+function showPins() {
+  $('pins').hidden = pins.size === 0;
+  $('pinsWord').textContent = pins.size === 1 ? '1 line set by hand' : `${pins.size} lines set by hand`;
+}
+
+// Le dessin : des barres attachées au temps de la piste, les repères dessus.
+const cv = $('cv'), ctx = cv.getContext('2d');
+let scrubAt = null, holding = null;
+function draw(t) {
+  const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== W * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  const pxs = W / (BEFORE + AFTER), x = s => (s - t + BEFORE) * pxs, mid = H * 0.6;
+  const per = Math.max(1, Math.round(2 / pxs / BIN)), barSec = per * BIN;
+  for (let bar = Math.max(0, Math.floor((t - BEFORE) / barSec)); bar < Math.min(Math.ceil(peaks.length / per), Math.ceil((t + AFTER) / barSec)); bar++) {
+    let level = 0; for (let s = bar * per; s < (bar + 1) * per && s < peaks.length; s++) level = Math.max(level, peaks[s]);
+    const h = Math.max(0.5, (level / loudest) * H * 0.36);
+    ctx.fillStyle = (bar + 0.5) * barSec < t ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.55)';
+    ctx.fillRect(x(bar * barSec), mid - h, Math.max(1, barSec * pxs - 0.5), h * 2);
+  }
+  const lit = lineAt(t + LEAD);
+  ctx.font = '600 12px -apple-system, sans-serif'; ctx.textBaseline = 'top';
+  const marks = WORDS.map((w, i) => ({ i, at: x(shownAt(i)), w }));
+  marks.forEach((m, k) => {
+    if (m.at < -160 || m.at > W + 4) return;
+    const set = pins.has(m.i), held = holding?.i === m.i;
+    ctx.fillStyle = set ? '#fbbf24' : m.i === lit ? '#e5e5e5' : '#9ca3af';
+    ctx.fillRect(m.at - (held ? 1 : 0), 18, held ? 3 : 2, H - 18);
+    ctx.beginPath(); ctx.moveTo(m.at - 6, 18); ctx.lineTo(m.at + 8, 18); ctx.lineTo(m.at + 1, 26); ctx.fill();
+    const room = (marks[k + 1]?.at ?? Infinity) - m.at - 12, words = m.w.split(' ').slice(0, 3);
+    while (words.length && ctx.measureText(words.join(' ') + '…').width > room) words.pop();
+    if (words.length) ctx.fillText(words.join(' ') + '…', m.at + 6, 3);
+  });
+  ctx.fillStyle = '#e5e5e5'; ctx.fillRect(x(t) - 1, 0, 2, H);
+}
+function frame() {
+  const t = scrubAt ?? audio.currentTime, k = lineAt(t + LEAD), lis = $('ol').children;
+  for (let i = 0; i < lis.length; i++) lis[i].className = i === k ? 'now' : i < k ? 'past' : '';
+  const line = lis[Math.max(0, k)]; if (line) $('ol').style.transform = `translateY(${$('lyrics').clientHeight * 0.32 - line.offsetTop}px)`;
+  $('tNow').textContent = fmt(t); $('fill').style.width = `${(t / LENGTH) * 100}%`;
+  if (fixing) draw(t);
+  requestAnimationFrame(frame);
+}
+
+// Les gestes sur la forme d'onde : un repère au doigt le pose, ailleurs on tire la bande.
+const wave = $('wave');
+const pxs = () => wave.clientWidth / (BEFORE + AFTER);
+const markAt = clientX => {
+  const t = scrubAt ?? audio.currentTime, px = clientX - wave.getBoundingClientRect().left;
+  let found = null, best = REACH;
+  WORDS.forEach((_, i) => { const d = Math.abs((shownAt(i) - t + BEFORE) * pxs() - px); if (d <= best) { best = d; found = i; } });
+  return found;
+};
+let scrub = null, lastTap = { i: null, at: 0 };
+wave.addEventListener('pointerdown', e => {
+  wave.setPointerCapture(e.pointerId);
+  const i = markAt(e.clientX), wasPlaying = !audio.paused;
+  if (i !== null) {
+    const now = Date.now();
+    if (lastTap.i === i && now - lastTap.at < 320 && pins.has(i)) { pins.delete(i); showPins(); lastTap = { i: null, at: 0 }; return; }
+    lastTap = { i, at: now };
+    holding = { i, now: audio.currentTime, wasPlaying, moved: false }; audio.pause(); return;
+  }
+  scrub = { x: e.clientX, from: audio.currentTime, wasPlaying }; scrubAt = audio.currentTime; audio.pause();
+});
+wave.addEventListener('pointermove', e => {
+  if (holding) {
+    const at = holding.now + (e.clientX - wave.getBoundingClientRect().left) / pxs() - BEFORE;
+    const before = holding.i > 0 ? shownAt(holding.i - 1) + 0.05 : 0, after = holding.i < WORDS.length - 1 ? shownAt(holding.i + 1) - 0.05 : LENGTH;
+    pins.set(holding.i, Math.round(Math.min(after, Math.max(before, at)) * 100) / 100); holding.moved = true; showPins(); return;
+  }
+  if (scrub) scrubAt = Math.min(LENGTH, Math.max(0, scrub.from - (e.clientX - scrub.x) / pxs()));
+});
+const up = () => {
+  if (holding) {
+    if (holding.moved) audio.currentTime = Math.max(0, pins.get(holding.i) - HEAR_BEFORE);
+    if (holding.wasPlaying) audio.play(); holding = null; return;
+  }
+  if (scrub) { audio.currentTime = scrubAt; if (scrub.wasPlaying) audio.play(); scrub = null; scrubAt = null; }
+};
+wave.addEventListener('pointerup', up); wave.addEventListener('pointercancel', up);
+
+function toggle() { if (audio.paused) audio.play(); else audio.pause(); }
+const playIcon = '<path d="M8 5v14l11-7z"/>', pauseIcon = '<path d="M7 5h4v14H7zm6 0h4v14h-4z"/>';
+audio.onplay = audio.onpause = () => { $('bigIcon').innerHTML = audio.paused ? playIcon : pauseIcon; $('playSmall').textContent = audio.paused ? '▶' : '❚❚'; };
+$('playBig').onclick = toggle; $('playSmall').onclick = toggle;
+$('slider').oninput = e => { const v = Number(e.target.value); setShift(Math.abs(v) < 0.2 ? 0 : v); };
+$('minus').onclick = () => setShift(shift - 0.1); $('plus').onclick = () => setShift(shift + 0.1);
+$('speed').onclick = e => { const r = e.target.dataset?.r; if (!r) return; audio.playbackRate = Number(r); [...$('speed').children].forEach(b => b.classList.toggle('on', b.dataset.r === r)); };
+$('info').onclick = e => { e.stopPropagation(); $('tip').classList.toggle('show'); };
+document.addEventListener('pointerdown', e => { if (e.target !== $('info')) $('tip').classList.remove('show'); });
+$('resetPins').onclick = () => { pins = new Map(); showPins(); };
+
+function openFix() {
+  fixing = true; $('phone').classList.add('fixing');
+  if (saved) { shift = 0; pins = new Map(); }
+  setShift(shift); showPins(); $('normal').hidden = true; $('sheet').hidden = false; if (audio.paused) audio.play();
+}
+function closeFix(keep) {
+  if (keep) { saved = WORDS.map((_, i) => shownAt(i)); toast($('into').checked ? 'Timing saved into the lyrics.' : 'Timing fixed, in DexVault only.'); }
+  fixing = false; $('phone').classList.remove('fixing'); audio.playbackRate = 1;
+  [...$('speed').children].forEach(b => b.classList.toggle('on', b.dataset.r === '1'));
+  $('timing').classList.toggle('on', Boolean(saved)); $('normal').hidden = false; $('sheet').hidden = true;
+}
+let tt; function toast(m) { $('toast').innerHTML = `<b>✓</b> ${m}`; $('toast').classList.add('show'); clearTimeout(tt); tt = setTimeout(() => $('toast').classList.remove('show'), 3500); }
+$('timing').onclick = () => (fixing ? closeFix(false) : openFix());
+$("cancel").onclick = () => closeFix(false); $("save").onclick = () => closeFix(true);
+$('scen').onclick = e => { const s = e.target.dataset?.s; if (!s) return; late = Number(s); saved = null; pins = new Map(); setShift(0); showPins();
+  $('timing').classList.remove('on'); [...$('scen').children].forEach(b => b.classList.toggle('on', b.dataset.s === s)); };
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -191,80 +191,9 @@ body:has(.modal.show:not(.side-panel-modal)) .lyrics-panel {
   z-index: 1;
 }
 
-/* The drawer that fixes the timing, in the menus' glass at the foot of the panel. */
+/* The drawer that fixes the timing, at the foot of the panel. */
 .lyrics-panel-fix {
-  flex: none;
   margin: 0 10px 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.lyrics-panel-fix-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--dv-text-muted);
-}
-
-.lyrics-panel-fix-head output {
-  margin-left: 6px;
-  font: 700 15px ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--dv-text);
-}
-
-.lyrics-panel-fix-head output.lyrics-panel-fix-moved {
-  color: var(--dv-gold);
-}
-
-.lyrics-panel-fix-hint {
-  margin: 0;
-  font-size: 12px;
-  color: var(--dv-text-faint);
-}
-
-.lyrics-panel-fix-hint kbd {
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--dv-glass-hover);
-  color: var(--dv-text);
-  font-size: 11px;
-}
-
-.lyrics-panel-fix-slider {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.lyrics-panel-fix-slider .ui-range {
-  flex: 1;
-  min-width: 0;
-}
-
-.lyrics-panel-fix-foot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-}
-
-.lyrics-panel-fix-into {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  color: var(--dv-text-muted);
-  cursor: pointer;
 }
 
 /* Words without times: read as a page, scrolled by hand. */

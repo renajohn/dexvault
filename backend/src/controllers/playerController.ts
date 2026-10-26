@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import navidromeService from '../services/navidromeService';
+import waveformService, { canRead } from '../services/waveformService';
 import { scrobble } from '../services/scrobble';
 import logger from '../logger';
 
@@ -43,6 +44,36 @@ const playerController = {
     } catch (error) {
       logger.warn(`Streaming song ${id}: ${(error as Error).message}`);
       if (!res.headersSent) res.status(502).json({ error: (error as Error).message });
+    }
+  },
+
+  /**
+   * A song's wave, for fixing the timing of its words: `{ bin, levels }`,
+   * the levels base64, one byte a slice. Read once with ffmpeg and kept; 501
+   * where ffmpeg is not, and the browser reads the file itself.
+   */
+  waveform: async (req: Request, res: Response): Promise<void> => {
+    const id = String(req.params.id);
+    if (!SONG_ID.test(id)) {
+      res.status(400).json({ error: 'Not a song id' });
+      return;
+    }
+    if (!navidromeService.isConfigured()) {
+      res.status(503).json({ error: 'Navidrome is not configured' });
+      return;
+    }
+    if (!waveformService.kept(id) && !(await canRead())) {
+      res.status(501).json({ error: 'ffmpeg is not installed here' });
+      return;
+    }
+    try {
+      const wave = await waveformService.of(id);
+      // A song's file does not change under its id: the wave is kept by the browser too.
+      res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+      res.json({ bin: wave.bin, levels: wave.levels.toString('base64') });
+    } catch (error) {
+      logger.warn(`Waveform of song ${id}: ${(error as Error).message}`);
+      res.status(502).json({ error: (error as Error).message });
     }
   },
 

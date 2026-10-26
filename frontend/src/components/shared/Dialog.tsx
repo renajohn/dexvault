@@ -121,7 +121,12 @@ const DialogRoot: React.FC<DialogProps> = ({
       onExited={left}
       onEntered={onEntered}
       // react-bootstrap gives a role prop to its inner box: an alert dialog is the outer one that bears the title.
-      onEnter={(node: HTMLElement) => { if (role !== 'dialog') node.setAttribute('role', role); }}
+      onEnter={(node: HTMLElement) => {
+        if (role !== 'dialog') node.setAttribute('role', role);
+        // A record's card sets every .modal's z-index !important (MusicDetailCard.css): a z-index asked for, over the
+        // phone's player say, must be as firm to win.
+        if (zIndex) node.style.setProperty('z-index', String(zIndex), 'important');
+      }}
       centered
       size={size === 'md' ? undefined : size}
       fullscreen={full ? `${full}-down` as 'md-down' : undefined}

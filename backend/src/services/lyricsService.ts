@@ -378,6 +378,40 @@ export const lrcText = (lyrics: Pick<TrackLyricsFormatted, 'synced' | 'plain'> &
   return text ? `${text}\n` : null;
 };
 
+/** Another take on LRCLIB's texts this far from the CD's length is still shown, to choose from. */
+const VERSION_TOLERANCE_SEC = 15;
+const MOST_VERSIONS = 12;
+
+/** One of LRCLIB's texts for a track, to choose another. */
+export interface LyricsVersion {
+  id: string;
+  artist: string;
+  album: string;
+  durationSec: number | null;
+  timed: boolean;
+  lines: number;
+  /** Its first lines, without their times. */
+  preview: string[];
+  /** How many of LRCLIB's entries hold this very text. */
+  copies: number;
+  /** The text the track has now. */
+  current: boolean;
+  /** How much later it sings than the text the track has now, both timed. */
+  lag: number | null;
+  /** How many of its lines the text the track has now has not: 0, the same words. */
+  changed: number | null;
+  /** The first of those lines, to see what differs. */
+  differing: string[];
+  /** The whole text, to try it on the song before choosing it. */
+  synced: string | null;
+  plain: string | null;
+}
+
+export interface LyricsVersions {
+  durationSec: number | null;
+  versions: LyricsVersion[];
+}
+
 /** Where a track's timing comes from: LRCLIB's, fixed by hand in DexVault, or saved into the lyrics. */
 export type LyricsTiming = 'lrclib' | 'fixed' | 'saved';
 
@@ -454,7 +488,8 @@ const lyricsService = {
     const album = await Album.findById(albumId);
     const track = album && (await Track.findByCdId(albumId)).find(candidate => candidate.discNumber === discNumber && candidate.trackNumber === trackNumber);
     if (!album || !track) return known;
-    if (known && !again && known.title === track.title) return known;
+    // A text chosen by hand stays until a lookup is asked for, the track renamed or not.
+    if (known && !again && (known.title === track.title || known.chosen)) return known;
     const found = await lookUpAndSave({
       albumId, discNumber, trackNumber, title: track.title, durationSec: track.durationSec,
       trackArtist: JSON.stringify(track.artist || []), albumArtist: JSON.stringify(album.artist || []), albumTitle: album.title,
@@ -481,6 +516,86 @@ const lyricsService = {
     return { lyrics, lrc: await rewriteLrc(known, lyrics) };
   },
 
+  /**
+   * LRCLIB's texts for a track, to choose another: those about as long as the
+   * CD's track, timed first, a text copied under several albums shown once.
+   * Null when the CD has no such track.
+   */
+  versions: async (albumId: number, discNumber: number, trackNumber: number): Promise<LyricsVersions | null> => {
+    const album = await Album.findById(albumId);
+    const track = album && (await Track.findByCdId(albumId)).find(candidate => candidate.discNumber === discNumber && candidate.trackNumber === trackNumber);
+    if (!album || !track) return null;
+    const known = await TrackLyrics.get(albumId, discNumber, trackNumber);
+    const artists = artistsOf({ trackArtist: JSON.stringify(track.artist || []), albumArtist: JSON.stringify(album.artist || []) });
+    const titles = [...new Set([plainText(track.title), bareTitle(track.title)])].filter(Boolean);
+    const found = new Map<number, LrclibRecord>();
+    const searches = [
+      ...artists.slice(0, 2).flatMap(artist => titles.map(title => ({ artist_name: artist, track_name: title }))),
+      ...(artists[0] ? [{ q: `${artists[0]} ${titles[titles.length - 1]}` }] : []),
+    ];
+    for (const params of searches) {
+      const records = await lrclib<LrclibRecord[]>('search', params as Record<string, string>).catch(() => null);
+      for (const record of records ?? []) found.set(record.id, record);
+    }
+    const length = track.durationSec ?? null;
+    const usable = [...found.values()].filter(record => !record.instrumental && (record.syncedLyrics || record.plainLyrics)
+      && (length == null || record.duration == null || Math.abs(record.duration - length) <= VERSION_TOLERANCE_SEC));
+    // One text copied under several albums is one version: the copy closest to the CD's length speaks for it.
+    const byText = new Map<string, { record: LrclibRecord; copies: number }>();
+    for (const record of usable) {
+      const text = (record.syncedLyrics || record.plainLyrics || '').trim();
+      const kept = byText.get(text);
+      const closer = !kept || (length != null && Math.abs((record.duration ?? 0) - length) < Math.abs((kept.record.duration ?? 0) - length));
+      byText.set(text, { record: closer ? record : kept!.record, copies: (kept?.copies ?? 0) + 1 });
+    }
+    const current = known?.synced || known?.plain || null;
+    const keyOf = (line: string) => plainText(line).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const inUse = new Set(current ? untimed(current).split('\n').map(keyOf).filter(Boolean) : []);
+    const notInUse = (text: string) => untimed(text).split('\n').map(line => line.trim()).filter(line => keyOf(line) && !inUse.has(keyOf(line)));
+    const changedFrom = (text: string) => (current ? notInUse(text).length : null);
+    const round = (lag: number | null) => (lag == null ? null : Math.round(lag * 100) / 100);
+    const versions = [...byText.entries()].map(([text, { record, copies }]): LyricsVersion => ({
+      id: String(record.id),
+      artist: record.artistName,
+      album: record.albumName,
+      durationSec: record.duration,
+      timed: Boolean(record.syncedLyrics),
+      lines: untimed(text).split('\n').filter(line => line.trim()).length,
+      preview: untimed(text).split('\n').map(line => line.trim()).filter(Boolean).slice(0, 4),
+      copies,
+      current: known?.sourceId === String(record.id) || (current != null && current.trim() === text),
+      lag: round(known?.synced && record.syncedLyrics ? lagBetween(known.synced, record.syncedLyrics) : null),
+      changed: changedFrom(text),
+      differing: current ? [...new Set(notInUse(text))].slice(0, 3) : [],
+      synced: record.syncedLyrics,
+      plain: record.plainLyrics,
+    }));
+    // The text in use first, even when LRCLIB's searches no longer bring it.
+    if (current && known?.sourceId && !versions.some(version => version.current)) {
+      versions.unshift({
+        id: known.sourceId, artist: '', album: '', durationSec: length, timed: Boolean(known.synced),
+        lines: untimed(current).split('\n').filter(line => line.trim()).length,
+        preview: untimed(current).split('\n').map(line => line.trim()).filter(Boolean).slice(0, 4),
+        copies: 1, current: true, lag: null, changed: 0, differing: [], synced: known.synced, plain: known.plain,
+      });
+    }
+    versions.sort((a, b) => Number(b.current) - Number(a.current) || Number(b.timed) - Number(a.timed)
+      || (length == null ? 0 : Math.abs((a.durationSec ?? 0) - length) - Math.abs((b.durationSec ?? 0) - length)));
+    return { durationSec: length, versions: versions.slice(0, MOST_VERSIONS) };
+  },
+
+  /** Another of LRCLIB's texts for a track, chosen by hand: the .lrc beside the rip takes it, when it is DexVault's. */
+  chooseVersion: async (albumId: number, discNumber: number, trackNumber: number, sourceId: string)
+    : Promise<{ lyrics: TrackLyricsFormatted; lrc: LrcOutcome } | null> => {
+    const known = await TrackLyrics.get(albumId, discNumber, trackNumber);
+    if (!known || !/^\d+$/.test(sourceId)) return null;
+    const record = await lrclib<LrclibRecord>(`get/${sourceId}`, {});
+    if (!record || record.instrumental || (!record.syncedLyrics && !record.plainLyrics)) return null;
+    await TrackLyrics.choose(albumId, discNumber, trackNumber, { plain: record.plainLyrics, synced: record.syncedLyrics, sourceId: String(record.id) });
+    const lyrics = (await TrackLyrics.get(albumId, discNumber, trackNumber))!;
+    return { lyrics, lrc: await rewriteLrc(known, lyrics) };
+  },
+
   /** Back to LRCLIB's timing, in the .lrc beside the rip too when it was saved there. */
   resetTiming: async (albumId: number, discNumber: number, trackNumber: number)
     : Promise<{ lyrics: TrackLyricsFormatted; lrc: LrcOutcome } | null> => {
@@ -502,7 +617,10 @@ const lyricsService = {
     if (!album) return null;
     const tracks = await Track.findByCdId(albumId);
     const known = new Map((await TrackLyrics.forAlbum(albumId)).map(row => [`${row.discNumber}/${row.trackNumber}`, row]));
-    const pending = tracks.filter(track => known.get(`${track.discNumber}/${track.trackNumber}`)?.title !== track.title);
+    const pending = tracks.filter(track => {
+      const words = known.get(`${track.discNumber}/${track.trackNumber}`);
+      return !words || (words.title !== track.title && !words.chosen);
+    });
     if (pending.length > 0 && !albumsLookingUp.has(albumId)) {
       albumsLookingUp.add(albumId);
       (async () => {

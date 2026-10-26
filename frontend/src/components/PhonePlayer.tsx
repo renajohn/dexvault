@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   BsBoxArrowUpRight, BsChatQuote, BsChatQuoteFill, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
@@ -12,7 +12,9 @@ import Menu from './shared/Menu';
 import NowPlayingBars from './shared/NowPlayingBars';
 import { Loading } from './shared/Spinner';
 import OutputMenu, { OutputVolume } from './OutputMenu';
-import { lineAt, parseLrc } from './LyricsPanel';
+import { lineAt, type LyricLine } from '../utils/lrc';
+import { LyricsMenu, TimingDrawer, TryBar } from './LyricsTiming';
+import { useLyricsTiming } from './useLyricsTiming';
 import { GuideText, readingOf } from './AlbumGuide';
 import { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
 import './PhonePlayer.css';
@@ -70,6 +72,8 @@ export interface PhonePlayerProps {
   from: string;
   /** The words of the track, for an album DexVault holds. */
   lyricsOf?: { albumId: number; disc: number; no: number } | null;
+  /** The track playing in this browser's player, whose words' timing can be fixed here; none for a computer far away. */
+  timingSongId?: string | null;
   /** The album whose listening guide can be read, for an album DexVault holds. */
   guideOf?: number | null;
   /** The album's tracks, the one playing at `index`. */
@@ -144,20 +148,7 @@ const Scrubber: React.FC<{ position: number; length: number; playing: boolean; s
  * white, those sung and to sing dimmed, following the song; scrolled by hand
  * they wait a while, and a tap on a line plays from there.
  */
-const Lyrics: React.FC<{ of: { albumId: number; disc: number; no: number }; position: number; seek?: (seconds: number) => void }> = ({ of, position, seek }) => {
-  // Undefined while they are looked for, null when they could not be read.
-  const [lyrics, setLyrics] = useState<TrackLyrics | null | undefined>(undefined);
-  const { albumId, disc, no } = of;
-  useEffect(() => {
-    let current = true;
-    setLyrics(undefined);
-    musicService.getLyrics(albumId, disc, no)
-      .then(found => { if (current) setLyrics(found); })
-      .catch(() => { if (current) setLyrics(null); });
-    return () => { current = false; };
-  }, [albumId, disc, no]);
-
-  const lines = useMemo(() => (lyrics?.synced ? parseLrc(lyrics.synced) : []), [lyrics]);
+const Lyrics: React.FC<{ lyrics: TrackLyrics | null | undefined; lines: LyricLine[]; position: number; seek?: (seconds: number) => void }> = ({ lyrics, lines, position, seek }) => {
   const index = lineAt(lines, position + LEAD_SEC);
   const box = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
@@ -180,6 +171,7 @@ const Lyrics: React.FC<{ of: { albumId: number; disc: number; no: number }; posi
 
   if (lyrics === undefined) return <div className="now-playing-lyrics now-playing-lyrics--note"><Loading>Looking for the words…</Loading></div>;
   if (lyrics?.status === 'instrumental') return <p className="now-playing-lyrics now-playing-lyrics--note">An instrumental: no words to sing.</p>;
+  if (lyrics === null) return <p className="now-playing-lyrics now-playing-lyrics--note">The words could not be read. Try again in a moment.</p>;
   if (lines.length === 0 && !lyrics?.plain) return <p className="now-playing-lyrics now-playing-lyrics--note">No words found for this track.</p>;
 
   return (
@@ -234,6 +226,30 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const hasTracks = Boolean(props.tracks && props.tracks.length > 0);
   // The album's listening guide, read as the album starts: its button shows only when there is one.
   const [guide, setGuide] = useState<string | null>(null);
+  // The words of the track, read as they are shown; fixing their timing works on them in place of the controls.
+  // Undefined while they are looked for, null when they could not be read.
+  const [lyrics, setLyrics] = useState<TrackLyrics | null | undefined>(undefined);
+  const lyricsAlbum = props.lyricsOf?.albumId;
+  const lyricsDisc = props.lyricsOf?.disc;
+  const lyricsNo = props.lyricsOf?.no;
+  const wordsShown = view === 'lyrics' && lyricsAlbum != null;
+  useEffect(() => {
+    if (!wordsShown || lyricsAlbum == null || lyricsDisc == null || lyricsNo == null) return undefined;
+    let current = true;
+    setLyrics(undefined);
+    musicService.getLyrics(lyricsAlbum, lyricsDisc, lyricsNo)
+      .then(found => { if (current) setLyrics(found); })
+      .catch(() => { if (current) setLyrics(null); });
+    return () => { current = false; };
+  }, [wordsShown, lyricsAlbum, lyricsDisc, lyricsNo]);
+  const timing = useLyricsTiming({ lyrics, setLyrics, albumId: lyricsAlbum, disc: lyricsDisc, no: lyricsNo });
+  const canFix = wordsShown && Boolean(props.timingSongId) && Boolean(controls.seek) && timing.lines.length > 0;
+  const fixing = timing.fixing && canFix;
+  // Away from the words, or the full screen closed: the fixing, or a version being tried, is let go, unsaved.
+  const { cancel: cancelFixing, revertTry } = timing;
+  useEffect(() => { if (timing.fixing && (!canFix || !full)) cancelFixing(); }, [timing.fixing, canFix, full, cancelFixing]);
+  const trying = Boolean(timing.trying) && wordsShown;
+  useEffect(() => { if (timing.trying && (!wordsShown || !full)) revertTry(); }, [timing.trying, wordsShown, full, revertTry]);
   const guideOf = props.guideOf ?? null;
   useEffect(() => {
     setGuide(null);
@@ -297,7 +313,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
     });
   };
   const grab = (event: React.PointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest('input, [role="slider"], .output-volume, .now-playing-scroll')) return;
+    if ((event.target as HTMLElement).closest('input, [role="slider"], .output-volume, .now-playing-scroll, .lyrics-timing')) return;
     start.current = { y: event.clientY, at: event.timeStamp, dragging: false };
   };
   const pull = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -402,7 +418,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
 
   const sheet = (
     <div ref={sheetRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Now playing" aria-hidden={!full} inert={!full}
-      className={`now-playing now-playing--${view}${full ? ' now-playing--open' : ''}${away ? ' now-playing--away' : ''}`}
+      className={`now-playing now-playing--${view}${full ? ' now-playing--open' : ''}${away ? ' now-playing--away' : ''}${fixing ? ' now-playing--timing' : ''}`}
       onPointerDown={grab} onPointerMove={pull} onPointerUp={letGo} onPointerCancel={() => { start.current = null; place(null); }}
       onClickCapture={event => { if (dragged.current) { event.stopPropagation(); event.preventDefault(); } }}>
       {/* The cover again, blurred, under it all: each album its own light. */}
@@ -426,9 +442,9 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
               <button type="button" className="now-playing-thumb" onClick={() => setView('cover')} aria-label="Back to the cover">
                 {cover.src ? <img src={cover.src} alt="" /> : <span className="now-playing-nocover" aria-hidden="true" />}
               </button>
-              {words}{heart}{more}
+              {words}{heart}{wordsShown && lyrics?.status === 'found' && !fixing && !trying && <LyricsMenu timing={timing} canFix={canFix} className="output-menu" />}{more}
             </div>
-            {view === 'lyrics' && props.lyricsOf && <Lyrics of={props.lyricsOf} position={position} seek={controls.seek} />}
+            {view === 'lyrics' && props.lyricsOf && <Lyrics lyrics={timing.shown} lines={timing.lines} position={position} seek={controls.seek} />}
             {view === 'guide' && guide && (
               <div className="now-playing-guide now-playing-scroll"><GuideText text={guide} /></div>
             )}
@@ -436,64 +452,74 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
           </>
         )}
 
-        <Scrubber position={position} length={length} playing={playing} seek={controls.seek} />
-
-        {taken ? (
-          // The appliance plays something else: Resume takes it back at the same place.
-          <div className="now-playing-taken">
-            <span>{taken} is playing something else</span>
-            <Button icon={<BsPlayFill />} onClick={controls.resume}>Resume</Button>
-          </div>
+        {fixing ? (
+          // Fixing the words' timing: the drawer in place of the place in the track, the buttons and the foot.
+          <TimingDrawer timing={timing} songId={props.timingSongId!} touch className="now-playing-timing" />
+        ) : trying ? (
+          // Trying another version of the words: which, ‹ ›, Keep or Revert, in place of the controls too.
+          <TryBar timing={timing} touch className="now-playing-timing" />
         ) : (
-          <div className="now-playing-transport">
-            <button type="button" className="player-bar-button now-playing-step" onClick={controls.previous} aria-label="Previous">
-              <BsSkipBackwardFill aria-hidden="true" />
-            </button>
-            {playButton(true)}
-            <button type="button" className="player-bar-button now-playing-step" onClick={controls.next} disabled={!hasNext} aria-label="Next">
-              <BsSkipForwardFill aria-hidden="true" />
-            </button>
-          </div>
-        )}
+          <>
+          <Scrubber position={position} length={length} playing={playing} seek={controls.seek} />
 
-        {/* An appliance's volume, under its ceiling. This iPhone's is its own buttons': a page cannot set it. */}
-        {renderer && <div className="now-playing-volume"><OutputVolume output={renderer} slim /></div>}
-
-        {/* Where it plays, over the buttons: "Playing on" and the output's name, which opens the outputs to change it. */}
-        {!props.foot && outputs.length > 0 && (
-          <p className="now-playing-where">
-            Playing on{' '}
-            <OutputMenu drop="up" align="start" volume={false} trigger={(triggerProps, open) => (
-              <button type="button" {...triggerProps} aria-label={`Output: ${props.where || localOutputName()}`}
-                className={`now-playing-where__output${props.where ? ' now-playing-where__output--away' : ''}${open ? ' now-playing-where__output--open' : ''}`}>
-                {props.where || localOutputName()}
+          {taken ? (
+            // The appliance plays something else: Resume takes it back at the same place.
+            <div className="now-playing-taken">
+              <span>{taken} is playing something else</span>
+              <Button icon={<BsPlayFill />} onClick={controls.resume}>Resume</Button>
+            </div>
+          ) : (
+            <div className="now-playing-transport">
+              <button type="button" className="player-bar-button now-playing-step" onClick={controls.previous} aria-label="Previous">
+                <BsSkipBackwardFill aria-hidden="true" />
               </button>
-            )} />
-          </p>
-        )}
+              {playButton(true)}
+              <button type="button" className="player-bar-button now-playing-step" onClick={controls.next} disabled={!hasNext} aria-label="Next">
+                <BsSkipForwardFill aria-hidden="true" />
+              </button>
+            </div>
+          )}
 
-        {/* The words, the guide, the tracks: as many even columns as there are, each centred in its own. */}
-        <footer className="now-playing-foot">
-          {hasLyrics && (
-            <button type="button" className={`player-bar-button now-playing-tool${view === 'lyrics' ? ' now-playing-tool--on' : ''}`}
-              onClick={() => toggleView('lyrics')} aria-pressed={view === 'lyrics'} aria-label="Lyrics">
-              {view === 'lyrics' ? <BsChatQuoteFill aria-hidden="true" /> : <BsChatQuote aria-hidden="true" />}
-            </button>
+          {/* An appliance's volume, under its ceiling. This iPhone's is its own buttons': a page cannot set it. */}
+          {renderer && <div className="now-playing-volume"><OutputVolume output={renderer} slim /></div>}
+
+          {/* Where it plays, over the buttons: "Playing on" and the output's name, which opens the outputs to change it. */}
+          {!props.foot && outputs.length > 0 && (
+            <p className="now-playing-where">
+              Playing on{' '}
+              <OutputMenu drop="up" align="start" volume={false} trigger={(triggerProps, open) => (
+                <button type="button" {...triggerProps} aria-label={`Output: ${props.where || localOutputName()}`}
+                  className={`now-playing-where__output${props.where ? ' now-playing-where__output--away' : ''}${open ? ' now-playing-where__output--open' : ''}`}>
+                  {props.where || localOutputName()}
+                </button>
+              )} />
+            </p>
           )}
-          {guide && (
-            <button type="button" className={`player-bar-button now-playing-tool${view === 'guide' ? ' now-playing-tool--on' : ''}`}
-              onClick={() => toggleView('guide')} aria-pressed={view === 'guide'} aria-label="Listening guide">
-              <BsJournalText aria-hidden="true" />
-            </button>
-          )}
-          {props.foot}
-          {hasTracks && (
-            <button type="button" className={`player-bar-button now-playing-tool${view === 'tracks' ? ' now-playing-tool--on' : ''}`}
-              onClick={() => toggleView('tracks')} aria-pressed={view === 'tracks'} aria-label="Tracks">
-              <BsMusicNoteList aria-hidden="true" />
-            </button>
-          )}
-        </footer>
+
+          {/* The words, the guide, the tracks: as many even columns as there are, each centred in its own. */}
+          <footer className="now-playing-foot">
+            {hasLyrics && (
+              <button type="button" className={`player-bar-button now-playing-tool${view === 'lyrics' ? ' now-playing-tool--on' : ''}`}
+                onClick={() => toggleView('lyrics')} aria-pressed={view === 'lyrics'} aria-label="Lyrics">
+                {view === 'lyrics' ? <BsChatQuoteFill aria-hidden="true" /> : <BsChatQuote aria-hidden="true" />}
+              </button>
+            )}
+            {guide && (
+              <button type="button" className={`player-bar-button now-playing-tool${view === 'guide' ? ' now-playing-tool--on' : ''}`}
+                onClick={() => toggleView('guide')} aria-pressed={view === 'guide'} aria-label="Listening guide">
+                <BsJournalText aria-hidden="true" />
+              </button>
+            )}
+            {props.foot}
+            {hasTracks && (
+              <button type="button" className={`player-bar-button now-playing-tool${view === 'tracks' ? ' now-playing-tool--on' : ''}`}
+                onClick={() => toggleView('tracks')} aria-pressed={view === 'tracks'} aria-label="Tracks">
+                <BsMusicNoteList aria-hidden="true" />
+              </button>
+            )}
+          </footer>
+          </>
+        )}
       </div>
     </div>
   );

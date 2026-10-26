@@ -34,11 +34,27 @@ export const levelsOf = (channels: Float32Array[], sampleRate: number, bin = BIN
   return levels;
 };
 
-/** A track's wave, read from its file through DexVault the first time it is asked for. */
+/** The wave the server read with ffmpeg and keeps: a few kilobytes. Null where it cannot read (no ffmpeg). */
+const fromServer = async (songId: string): Promise<Peaks | null> => {
+  const response = await fetch(`/api/music/navidrome/waveform/${encodeURIComponent(songId)}`);
+  if (response.status === 501) return null;
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  const { bin, levels } = await response.json() as { bin: number; levels: string };
+  const bytes = atob(levels);
+  return { bin, levels: Float32Array.from(bytes, byte => byte.charCodeAt(0) / 255) };
+};
+
+/**
+ * A track's wave, the first time it is asked for: from the server, which
+ * reads it once and keeps it; where it cannot, from the file itself, read
+ * here through DexVault (the whole of it, a few seconds on a phone).
+ */
 export const peaksOf = (songId: string): Promise<Peaks> => {
   const known = kept.get(songId);
   if (known) return known;
   const reading = (async () => {
+    const served = await fromServer(songId).catch(() => null);
+    if (served) return served;
     const Offline = window.OfflineAudioContext ?? (window as unknown as { webkitOfflineAudioContext?: typeof OfflineAudioContext }).webkitOfflineAudioContext;
     if (!Offline) throw new Error('This browser cannot read sound');
     const response = await fetch(streamUrl(songId));

@@ -289,6 +289,7 @@ app.delete('/api/music/digital/:navidromeId/dismiss', musicController.setDigital
 app.get('/api/music/digital/:navidromeId/tracks', musicController.getDigitalTracks);
 app.get('/api/music/navidrome-cover/:navidromeId', musicController.getNavidromeCover);
 app.get('/api/music/navidrome/stream/:id', playerController.stream);
+app.get('/api/music/navidrome/waveform/:id', playerController.waveform);
 // The remote: what plays in which browser, and commands to it from another device.
 // Kept, behind REMOTE_ENABLED, until playing on the appliances (UPnP) is trusted.
 if (configManager.getUpnpOptions().remoteEnabled) {
@@ -375,6 +376,8 @@ app.get('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics', lyricsControll
 app.post('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics', lyricsController.get);
 app.put('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics/timing', lyricsController.timing);
 app.delete('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics/timing', lyricsController.timing);
+app.get('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics/versions', lyricsController.versions);
+app.put('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics/version', lyricsController.chooseVersion);
 app.get('/api/collections/listen-next/albums', musicController.getListenNextAlbums);
 app.put('/api/collections/listen-next/order', musicController.reorderListenNext);
 app.put('/api/collections/listen-next/move', musicController.moveListenNext);

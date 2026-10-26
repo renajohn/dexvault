@@ -64,6 +64,51 @@ const lyricsController = {
     }
   },
 
+  /** LRCLIB's texts for a track, to choose another. */
+  versions: async (req: Request, res: Response): Promise<void> => {
+    const position = positionOf(req);
+    if (!position) {
+      res.status(400).json({ error: 'Album, disc and track must be numbers' });
+      return;
+    }
+    try {
+      const found = await lyricsService.versions(position.albumId, position.disc, position.track);
+      if (!found) {
+        res.status(404).json({ error: 'No such track on this album' });
+        return;
+      }
+      res.json(found);
+    } catch (error) {
+      logger.error('Error looking for other lyrics:', error);
+      res.status(502).json({ error: (error as Error).message || 'Failed to look for other lyrics' });
+    }
+  },
+
+  /** Another of LRCLIB's texts chosen for a track, `{ sourceId }`. */
+  chooseVersion: async (req: Request, res: Response): Promise<void> => {
+    const position = positionOf(req);
+    if (!position) {
+      res.status(400).json({ error: 'Album, disc and track must be numbers' });
+      return;
+    }
+    const { sourceId } = (req.body ?? {}) as { sourceId?: unknown };
+    if (typeof sourceId !== 'string' || !/^\d+$/.test(sourceId)) {
+      res.status(400).json({ error: 'sourceId must be an LRCLIB id' });
+      return;
+    }
+    try {
+      const done = await lyricsService.chooseVersion(position.albumId, position.disc, position.track, sourceId);
+      if (!done) {
+        res.status(404).json({ error: 'LRCLIB has no such words for this track' });
+        return;
+      }
+      res.json({ lyrics: shown(done.lyrics), lrc: done.lrc });
+    } catch (error) {
+      logger.error('Error choosing other lyrics:', error);
+      res.status(502).json({ error: (error as Error).message || 'Failed to choose the lyrics' });
+    }
+  },
+
   /** Whether each track of an album has words; those never looked up are, in the background. */
   album: async (req: Request, res: Response): Promise<void> => {
     const albumId = Number(req.params.id);

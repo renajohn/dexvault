@@ -1,0 +1,203 @@
+/*
+ * The drawer that fixes a track's timing, in the menus' glass: at the foot of
+ * the lyrics panel on a computer, in place of the player's controls on an
+ * iPhone (--touch, larger for a finger).
+ */
+.lyrics-timing {
+  flex: none;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lyrics-timing-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.lyrics-timing-shift {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.lyrics-timing-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lyrics-timing-head output {
+  font: 700 15px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--dv-text);
+}
+
+.lyrics-timing-head output.lyrics-timing-moved {
+  color: var(--dv-gold);
+}
+
+.lyrics-timing-help {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--dv-text-muted);
+}
+
+.lyrics-timing-pins {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--dv-gold);
+}
+
+.lyrics-timing-slider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lyrics-timing-slider .ui-range {
+  flex: 1;
+  min-width: 0;
+}
+
+.lyrics-timing-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.lyrics-timing-into {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--dv-text-muted);
+  cursor: pointer;
+}
+
+/* For a finger: more room between things, the words a little larger. */
+.lyrics-timing--touch {
+  gap: 10px;
+  border-radius: 18px;
+}
+
+.lyrics-timing--touch .lyrics-timing-head output {
+  font-size: 17px;
+}
+
+.lyrics-timing--touch .lyrics-timing-pins,
+.lyrics-timing--touch .lyrics-timing-into {
+  font-size: 14px;
+}
+
+.lyrics-timing--touch .lyrics-timing-slider .ui-range {
+  height: 32px;
+}
+
+/* LRCLIB's other versions of the words, each a choice with its first lines. */
+.lyrics-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lyrics-version {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--dv-radius-md);
+  cursor: pointer;
+}
+
+.lyrics-version:hover {
+  background: var(--dv-veil);
+}
+
+.lyrics-version input {
+  margin-top: 3px;
+}
+
+.lyrics-version--current {
+  cursor: default;
+}
+
+.lyrics-version--current:hover {
+  background: none;
+}
+
+.lyrics-version-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--dv-text);
+}
+
+.lyrics-version-words b {
+  font-weight: 600;
+}
+
+.lyrics-version-words q {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--dv-text-muted);
+}
+
+.lyrics-version-words small {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--dv-text-faint);
+}
+
+.lyrics-versions-none {
+  margin: 0;
+  color: var(--dv-text-muted);
+}
+
+.lyrics-version-try {
+  flex: none;
+  margin-left: auto;
+  align-self: center;
+}
+
+/* A version being tried: which one between ‹ and ›, then Revert and Keep. */
+.lyrics-try-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lyrics-try-what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.lyrics-try-what b {
+  font-weight: 600;
+}
+
+.lyrics-try-what small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--dv-text-faint);
+}
+
+.lyrics-try-spacer {
+  flex: 1;
+}

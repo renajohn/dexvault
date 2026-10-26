@@ -599,6 +599,17 @@ const runAutoMigrations = async (): Promise<void> => {
         }
         console.log('  ✓ Added the timing fixed by hand to track_lyrics');
       }
+    },
+    {
+      name: '032_lyrics_chosen',
+      up: async () => {
+        // Another of LRCLIB's texts chosen by hand: not looked up again of itself.
+        for (const column of ['chosen INTEGER NOT NULL DEFAULT 0']) {
+          await new Promise<void>((resolve, reject) => currentDb.run(`ALTER TABLE track_lyrics ADD COLUMN ${column}`, (err: Error | null) =>
+            (err && !err.message.includes('duplicate column') ? reject(err) : resolve())));
+        }
+        console.log('  ✓ Added chosen to track_lyrics');
+      }
     }
   ];
 

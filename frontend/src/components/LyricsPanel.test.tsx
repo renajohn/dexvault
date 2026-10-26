@@ -1,6 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import LyricsPanel, { lineAt, parseLrc, shiftLabel, withinLines } from './LyricsPanel';
+import LyricsPanel from './LyricsPanel';
+import { lineAt, parseLrc, withinLines } from '../utils/lrc';
+import { shiftLabel, sliderShift } from '../utils/lyricsTiming';
 import musicService from '../services/musicService';
 
 const mocks = vi.hoisted(() => ({
@@ -8,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   time: 0,
 }));
 
-vi.mock('../services/musicService', () => ({ default: { getLyrics: vi.fn(), fixLyricsTiming: vi.fn(), resetLyricsTiming: vi.fn() } }));
+vi.mock('../services/musicService', () => ({ default: { getLyrics: vi.fn(), fixLyricsTiming: vi.fn(), resetLyricsTiming: vi.fn(), getLyricsVersions: vi.fn(), chooseLyricsVersion: vi.fn() } }));
 vi.mock('../services/player', () => ({
   usePlayer: (select: (state: Record<string, unknown>) => unknown) => select(mocks.state),
   player: {
@@ -48,7 +50,7 @@ beforeEach(() => {
 describe('parseLrc', () => {
   it('reads the timed lines in order, a line sung twice at both its times', () => {
     expect(parseLrc('[ar:Adele]\n[00:02.00] One\n[00:01.00][00:03.50] Two')).toEqual([
-      { at: 1, text: 'Two' }, { at: 2, text: 'One' }, { at: 3.5, text: 'Two' },
+      { at: 1, text: 'Two', stamp: 1 }, { at: 2, text: 'One', stamp: 0 }, { at: 3.5, text: 'Two', stamp: 2 },
     ]);
   });
 
@@ -56,12 +58,12 @@ describe('parseLrc', () => {
     const lines = parseLrc('[00:10.00] First\n[00:12.00]\n[00:20.00] Second\n[00:21.00] Third\n[00:40.00] Fourth');
     expect(lines).toEqual([
       { at: 0, text: null },
-      { at: 10, text: 'First' },
-      { at: 12, text: null },
-      { at: 20, text: 'Second' },
-      { at: 21, text: 'Third' },
+      { at: 10, text: 'First', stamp: 0 },
+      { at: 12, text: null, stamp: 1 },
+      { at: 20, text: 'Second', stamp: 2 },
+      { at: 21, text: 'Third', stamp: 3 },
       { at: 27, text: null },
-      { at: 40, text: 'Fourth' },
+      { at: 40, text: 'Fourth', stamp: 4 },
     ]);
   });
 });
@@ -114,6 +116,12 @@ describe('LyricsPanel', () => {
     expect(screen.getByText('Line two')).toBeInTheDocument();
   });
 
+  it('says when the words could not be read, rather than that there are none', async () => {
+    vi.mocked(musicService.getLyrics).mockRejectedValue(new Error('HTTP error! status: 502'));
+    render(<LyricsPanel />);
+    expect(await screen.findByText('The words could not be read. Try again in a moment.')).toBeInTheDocument();
+  });
+
   it('says when a track has no words, or is an instrumental', async () => {
     vi.mocked(musicService.getLyrics).mockResolvedValue({ status: 'missing', plain: null, synced: null, source: null, checkedAt: '' });
     const { unmount } = render(<LyricsPanel />);
@@ -149,7 +157,7 @@ describe('LyricsPanel', () => {
 
   describe('fixing the timing', () => {
     const found = (changes = {}) => ({ status: 'found' as const, plain: null, synced: SYNCED, source: 'lrclib', checkedAt: '', timing: 'lrclib' as const, lrclibSynced: SYNCED, ...changes });
-    const openFix = async (name = 'Timing') => {
+    const openFix = async (name = 'Lyrics options') => {
       fireEvent.click(await screen.findByRole('button', { name }));
       fireEvent.click(await screen.findByText('Fix timing…'));
       return screen.getByRole('group', { name: 'Fix timing' });
@@ -193,6 +201,14 @@ describe('LyricsPanel', () => {
       window.removeEventListener('keydown', page);
     });
 
+    it('plays and pauses from the drawer', async () => {
+      vi.mocked(musicService.getLyrics).mockResolvedValue(found());
+      render(<LyricsPanel />);
+      const drawer = await openFix();
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Pause' }));
+      expect(player.toggle).toHaveBeenLastCalledWith(false);
+    });
+
     it('plays slower while fixing, here only, and at the song’s pace again once closed', async () => {
       vi.mocked(musicService.getLyrics).mockResolvedValue(found());
       const { unmount } = render(<LyricsPanel />);
@@ -230,6 +246,45 @@ describe('LyricsPanel', () => {
       expect(screen.getByText('0.00 s')).toBeInTheDocument();
     });
 
+    it('sets a line alone as its mark is dragged, the music held, then on from where it was; the slider moves the others; a double click gives it back', async () => {
+      vi.mocked(musicService.getLyrics).mockResolvedValue(found());
+      vi.mocked(musicService.fixLyricsTiming).mockResolvedValue({ lyrics: found({ timing: 'fixed' }), lrc: 'none' });
+      mocks.time = 8;
+      render(<LyricsPanel />);
+      const drawer = await openFix();
+      const wave = await waitFor(() => {
+        const ready = drawer.querySelector('.lyrics-wave--ready');
+        if (!ready) throw new Error('the wave is not read yet');
+        return ready as HTMLElement;
+      });
+      // jsdom lays nothing out: the wave is 1 px wide, 8 s across it, every mark within reach; the nearest is taken.
+      // At 8 s, "Reaching" (9.74 s) stands at 0.47 px: dragged to 0.5 px, it is put at 10 s.
+      vi.mocked(player.toggle).mockClear();
+      fireEvent.pointerDown(wave, { clientX: 0.47, pointerId: 1 });
+      expect(player.toggle).toHaveBeenLastCalledWith(false);
+      fireEvent.pointerMove(wave, { clientX: 0.5, pointerId: 1 });
+      fireEvent.pointerUp(wave, { pointerId: 1 });
+      expect(await screen.findByText('1 line set by hand')).toBeInTheDocument();
+      // Let go, it plays on from where it was: the wave stays put.
+      expect(player.seek).not.toHaveBeenCalled();
+      expect(player.toggle).toHaveBeenLastCalledWith(true);
+      // Twice on the mark, quickly: the browser's dblclick does not come for a finger on an iPhone.
+      for (let press = 0; press < 2; press++) {
+        fireEvent.pointerDown(wave, { clientX: 0.5, pointerId: 1 });
+        fireEvent.pointerUp(wave, { pointerId: 1 });
+      }
+      await waitFor(() => expect(screen.queryByText('1 line set by hand')).not.toBeInTheDocument());
+      fireEvent.pointerDown(wave, { clientX: 0.47, pointerId: 1 });
+      fireEvent.pointerMove(wave, { clientX: 0.5, pointerId: 1 });
+      fireEvent.pointerUp(wave, { pointerId: 1 });
+      expect(await screen.findByText('1 line set by hand')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByRole('slider', { name: 'Shift the words' }), { target: { value: '-1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(musicService.fixLyricsTiming).toHaveBeenCalledWith(25, 1, 1,
+        "[00:04.15] There's a fire starting in my heart\n[00:10.00] Reaching a fever pitch\n[00:13.24] Finally I can see you crystal clear", false));
+    });
+
     it('saves into the lyrics when asked, starting from the timing fixed, and resets it', async () => {
       const fixed = "[00:02.75] There's a fire starting in my heart\n[00:07.34] Reaching a fever pitch\n[00:11.84] Finally I can see you crystal clear";
       vi.mocked(musicService.getLyrics).mockResolvedValue(found({ synced: fixed, timing: 'fixed' }));
@@ -237,18 +292,81 @@ describe('LyricsPanel', () => {
       vi.mocked(musicService.resetLyricsTiming).mockResolvedValue({ lyrics: found(), lrc: 'written' });
       render(<LyricsPanel />);
 
-      expect(await openFix('Timing fixed')).toBeInTheDocument();
+      expect(await openFix('Lyrics options: timing fixed')).toBeInTheDocument();
       expect(screen.getByText('−2.40 s')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-      fireEvent.click(screen.getByRole('button', { name: 'Timing fixed' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Lyrics options: timing fixed' }));
       fireEvent.click(await screen.findByText('Save timing into the lyrics'));
       await waitFor(() => expect(musicService.fixLyricsTiming).toHaveBeenCalledWith(25, 1, 1, fixed, true));
 
-      fireEvent.click(await screen.findByRole('button', { name: 'Timing saved into the lyrics' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Lyrics options: timing saved into the lyrics' }));
       fireEvent.click(await screen.findByText('Reset timing'));
       await waitFor(() => expect(musicService.resetLyricsTiming).toHaveBeenCalledWith(25, 1, 1));
     });
+  });
+
+  describe('the words themselves', () => {
+    const found = (changes = {}) => ({ status: 'found' as const, plain: null, synced: SYNCED, source: 'lrclib', checkedAt: '', timing: 'lrclib' as const, lrclibSynced: SYNCED, sourceId: '7', ...changes });
+    const menu = async (entry: string) => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Lyrics options' }));
+      fireEvent.click(await screen.findByText(entry));
+    };
+
+    it('chooses another of LRCLIB’s versions, the one in use shown but not to choose', async () => {
+      vi.mocked(musicService.getLyrics).mockResolvedValue(found());
+      vi.mocked(musicService.getLyricsVersions).mockResolvedValue({ durationSec: 229, versions: [
+        { id: '7', artist: 'Adele', album: '21', durationSec: 229, timed: true, lines: 3, preview: ["There's a fire starting in my heart"], copies: 1, current: true, lag: null, changed: 0, differing: [], synced: SYNCED, plain: null },
+        { id: '9', artist: 'Adele', album: '21 (Deluxe)', durationSec: 230, timed: true, lines: 40, preview: ['There’s a fire, starting in my heart'], copies: 3, current: false, lag: -2.1, changed: 12, differing: ['There’s a fire, starting in my heart'], synced: '[00:03.00] There’s a fire, starting in my heart\n[00:07.00] Reaching a fever', plain: null },
+        { id: '11', artist: 'Adele', album: 'Live', durationSec: 228, timed: true, lines: 3, preview: ["There's a fire starting in my heart"], copies: 1, current: false, lag: 1.9, changed: 0, differing: [], synced: SYNCED, plain: null },
+      ] });
+      vi.mocked(musicService.chooseLyricsVersion).mockResolvedValue({ lyrics: found({ sourceId: '9', chosen: true }), lrc: 'none' });
+      render(<LyricsPanel />);
+      await menu('Find another version…');
+
+      expect(await screen.findByText('In use')).toBeInTheDocument();
+      expect(screen.getByText('12 lines differ')).toBeInTheDocument();
+      expect(screen.getByText('Timed · 3:50 · sings 2.1 s earlier · 21 (Deluxe) · 3 copies')).toBeInTheDocument();
+      // The same words, sung later: no lines repeated, the lag first.
+      expect(screen.getByText('Same words, sings 1.9 s later')).toBeInTheDocument();
+      const use = screen.getByRole('button', { name: 'Use this version' });
+      expect(use).toBeDisabled();
+      fireEvent.click(screen.getByText('There’s a fire, starting in my heart'));
+      fireEvent.click(use);
+      await waitFor(() => expect(musicService.chooseLyricsVersion).toHaveBeenCalledWith(25, 1, 1, '9'));
+    });
+
+    it('tries a version on the song, another as it plays, and keeps it, or not', async () => {
+      vi.mocked(musicService.getLyrics).mockResolvedValue(found());
+      vi.mocked(musicService.getLyricsVersions).mockResolvedValue({ durationSec: 229, versions: [
+        { id: '7', artist: 'Adele', album: '21', durationSec: 229, timed: true, lines: 3, preview: ["There's a fire starting in my heart"], copies: 1, current: true, lag: null, changed: 0, differing: [], synced: SYNCED, plain: null },
+        { id: '9', artist: 'Adele', album: 'Live', durationSec: 230, timed: true, lines: 2, preview: ['A fire is burning'], copies: 1, current: false, lag: null, changed: 2, differing: ['A fire is burning'], synced: '[00:03.00] A fire is burning\n[00:07.00] Reaching for the dark', plain: null },
+      ] });
+      vi.mocked(musicService.chooseLyricsVersion).mockResolvedValue({ lyrics: found({ sourceId: '9', chosen: true }), lrc: 'none' });
+      mocks.time = 8;
+      render(<LyricsPanel />);
+      await menu('Find another version…');
+      fireEvent.click(await screen.findByRole('button', { name: 'Try' }));
+
+      const bar = await screen.findByRole('group', { name: 'Trying a version' });
+      expect(within(bar).getByText('2 lines differ')).toBeInTheDocument();
+      expect(screen.getByText('Reaching for the dark')).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      // ‹ › go round the versions, the one in use among them.
+      fireEvent.click(within(bar).getByRole('button', { name: 'Next version' }));
+      expect(within(bar).getByText('In use')).toBeInTheDocument();
+      expect(screen.getByText('Reaching a fever pitch')).toBeInTheDocument();
+      fireEvent.click(within(bar).getByRole('button', { name: 'Previous version' }));
+      fireEvent.click(within(bar).getByRole('button', { name: 'Keep' }));
+      await waitFor(() => expect(musicService.chooseLyricsVersion).toHaveBeenCalledWith(25, 1, 1, '9'));
+      expect(screen.queryByRole('group', { name: 'Trying a version' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('rests the slider on 0 when dragged close to it', () => {
+    expect(sliderShift(0.15)).toBe(0);
+    expect(sliderShift(-0.1)).toBe(0);
+    expect(sliderShift(0.25)).toBe(0.25);
   });
 
   it('labels a shift', () => {

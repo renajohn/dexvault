@@ -112,8 +112,15 @@
 }
 
 /* A dialog opened over the full screen (12000): its shade over it too, not under it. */
-.modal-backdrop.over-player-backdrop {
-  z-index: 11999;
+/* !important: a record's card sets every backdrop's z-index so (MusicDetailCard.css), under the player.
+   Over the full screen there is no bar to leave in reach: the shade goes to the foot of the screen, where
+   App.css stops the others above the bar. */
+.modal-backdrop.over-player-backdrop,
+.modal-backdrop.fade.show.over-player-backdrop {
+  z-index: 11999 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
 }
 
 /* The full screen. */
@@ -680,4 +687,14 @@
   .now-playing-cover {
     transition: none;
   }
+}
+
+/* Fixing the words' timing: the drawer in place of the controls, the words a little smaller above it. */
+.now-playing-timing {
+  margin: 10px -12px 0;
+}
+
+.now-playing--timing .now-playing-lyrics li {
+  margin-bottom: 12px;
+  font-size: 1.35rem;
 }

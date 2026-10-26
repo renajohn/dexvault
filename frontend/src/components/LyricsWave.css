@@ -9,6 +9,13 @@
   user-select: none;
 }
 
+.lyrics-wave--touch {
+  height: 120px;
+  border-radius: 12px;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .lyrics-wave--ready {
   cursor: grab;
 }

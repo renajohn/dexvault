@@ -480,6 +480,42 @@ describe('.lrc files beside the rips', () => {
       expect((await request(app).post(`/api/music/albums/${albumId}/discs/1/tracks/2/lyrics`)).body).toMatchObject({ synced: fixed, lrclibSynced: other, timing: 'saved' });
     });
 
+    it('montre les autres textes de LRCLIB, celui de la piste d’abord, une copie une seule fois, pas ceux d’une autre longueur', async () => {
+      const { albumId } = await ripped();
+      const other = '[00:07.00] Welcome to the jungle\n[00:10.60] We got fun and games';
+      jest.spyOn(axios, 'get').mockImplementation(async (url: string) => ({ data: url.endsWith('/search') ? [
+        record({ id: 7, duration: 274, syncedLyrics: lrclib }),
+        record({ id: 9, duration: 275, syncedLyrics: other }),
+        record({ id: 10, duration: 280, syncedLyrics: other }),
+        record({ id: 11, duration: 340, syncedLyrics: other.replace('jungle', 'city') }),
+        record({ id: 12, duration: 270, plainLyrics: 'Welcome to the jungle\nWe got fun', syncedLyrics: null }),
+      ] : null }));
+
+      const res = await request(app).get(`/api/music/albums/${albumId}/discs/1/tracks/1/lyrics/versions`);
+      expect(res.status).toBe(200);
+      const ids = res.body.versions.map((version: { id: string }) => version.id);
+      expect(ids).toEqual(['7', '9', '12']);
+      expect(res.body.versions[0]).toMatchObject({ current: true, timed: true, preview: ['Welcome to the jungle', 'We got fun and games'] });
+      expect(res.body.versions[1]).toMatchObject({ current: false, copies: 2 });
+      expect(res.body.versions[2]).toMatchObject({ timed: false, lag: null });
+    });
+
+    it('prend un autre texte choisi à la main, le garde aux recherches suivantes, et réécrit le .lrc que DexVault avait écrit', async () => {
+      const { albumId, lrc } = await ripped();
+      await request(app).put(timing(albumId)).send({ synced: fixed });
+      const other = '[00:07.00] Welcome to the jungle\n[00:10.60] We got fun and games';
+      jest.spyOn(axios, 'get').mockImplementation(async (url: string) => ({ data: url.endsWith('/get/9') ? record({ id: 9, duration: 275, syncedLyrics: other }) : null }));
+
+      const res = await request(app).put(`/api/music/albums/${albumId}/discs/1/tracks/1/lyrics/version`).send({ sourceId: '9' });
+      expect(res.body).toMatchObject({ lrc: 'written', lyrics: { synced: other, sourceId: '9', chosen: true, timing: 'lrclib' } });
+      expect(lrc('01 Welcome.lrc')).toBe(`${other}\n`);
+
+      // Renamed, the track keeps the text chosen; a lookup asked for takes its place.
+      await run(`UPDATE tracks SET title = 'Welcome to the Jungle (Remastered)' WHERE album_id = ? AND track_number = 1`, [albumId]);
+      expect((await request(app).get(`/api/music/albums/${albumId}/discs/1/tracks/1/lyrics`)).body).toMatchObject({ sourceId: '9', chosen: true });
+      expect((await request(app).put(`/api/music/albums/${albumId}/discs/1/tracks/1/lyrics/version`).send({ sourceId: 'x' })).status).toBe(400);
+    });
+
     it('refuse un texte sans temps, et une piste sans paroles minutées', async () => {
       const { albumId } = await ripped();
       expect((await request(app).put(timing(albumId)).send({ synced: 'no times here' })).status).toBe(400);

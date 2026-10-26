@@ -157,8 +157,33 @@ export interface TrackLyrics {
   lrclibSynced?: string | null;
   /** LRCLIB's timing, fixed by hand in DexVault, or saved into the lyrics (the .lrc beside the rip). */
   timing?: 'lrclib' | 'fixed' | 'saved';
+  /** Another of LRCLIB's texts, chosen by hand. */
+  chosen?: boolean;
   source: string | null;
+  sourceId?: string | null;
   checkedAt: string;
+}
+
+/** One of LRCLIB's texts for a track, to choose another. */
+export interface LyricsVersion {
+  id: string;
+  artist: string;
+  album: string;
+  durationSec: number | null;
+  timed: boolean;
+  lines: number;
+  preview: string[];
+  copies: number;
+  current: boolean;
+  /** How much later it sings than the text the track has now, both timed. */
+  lag: number | null;
+  /** How many of its lines the words in use have not: 0, the same words. */
+  changed: number | null;
+  /** The first of those lines. */
+  differing: string[];
+  /** The whole text, to try it on the song. */
+  synced: string | null;
+  plain: string | null;
 }
 
 /** A timing kept, and what became of the .lrc beside the rip: rewritten, left as someone else wrote it, or none to write. */
@@ -972,6 +997,16 @@ class MusicService {
   /** A track's lines retimed by hand; `intoLyrics` writes them into the .lrc beside the rip too. */
   fixLyricsTiming(albumId: number | string, disc: number, track: number, synced: string, intoLyrics: boolean): Promise<TimingKept> {
     return this.send(`/music/albums/${albumId}/discs/${disc}/tracks/${track}/lyrics/timing`, 'PUT', { synced, intoLyrics });
+  }
+
+  /** LRCLIB's texts for a track, to choose another; the one it has first. */
+  getLyricsVersions(albumId: number | string, disc: number, track: number): Promise<{ durationSec: number | null; versions: LyricsVersion[] }> {
+    return this.send(`/music/albums/${albumId}/discs/${disc}/tracks/${track}/lyrics/versions`, 'GET');
+  }
+
+  /** Another of LRCLIB's texts, by its id, for a track. */
+  chooseLyricsVersion(albumId: number | string, disc: number, track: number, sourceId: string): Promise<TimingKept> {
+    return this.send(`/music/albums/${albumId}/discs/${disc}/tracks/${track}/lyrics/version`, 'PUT', { sourceId });
   }
 
   /** Back to LRCLIB's timing. */

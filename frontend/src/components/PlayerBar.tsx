@@ -194,7 +194,7 @@ const PlayerBar: React.FC = () => {
                 seek: seconds => player.seek(seconds), resume: () => player.resume(), stop: () => player.stop(),
                 playTrack: at => player.playTrack(at),
               }}
-              lyricsOf={album.id != null ? { albumId: album.id, disc: track.disc, no: track.no } : null}
+              lyricsOf={album.id != null ? { albumId: album.id, disc: track.disc, no: track.no } : null} timingSongId={track.songId}
               guideOf={track.albumId ?? album.id} mixtape={{ songId: track.songId, title: track.title }}
               tracks={tracks} index={index} onAllTracks={fromListenNext ? () => setTracksOpen(true) : null}
               onAmperfy={isAppleMobile() && album.navidromeId ? () => {

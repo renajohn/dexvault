@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lrcStamp, shiftBetween, shiftLrc } from './lyricsTiming';
+import { lrcStamp, readTiming, retimeLrc, shiftLrc } from './lyricsTiming';
 
 describe('lyricsTiming', () => {
   it('writes a time as LRC does, never before the start', () => {
@@ -14,8 +14,16 @@ describe('lyricsTiming', () => {
     expect(shiftLrc('[00:01.00] Early', -3)).toBe('[00:00.00] Early');
   });
 
-  it('reads how far a fixed timing moved LRCLIB’s', () => {
-    expect(shiftBetween('[ar:x]\n[00:08.40] A\n[00:12.00] B', '[00:06.00] A\n[00:09.60] B')).toBe(-2.4);
-    expect(shiftBetween('no times', '[00:06.00] A')).toBe(0);
+  it('leaves the lines set by hand where they were put, by the number of their stamp', () => {
+    expect(retimeLrc('[00:05.00] A\n[00:09.00][01:00.00] B\n[00:12.00] C', -2, new Map([[2, 59.5]])))
+      .toBe('[00:03.00] A\n[00:07.00][00:59.50] B\n[00:10.00] C');
+  });
+
+  it('reads the shift most lines share, and the lines set apart by hand', () => {
+    const lrclib = '[ar:x]\n[00:08.40] A\n[00:12.00] B\n[00:20.00] C';
+    expect(readTiming(lrclib, '[00:06.00] A\n[00:09.60] B\n[00:17.60] C')).toEqual({ shift: -2.4, pins: new Map() });
+    expect(readTiming(lrclib, '[00:06.00] A\n[00:10.00] B\n[00:17.60] C')).toEqual({ shift: -2.4, pins: new Map([[1, 10]]) });
+    expect(readTiming(lrclib, lrclib)).toEqual({ shift: 0, pins: new Map() });
+    expect(readTiming('no times', '[00:06.00] A').shift).toBe(0);
   });
 });
