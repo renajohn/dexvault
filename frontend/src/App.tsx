@@ -57,7 +57,28 @@ const DigitalRedirect = () => {
 const SECTIONS = ['/filmdex', '/musicdex', '/bookdex', '/scores', '/wishlist', '/analytics', '/shelves'];
 const LAST_SECTION_KEY = 'dexvault-last-section';
 
-/** The app opened at its start (on an iPhone, from the home screen) comes back to the section left last. */
+/**
+ * DexVault installed as an app (on an iPhone, from the home screen) starts where its icon was
+ * saved, / or a section, and so comes back to the section left last, before anything reads the
+ * address. In a browser's tab an address stays the one asked.
+ */
+const isInstalledApp = (): boolean => {
+  try {
+    return (navigator as Navigator & { standalone?: boolean }).standalone === true
+      || window.matchMedia?.('(display-mode: standalone)').matches === true;
+  } catch (_) {
+    return false;
+  }
+};
+if (typeof window !== 'undefined' && isInstalledApp() && !window.location.search && !window.location.hash) {
+  const last = readStored(LAST_SECTION_KEY);
+  const at = window.location.pathname;
+  if (last && SECTIONS.includes(last) && last !== at && (at === '/' || SECTIONS.includes(at))) {
+    window.history.replaceState(window.history.state, '', last);
+  }
+}
+
+/** The app opened at its root comes back to the section left last. */
 const LastSection = () => {
   const last = readStored(LAST_SECTION_KEY);
   return <Navigate to={last && SECTIONS.includes(last) ? last : '/filmdex'} replace />;

@@ -533,11 +533,6 @@ for (const testPath of frontendPaths) {
 if (frontendPath) {
   logger.info(`Serving frontend from: ${frontendPath}`);
 
-  // Add root redirect to /filmdex
-  app.get('/', (req: Request, res: Response) => {
-    res.redirect('/filmdex');
-  });
-
   // Serve static files from frontend build (CSS, JS, images, etc.)
   // Vite hashes filenames, so we can cache them aggressively
   app.use('/static', express.static(path.join(frontendPath, 'static'), {
@@ -560,8 +555,8 @@ if (frontendPath) {
     res.sendFile(path.join(frontendPath as string, 'index.html'));
   };
 
-  // Handle /filmdex route
-  app.get('/filmdex', sendIndexHtml);
+  // The root is the app's: it takes up the section left last (/filmdex the first time).
+  app.get('/', sendIndexHtml);
 
   // Handle all other routes for React Router (catch-all)
   app.use('/', sendIndexHtml);
