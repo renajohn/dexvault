@@ -232,8 +232,14 @@ describe('player', () => {
       const kept = created[0];
       expect(kept.currentTime).toBe(143);
 
-      // ▶, then the scrubber drawn to 0:40 while the stream still loads: the metadata coming must not take it back.
+      // ▶: iOS reads the data only now and starts from 0, so the place kept is set again as the metadata comes.
       player.toggle();
+      kept.currentTime = 0;
+      kept.dispatchEvent(new Event('loadedmetadata'));
+      expect(kept.currentTime).toBe(143);
+
+      // The scrubber drawn to 0:40 while the stream still loads: the metadata coming must not take it back.
+      Object.defineProperty(kept, 'readyState', { value: 0, configurable: true });
       player.seek(40);
       expect(player.getState().position).toBe(40);
       kept.dispatchEvent(new Event('loadedmetadata'));

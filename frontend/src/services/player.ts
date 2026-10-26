@@ -348,6 +348,21 @@ export const LISTEN_NEXT_LEFT_EVENT = 'dexvault:listen-next-left';
 const current = (): HTMLAudioElement => audios[active];
 const spare = (): HTMLAudioElement => audios[1 - active];
 
+/**
+ * Where an element is to start once it has its data: an iPhone reads nothing
+ * before a touch and then starts from 0, the place set before being lost. One
+ * listener per element, set once in setUp(), goes there as the metadata comes,
+ * if the source is still the one it was wanted for; a newer place wanted for
+ * the same source (a seek before the data) takes the older one's place.
+ */
+const wanted = new WeakMap<HTMLAudioElement, { url: string; at: number }>();
+const wantAt = (audio: HTMLAudioElement, at: number) => {
+  // Its data there already (the spare, loaded beside the track before): straight there, no metadata to wait for.
+  if (at > 0 && audio.readyState < 1) wanted.set(audio, { url: audio.src, at });
+  else wanted.delete(audio);
+  audio.currentTime = at;
+};
+
 const post = (songId: string, submission: boolean) => {
   fetch(`/api/music/navidrome/scrobble/${encodeURIComponent(songId)}`, {
     method: 'POST',
@@ -467,7 +482,7 @@ const start = (index: number, at = 0) => {
   // Where to start, set before the data is there: the browser goes there once it has it, and a new source forgets it.
   // No listener waiting for the metadata: on an iPhone nothing loads before a touch, and one left waiting took the
   // next album, or a seek made meanwhile, back to this place. And play() at once, within the touch that asked it.
-  if (at > 0 || changed) audio.currentTime = at;
+  if (at > 0 || changed) wantAt(audio, at);
   audio.play().catch(error => {
     // Interrupted by a newer load or play (iOS does so as a track follows another): the sound goes on, nothing is wrong.
     if ((error as Error).name === 'AbortError' || !audio.paused) return;
@@ -493,8 +508,16 @@ const setUp = () => {
   audios.forEach((audio, which) => {
     audio.preload = 'auto';
     const mine = () => which === active;
+    audio.addEventListener('loadedmetadata', () => {
+      const want = wanted.get(audio);
+      if (!want) return;
+      wanted.delete(audio);
+      if (audio.src.endsWith(want.url)) audio.currentTime = want.at;
+    });
     audio.addEventListener('timeupdate', () => {
       if (!mine()) return;
+      // Still to go where it was wanted: the place shown stays, rather than a 0 of the first frames.
+      if (wanted.has(audio)) return;
       const position = audio.currentTime;
       const duration = Number.isFinite(audio.duration) ? audio.duration : state.duration;
       // ⏯ as the element is: a play refused or a pause told late never leaves Play shown while the sound goes on.
@@ -639,7 +662,8 @@ export const player = {
     if (!audio) return;
     // The place asked, not the element's, which before its data is loaded (an iPhone's, before a touch) may still say 0.
     const at = Math.max(0, seconds);
-    audio.currentTime = at;
+    if (audio.readyState < 1) wantAt(audio, at);
+    else audio.currentTime = at;
     set({ position: at });
   },
 
@@ -772,7 +796,7 @@ export const restorePlayer = (): void => {
   audio.src = streamUrl(track.songId);
   // The place kept: the browser goes there once the data comes (on an iPhone, at the first touch), and forgets it
   // with a new source; a listener waiting for the metadata outlived the album and took the next one back there.
-  if (saved.position > 0) audio.currentTime = saved.position;
+  if (saved.position > 0) wantAt(audio, saved.position);
   scrobbled = countedAt(track, saved.position);
   announced = false;
   preloadNext();
