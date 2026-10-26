@@ -339,6 +339,9 @@ listeners.add(syncAwake);
 /*
  * Two audio elements: the one playing, and the next track loading in the
  * other, so the step from one to the next is as short as a browser allows.
+ * The one waiting is muted: iOS's lock screen and Control Center take, of
+ * the elements holding a track, the one last touched by the user, whether it
+ * plays or not, and a muted one never. Unmuted as it takes over.
  */
 let audios: HTMLAudioElement[] = [];
 let active = 0;
@@ -422,6 +425,7 @@ const preloadNext = () => {
     return;
   }
   const url = streamUrl(next.songId);
+  other.muted = true;
   if (!other.src.endsWith(url)) {
     other.src = url;
     other.preload = 'auto';
@@ -474,9 +478,11 @@ const start = (index: number, at = 0) => {
   if (spare().src.endsWith(url)) {
     // The spare holds it: the one playing stops, and its late 'pause' finds it no longer mine.
     current().pause();
+    current().muted = true;
     active = 1 - active;
   }
   const audio = current();
+  audio.muted = false;
   // A new source stops the element by itself, with no 'pause' of its own to show Play a moment.
   const changed = !audio.src.endsWith(url);
   if (changed) audio.src = url;
@@ -599,12 +605,15 @@ export const player = {
    * iPhone lets an element play only when asked within a gesture, and the
    * asking for the tracks takes it past one when the network is slow. A load
    * of nothing within the gesture lifts that for the element's next play.
+   * The element about to play alone: iOS's lock screen follows the element
+   * last touched, and the spare, loaded here after it, took its place.
    */
   prime: () => {
     if (player.rendererId() || typeof Audio === 'undefined') return;
     setUp();
     holdAwake();
-    for (const audio of audios) if (!audio.src) audio.load();
+    const audio = current();
+    if (!audio.src) audio.load();
   },
 
   /** Plays an album's tracks from `index`, the rest of the album after it; a list goes on after it when given. */

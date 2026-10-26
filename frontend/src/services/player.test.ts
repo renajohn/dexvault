@@ -61,6 +61,19 @@ describe('player', () => {
       expect.stringContaining('/api/music/navidrome/stream/s1'),
       expect.stringContaining('/api/music/navidrome/stream/s2'),
     ]);
+    // The next track waits muted: iOS's lock screen shows, of the elements holding a track, the one last touched
+    // rather than the one playing, and a muted one never.
+    expect(created.map(audio => audio.muted)).toEqual([false, true]);
+    created[0].dispatchEvent(new Event('ended'));
+    expect(player.getState().index).toBe(1);
+    expect(created.map(audio => audio.muted)).toEqual([true, false]);
+  });
+
+  it('primes the element about to play alone, the spare left untouched for the lock screen to follow the right one', () => {
+    player.prime();
+    const load = vi.mocked(HTMLMediaElement.prototype.load);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(load.mock.instances[0]).toBe(created[0]);
   });
 
   it('tells Navidrome the track is playing, then counts it once half of it is heard', () => {
