@@ -415,4 +415,76 @@ describe('.lrc files beside the rips', () => {
   it('ne fait rien sans dossier de musique monté', async () => {
     expect(await lyricsService.writeLrcFiles()).toBeNull();
   });
+  describe('timing fixed by hand', () => {
+    const lrclib = '[00:08.40] Welcome to the jungle\n[00:12.00] We got fun and games';
+    const fixed = '[00:06.00] Welcome to the jungle\n[00:09.60] We got fun and games';
+    const timing = (albumId: number, track = 1) => `/api/music/albums/${albumId}/discs/1/tracks/${track}/lyrics/timing`;
+
+    const ripped = async () => {
+      process.env.MUSIC_LIBRARY_PATH = root;
+      const albumId = await insertAlbum(`Timing ${Math.random()}`, ['Guns N’ Roses']);
+      await insertTrack(albumId, 1, 'Welcome to the Jungle', 274);
+      await insertTrack(albumId, 2, 'It’s So Easy', 274);
+      await run(`INSERT INTO track_lyrics (album_id, disc_number, track_number, title, status, plain, synced, source, source_id, checked_at) VALUES
+        (?, 1, 1, 'Welcome to the Jungle', 'found', 'words', ?, 'lrclib', '7', '2026-10-26'),
+        (?, 1, 2, 'It’s So Easy', 'found', 'words', ?, 'lrclib', '8', '2026-10-26')`, [albumId, lrclib, albumId, lrclib]);
+      const dir = path.join(root, 'FLAC', 'Guns', 'Appetite');
+      fs.mkdirSync(dir, { recursive: true });
+      for (const name of ['01 Welcome.flac', '02 Easy.flac']) fs.writeFileSync(path.join(dir, name), '');
+      fs.writeFileSync(path.join(dir, '01 Welcome.lrc'), `${lrclib}\n`);
+      fs.writeFileSync(path.join(dir, '02 Easy.lrc'), 'by hand\n');
+      jest.spyOn(ripStatusService, 'navidromeAlbums').mockResolvedValue(new Map([[albumId, { id: 'nd-t', name: 'Appetite', artist: 'Guns', musicBrainzId: null, songCount: 2, userRating: 0 }]]));
+      jest.spyOn(navidromeService, 'getAlbumSongs').mockResolvedValue(['01 Welcome.flac', '02 Easy.flac'].map((name, index) => ({
+        id: `s${index}`, url: null, discNumber: 1, track: index + 1, title: name, durationSec: 274, suffix: 'flac',
+        bitRate: null, bitDepth: 16, samplingRate: 44100, channelCount: 2, size: null, path: `FLAC/Guns/Appetite/${name}`,
+      })));
+      return { albumId, lrc: (name: string) => fs.readFileSync(path.join(dir, name), 'utf8') };
+    };
+
+    it('garde le timing corrigé dans DexVault seulement, LRCLIB à côté, et le remet à zéro', async () => {
+      const { albumId, lrc } = await ripped();
+      const res = await request(app).put(timing(albumId)).send({ synced: fixed });
+      expect(res.body).toMatchObject({ lrc: 'none', lyrics: { synced: fixed, lrclibSynced: lrclib, timing: 'fixed' } });
+      expect((await request(app).get(`/api/music/albums/${albumId}/discs/1/tracks/1/lyrics`)).body).toMatchObject({ synced: fixed, timing: 'fixed' });
+      expect(lrc('01 Welcome.lrc')).toBe(`${lrclib}\n`);
+
+      const reset = await request(app).delete(timing(albumId));
+      expect(reset.body).toMatchObject({ lrc: 'none', lyrics: { synced: lrclib, timing: 'lrclib' } });
+    });
+
+    it('écrit le timing dans le .lrc que DexVault avait écrit, jamais dans un autre, et y remet celui de LRCLIB', async () => {
+      const { albumId, lrc } = await ripped();
+      expect((await request(app).put(timing(albumId)).send({ synced: fixed, intoLyrics: true })).body)
+        .toMatchObject({ lrc: 'written', lyrics: { synced: fixed, timing: 'saved' } });
+      expect(lrc('01 Welcome.lrc')).toBe(`${fixed}\n`);
+      expect(lrc('02 Easy.lrc')).toBe('by hand\n');
+
+      expect((await request(app).put(timing(albumId, 2)).send({ synced: fixed, intoLyrics: true })).body.lrc).toBe('kept');
+      expect(lrc('02 Easy.lrc')).toBe('by hand\n');
+
+      expect((await request(app).delete(timing(albumId))).body.lrc).toBe('written');
+      expect(lrc('01 Welcome.lrc')).toBe(`${lrclib}\n`);
+    });
+
+    it('garde la correction quand LRCLIB rend le même texte, la lâche pour un autre, sauf sauvée dans les paroles', async () => {
+      const { albumId } = await ripped();
+      await request(app).put(timing(albumId)).send({ synced: fixed });
+      await request(app).put(timing(albumId, 2)).send({ synced: fixed, intoLyrics: true });
+      let answer = record({ id: 7, duration: 274, syncedLyrics: lrclib });
+      jest.spyOn(axios, 'get').mockImplementation(async (url: string) => ({ data: url.endsWith('/get') ? answer : [answer] }));
+      expect((await request(app).post(`/api/music/albums/${albumId}/discs/1/tracks/1/lyrics`)).body).toMatchObject({ synced: fixed, timing: 'fixed' });
+
+      const other = '[00:07.00] Welcome to the jungle\n[00:10.60] We got fun and games';
+      answer = record({ id: 9, duration: 274, syncedLyrics: other });
+      expect((await request(app).post(`/api/music/albums/${albumId}/discs/1/tracks/1/lyrics`)).body).toMatchObject({ synced: other, timing: 'lrclib' });
+      expect((await request(app).post(`/api/music/albums/${albumId}/discs/1/tracks/2/lyrics`)).body).toMatchObject({ synced: fixed, lrclibSynced: other, timing: 'saved' });
+    });
+
+    it('refuse un texte sans temps, et une piste sans paroles minutées', async () => {
+      const { albumId } = await ripped();
+      expect((await request(app).put(timing(albumId)).send({ synced: 'no times here' })).status).toBe(400);
+      await run(`UPDATE track_lyrics SET synced = NULL WHERE album_id = ? AND track_number = 2`, [albumId]);
+      expect((await request(app).put(timing(albumId, 2)).send({ synced: fixed })).status).toBe(404);
+    });
+  });
 });

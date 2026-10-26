@@ -1,0 +1,37 @@
+/* The wave of the track under its lines' starts, in the drawer that fixes the timing. */
+.lyrics-wave {
+  position: relative;
+  height: 88px;
+  border-radius: var(--dv-radius-md);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px var(--dv-edge);
+  touch-action: none;
+  user-select: none;
+}
+
+.lyrics-wave--ready {
+  cursor: grab;
+}
+
+.lyrics-wave--dragging {
+  cursor: grabbing;
+}
+
+.lyrics-wave canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lyrics-wave-word {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--dv-text-faint);
+}

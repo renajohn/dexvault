@@ -369,17 +369,60 @@ export const findByTags = (root: string, madeUpPath: string, discNumber: number,
   return found.length === 1 ? found[0] : null;
 };
 
-/** The .lrc for a track: its timed lines, else its plain words, which Navidrome shows unsynced. */
-export const lrcText = (lyrics: Pick<TrackLyricsFormatted, 'synced' | 'plain'>): string | null => {
-  const text = lyrics.synced?.trim() || lyrics.plain?.trim();
+/**
+ * The .lrc for a track: its timed lines, else its plain words, which Navidrome
+ * shows unsynced. A timing fixed by hand is written once saved into the lyrics.
+ */
+export const lrcText = (lyrics: Pick<TrackLyricsFormatted, 'synced' | 'plain'> & Partial<Pick<TrackLyricsFormatted, 'timingFix' | 'timingSaved'>>): string | null => {
+  const text = (lyrics.timingSaved && lyrics.timingFix?.trim()) || lyrics.synced?.trim() || lyrics.plain?.trim();
   return text ? `${text}\n` : null;
 };
+
+/** Where a track's timing comes from: LRCLIB's, fixed by hand in DexVault, or saved into the lyrics. */
+export type LyricsTiming = 'lrclib' | 'fixed' | 'saved';
+
+/** A track's words as the players show them: the timing fixed by hand in `synced`, LRCLIB's beside it. */
+export interface TrackLyricsShown extends Omit<TrackLyricsFormatted, 'timingFix' | 'timingSaved'> {
+  lrclibSynced: string | null;
+  timing: LyricsTiming;
+}
+
+export const shown = ({ timingFix, timingSaved, ...lyrics }: TrackLyricsFormatted): TrackLyricsShown => ({
+  ...lyrics,
+  synced: timingFix ?? lyrics.synced,
+  lrclibSynced: lyrics.synced,
+  timing: timingFix == null ? 'lrclib' : timingSaved ? 'saved' : 'fixed',
+});
+
+/** What became of the .lrc beside the rip: rewritten, left as someone else wrote it, or no rip to write it beside. */
+export type LrcOutcome = 'written' | 'kept' | 'none';
+
+/** A timed text DexVault takes from the owner: LRC lines, nothing else, of a sensible size. */
+export const isTimedText = (text: unknown): text is string =>
+  typeof text === 'string' && text.length <= 100_000
+  && text.split('\n').some(line => /^\[\d+:\d+(?:\.\d+)?\]/.test(line.trim()));
 
 export interface LrcWriteReport {
   written: number;
   alreadyThere: number;
   notOnDisk: number;
 }
+
+/**
+ * Writes a track's .lrc anew when what it should say has changed, over the
+ * one DexVault wrote before, never over one written by someone else.
+ */
+const rewriteLrc = async (before: TrackLyricsFormatted, after: TrackLyricsFormatted): Promise<LrcOutcome> => {
+  const was = lrcText(before);
+  const now = lrcText(after);
+  if (!was || !now || was === now) return 'none';
+  const report = await lyricsService.writeLrcFiles([after.albumId], new Map([[`${after.discNumber}/${after.trackNumber}`, was]]), true)
+    .catch(error => {
+      logger.warn(`The .lrc of album ${after.albumId} track ${after.discNumber}-${after.trackNumber} not rewritten: ${(error as Error).message}`);
+      return null;
+    });
+  return report?.written ? 'written' : report?.alreadyThere ? 'kept' : 'none';
+};
 
 let lookingUp = false;
 /** The albums whose tracks are being looked up for someone who opened them. */
@@ -422,6 +465,30 @@ const lyricsService = {
         .catch(error => logger.warn(`The .lrc of album ${albumId} track ${discNumber}-${trackNumber} not rewritten: ${(error as Error).message}`));
     }
     return found;
+  },
+
+  /**
+   * Keeps a track's lines retimed by hand, beside LRCLIB's. Saved into the
+   * lyrics, they go into the .lrc beside the rip too, when it is the one
+   * DexVault wrote. Null when the track has no timed words to retime.
+   */
+  fixTiming: async (albumId: number, discNumber: number, trackNumber: number, synced: string, intoLyrics: boolean)
+    : Promise<{ lyrics: TrackLyricsFormatted; lrc: LrcOutcome } | null> => {
+    const known = await TrackLyrics.get(albumId, discNumber, trackNumber);
+    if (!known?.synced) return null;
+    await TrackLyrics.fixTiming(albumId, discNumber, trackNumber, synced, intoLyrics);
+    const lyrics = (await TrackLyrics.get(albumId, discNumber, trackNumber))!;
+    return { lyrics, lrc: await rewriteLrc(known, lyrics) };
+  },
+
+  /** Back to LRCLIB's timing, in the .lrc beside the rip too when it was saved there. */
+  resetTiming: async (albumId: number, discNumber: number, trackNumber: number)
+    : Promise<{ lyrics: TrackLyricsFormatted; lrc: LrcOutcome } | null> => {
+    const known = await TrackLyrics.get(albumId, discNumber, trackNumber);
+    if (!known) return null;
+    await TrackLyrics.resetTiming(albumId, discNumber, trackNumber);
+    const lyrics = (await TrackLyrics.get(albumId, discNumber, trackNumber))!;
+    return { lyrics, lrc: await rewriteLrc(known, lyrics) };
   },
 
   /**
@@ -519,8 +586,9 @@ const lyricsService = {
    * .lrc yet, for the albums given or for all. An .lrc already there is left
    * as it is, whoever wrote it, unless it is word for word what DexVault wrote
    * before for a track looked up again: `replacing`, by "disc/track".
+   * `onlyReplacing` writes those tracks alone.
    */
-  writeLrcFiles: async (albumIds?: number[], replacing?: Map<string, string>): Promise<LrcWriteReport | null> => {
+  writeLrcFiles: async (albumIds?: number[], replacing?: Map<string, string>, onlyReplacing = false): Promise<LrcWriteReport | null> => {
     const root = libraryRoot();
     if (!root || !navidromeService.isConfigured()) return null;
     const report: LrcWriteReport = { written: 0, alreadyThere: 0, notOnDisk: 0 };
@@ -552,6 +620,7 @@ const lyricsService = {
         if (!audio) { report.notOnDisk++; continue; }
         const lrc = audio.slice(0, audio.length - path.extname(audio).length) + '.lrc';
         const previous = replacing?.get(`${words.discNumber}/${words.trackNumber}`);
+        if (onlyReplacing && previous == null) continue;
         if (fs.existsSync(lrc) && (previous == null || previous === text || fs.readFileSync(lrc, 'utf8') !== previous)) {
           report.alreadyThere++;
           continue;

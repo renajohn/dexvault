@@ -588,6 +588,17 @@ const runAutoMigrations = async (): Promise<void> => {
         }
         console.log('  ✓ Added output_settings and output_sessions');
       }
+    },
+    {
+      name: '031_lyrics_timing',
+      up: async () => {
+        // A track's lines retimed by hand, beside LRCLIB's own: kept apart until saved into the lyrics.
+        for (const column of ['timing_fix TEXT', 'timing_fix_source TEXT', 'timing_saved INTEGER NOT NULL DEFAULT 0']) {
+          await new Promise<void>((resolve, reject) => currentDb.run(`ALTER TABLE track_lyrics ADD COLUMN ${column}`, (err: Error | null) =>
+            (err && !err.message.includes('duplicate column') ? reject(err) : resolve())));
+        }
+        console.log('  ✓ Added the timing fixed by hand to track_lyrics');
+      }
     }
   ];
 

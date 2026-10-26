@@ -373,6 +373,8 @@ app.post('/api/music/albums/:id/guide/generate', albumGuideController.generate);
 app.get('/api/music/albums/:id/lyrics', lyricsController.album);
 app.get('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics', lyricsController.get);
 app.post('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics', lyricsController.get);
+app.put('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics/timing', lyricsController.timing);
+app.delete('/api/music/albums/:id/discs/:disc/tracks/:track/lyrics/timing', lyricsController.timing);
 app.get('/api/collections/listen-next/albums', musicController.getListenNextAlbums);
 app.put('/api/collections/listen-next/order', musicController.reorderListenNext);
 app.put('/api/collections/listen-next/move', musicController.moveListenNext);

@@ -1,10 +1,15 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BsX } from 'react-icons/bs';
-import musicService, { type TrackLyrics } from '../services/musicService';
+import { BsStopwatch, BsX } from 'react-icons/bs';
+import musicService, { type TimingKept, type TrackLyrics } from '../services/musicService';
 import { player, usePlayer } from '../services/player';
+import { shiftBetween, shiftLrc } from '../utils/lyricsTiming';
 import Button, { IconButton } from './shared/Button';
+import LyricsWave from './LyricsWave';
+import Menu from './shared/Menu';
+import Segmented from './shared/Segmented';
 import { Loading } from './shared/Spinner';
+import { toast } from './shared/Toast';
 import './LyricsPanel.css';
 
 /** A line of a timed text; no words is a silence of the voice, shown as three dots. */
@@ -24,6 +29,26 @@ const LONG_GAP_SEC = 12;
 const SILENCE_AFTER_SEC = 6;
 /** The line sung stands at this height of the panel. */
 const ANCHOR = 0.3;
+/** How far the slider moves the words, either way. */
+const MOST_SHIFT_SEC = 10;
+
+/** Slower to hear where the voice comes in; the pitch stays. */
+const SPEEDS = ['1', '0.75', '0.5', '0.25'] as const;
+type Speed = typeof SPEEDS[number];
+
+const roundShift = (seconds: number) => Math.round(Math.min(MOST_SHIFT_SEC, Math.max(-MOST_SHIFT_SEC, seconds)) * 100) / 100;
+
+/** "+1.25 s", "−2.40 s", "0.00 s". */
+export const shiftLabel = (seconds: number): string =>
+  `${seconds > 0.004 ? '+' : seconds < -0.004 ? '−' : ''}${Math.abs(seconds).toFixed(2)} s`;
+
+/** What the .lrc beside the rip became, when the timing was meant to go there. */
+const lrcWord = (kept: TimingKept, into: boolean): string | null => {
+  if (!into) return null;
+  if (kept.lrc === 'kept') return 'The .lrc beside the rip was not DexVault’s: left as it was.';
+  if (kept.lrc === 'none' && kept.lyrics.timing === 'saved') return 'Saved into the lyrics: no rip to write it beside yet.';
+  return null;
+};
 
 /**
  * The lines of an LRC text ("[mm:ss.xx] words"), in order, with the
@@ -96,7 +121,34 @@ const LyricsPanel: React.FC = () => {
     return () => { current = false; };
   }, [shown, albumId, disc, no]);
 
-  const lines = useMemo(() => (lyrics?.synced ? parseLrc(lyrics.synced) : []), [lyrics]);
+  // Fixing the timing: LRCLIB's lines moved by the slider, as the song plays.
+  const [fixing, setFixing] = useState(false);
+  const [shift, setShift] = useState(0);
+  const [intoLyrics, setIntoLyrics] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [speed, setSpeed] = useState<Speed>('1');
+  // An appliance plays at its own pace: slower is for this browser alone.
+  const here = usePlayer(state => state.output.kind === 'local');
+  const lrclib = lyrics?.lrclibSynced ?? lyrics?.synced ?? null;
+  useEffect(() => { setFixing(false); }, [lyrics]);
+  // Back to the song's own pace as the drawer closes, however it closes.
+  useEffect(() => {
+    if (!fixing) return undefined;
+    setSpeed('1');
+    return () => player.setRate(1);
+  }, [fixing]);
+  const changeSpeed = (next: Speed) => {
+    setSpeed(next);
+    player.setRate(Number(next));
+  };
+
+  const lines = useMemo(() => {
+    const text = fixing && lrclib ? shiftLrc(lrclib, shift) : lyrics?.synced;
+    return text ? parseLrc(text) : [];
+  }, [lyrics, lrclib, fixing, shift]);
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+  const timed = lines.length > 0;
   const [index, setIndex] = useState(-1);
   const [following, setFollowing] = useState(true);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -105,19 +157,20 @@ const LyricsPanel: React.FC = () => {
   const followTimer = useRef<number | undefined>(undefined);
 
   // The line sung, read from the audio at each frame: the bar's position moves a few times a second only.
+  // The lines are read as they are: the slider moves them while the song plays.
   useEffect(() => {
     setIndex(-1);
     setFollowing(true);
     offset.current = 0;
-    if (!shown || lines.length === 0) return undefined;
+    if (!shown || !timed) return undefined;
     let frame = 0;
     const tick = () => {
-      setIndex(lineAt(lines, player.currentTime() + LEAD_SEC));
+      setIndex(lineAt(linesRef.current, player.currentTime() + LEAD_SEC));
       frame = requestAnimationFrame(tick);
     };
     tick();
     return () => cancelAnimationFrame(frame);
-  }, [shown, lines]);
+  }, [shown, timed, lyrics]);
 
   const moveTo = useCallback((y: number, smooth = true) => {
     offset.current = y;
@@ -152,7 +205,7 @@ const LyricsPanel: React.FC = () => {
   // Scrolled by hand, the words stop following the song a while. Not passive: the page must not scroll beneath.
   useEffect(() => {
     const box = boxRef.current;
-    if (!shown || !box || lines.length === 0) return undefined;
+    if (!shown || !box || !timed) return undefined;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       const lines = listRef.current?.children;
@@ -166,7 +219,76 @@ const LyricsPanel: React.FC = () => {
     };
     box.addEventListener('wheel', onWheel, { passive: false });
     return () => box.removeEventListener('wheel', onWheel);
-  }, [shown, lines, moveTo]);
+  }, [shown, timed, moveTo]);
+
+  const startFixing = () => {
+    if (!lyrics?.synced || !lrclib) return;
+    setShift(shiftBetween(lrclib, lyrics.synced));
+    setIntoLyrics(lyrics.timing === 'saved');
+    setFixing(true);
+    if (!player.getState().playing) player.toggle(true);
+  };
+
+  const keep = async (changes: () => Promise<TimingKept>, into: boolean, said: string, offerInto: boolean) => {
+    if (albumId == null || disc == null || no == null) return;
+    setSaving(true);
+    try {
+      const kept = await changes();
+      setLyrics(kept.lyrics);
+      const word = lrcWord(kept, into);
+      toast(word ?? said, {
+        tone: word ? 'warning' : 'success',
+        action: offerInto && !word ? { label: 'Save into the lyrics', onClick: () => void saveInto(kept.lyrics) } : undefined,
+      });
+    } catch (error) {
+      toast(`The timing was not kept: ${(error as Error).message}`, { tone: 'danger' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveInto = (from: TrackLyrics | null | undefined = lyrics) => {
+    if (!from?.synced || albumId == null || disc == null || no == null) return Promise.resolve();
+    return keep(() => musicService.fixLyricsTiming(albumId, disc, no, from.synced!, true), true, 'Timing saved into the lyrics.', false);
+  };
+
+  const save = () => {
+    if (!lrclib || albumId == null || disc == null || no == null) return;
+    if (Math.abs(shift) < 0.005) {
+      void keep(() => musicService.resetLyricsTiming(albumId, disc, no), false, 'Back to LRCLIB’s timing.', false);
+      return;
+    }
+    void keep(() => musicService.fixLyricsTiming(albumId, disc, no, shiftLrc(lrclib, shift), intoLyrics), intoLyrics,
+      intoLyrics ? 'Timing saved into the lyrics.' : 'Timing fixed, in DexVault only.', !intoLyrics);
+  };
+
+  const reset = () => {
+    if (albumId == null || disc == null || no == null) return;
+    void keep(() => musicService.resetLyricsTiming(albumId, disc, no), lyrics?.timing === 'saved', 'Back to LRCLIB’s timing.', false);
+  };
+
+  // While fixing, the arrows move the words and Esc lets go: caught first and kept, so that neither the slider,
+  // nor a record's card (its arrows go from record to record, its Esc closes it), nor the page scrolling takes them too.
+  useEffect(() => {
+    if (!fixing) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      const field = event.target instanceof Element ? event.target : null;
+      if (field?.closest('input:not([type="range"]):not([type="checkbox"]), textarea, [contenteditable="true"]')) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        const step = (event.shiftKey ? 1 : 0.1) * (event.key === 'ArrowLeft' ? -1 : 1);
+        setShift(previous => roundShift(previous + step));
+      } else if (event.key === 'Escape') {
+        setFixing(false);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [fixing]);
 
   if (!shown || !album || !track) return null;
 
@@ -184,7 +306,7 @@ const LyricsPanel: React.FC = () => {
   } else if (lines.length > 0) {
     body = (
       // Read by hand, every line comes clear; back with the song, those far from it blur again.
-      <div className={`lyrics-panel-lines${following ? '' : ' lyrics-panel-browsing'}`} ref={boxRef}>
+      <div className={`lyrics-panel-lines${following && !fixing ? '' : ' lyrics-panel-browsing'}`} ref={boxRef}>
         <ol ref={listRef}>
           {lines.map((line, i) => {
             const state = i === index ? ' lyrics-panel-now' : i < index ? ' lyrics-panel-past' : '';
@@ -201,7 +323,7 @@ const LyricsPanel: React.FC = () => {
             );
           })}
         </ol>
-        {!following && (
+        {!following && !fixing && (
           <Button size="sm" className="lyrics-panel-follow" onClick={followAgain}>Back to the song</Button>
         )}
       </div>
@@ -227,8 +349,53 @@ const LyricsPanel: React.FC = () => {
         </div>
       )}
       {/* No head: the bar below says the track, its album and its cover already. */}
-      <IconButton label="Close lyrics" className="lyrics-panel-close" onClick={() => player.showLyrics(false)}><BsX /></IconButton>
+      <div className="lyrics-panel-actions">
+        {timed && !fixing && (
+          <Menu align="end" label="Timing" trigger={props => (
+            <IconButton {...props} label={lyrics?.timing === 'saved' ? 'Timing saved into the lyrics' : lyrics?.timing === 'fixed' ? 'Timing fixed' : 'Timing'}
+              active={lyrics?.timing === 'fixed' || lyrics?.timing === 'saved'} loading={saving}><BsStopwatch /></IconButton>
+          )}>
+            <Menu.Item onSelect={startFixing} hint="Shift the words to the voice">Fix timing…</Menu.Item>
+            {lyrics?.timing === 'fixed' && (
+              <Menu.Item onSelect={() => void saveInto()} hint="Navidrome, Amperfy">Save timing into the lyrics</Menu.Item>
+            )}
+            {(lyrics?.timing === 'fixed' || lyrics?.timing === 'saved') && (
+              <>
+                <Menu.Separator />
+                <Menu.Item danger onSelect={reset}>Reset timing</Menu.Item>
+              </>
+            )}
+          </Menu>
+        )}
+        <IconButton label="Close lyrics" onClick={() => player.showLyrics(false)}><BsX /></IconButton>
+      </div>
       {body}
+      {fixing && timed && (
+        <div className="lyrics-panel-fix menu-surface" role="group" aria-label="Fix timing">
+          <div className="lyrics-panel-fix-head">
+            <span>Words <output className={Math.abs(shift) > 0.004 ? 'lyrics-panel-fix-moved' : undefined} aria-live="polite">{shiftLabel(shift)}</output></span>
+            {here && (
+              <Segmented label="Speed" size="sm" value={speed} onChange={changeSpeed}
+                options={SPEEDS.map(value => ({ value, label: `${value}×`, tooltip: value === '1' ? 'The song’s own pace' : 'Slower, the same pitch' }))} />
+            )}
+          </div>
+          <LyricsWave songId={track.songId} lines={lines} />
+          <div className="lyrics-panel-fix-slider">
+            <Button size="sm" variant="quiet" onClick={() => setShift(previous => roundShift(previous - 0.1))} title="Words earlier">−0.1</Button>
+            <input type="range" className="ui-range" aria-label="Shift the words" min={-MOST_SHIFT_SEC} max={MOST_SHIFT_SEC} step={0.05}
+              value={shift} onChange={event => setShift(roundShift(Number(event.target.value)))} />
+            <Button size="sm" variant="quiet" onClick={() => setShift(previous => roundShift(previous + 0.1))} title="Words later">+0.1</Button>
+          </div>
+          <p className="lyrics-panel-fix-hint">Slide until each mark stands where the voice comes in: <kbd>←</kbd> <kbd>→</kbd> by 0.1 s, with <kbd>⇧</kbd> by 1 s. Drag the wave to go back or on in the track.</p>
+          <div className="lyrics-panel-fix-foot">
+            <label className="lyrics-panel-fix-into" title="Written in the .lrc beside the rip, for Navidrome and Amperfy, and kept whatever LRCLIB says next">
+              <input type="checkbox" checked={intoLyrics} onChange={event => setIntoLyrics(event.target.checked)} /> Save into the lyrics too
+            </label>
+            <Button variant="quiet" size="sm" onClick={() => setFixing(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" loading={saving} onClick={() => { setFixing(false); save(); }}>Save</Button>
+          </div>
+        </div>
+      )}
     </aside>,
     document.body,
   );

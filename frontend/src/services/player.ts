@@ -112,7 +112,7 @@ const SCROBBLE_AFTER_SEC = 240;
 /** ⏮ goes back to the start of the track past this many seconds, to the one before within them. */
 const RESTART_AFTER_SEC = 3;
 
-const streamUrl = (songId: string) => `/api/music/navidrome/stream/${encodeURIComponent(songId)}`;
+export const streamUrl = (songId: string) => `/api/music/navidrome/stream/${encodeURIComponent(songId)}`;
 
 const readResume = (): PlayerResume | null => {
   try {
@@ -723,6 +723,20 @@ export const player = {
 
   /** The appliance the bar plays on, null for this browser. */
   rendererId,
+
+  /**
+   * How fast this browser plays, slower to fix a track's timing: the pitch
+   * stays. Both elements take it, and keep it from one track to the next
+   * (`defaultPlaybackRate` outlives a new file). An appliance plays at its own pace.
+   */
+  setRate: (rate: number) => {
+    for (const audio of audios) {
+      audio.preservesPitch = true;
+      audio.defaultPlaybackRate = rate;
+      audio.playbackRate = rate;
+    }
+    updatePositionState();
+  },
 
   /**
    * Plays on another output from now. What plays goes along (`transfer`, the

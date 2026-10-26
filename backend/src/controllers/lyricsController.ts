@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import lyricsService from '../services/lyricsService';
+import lyricsService, { isTimedText, shown } from '../services/lyricsService';
 import logger from '../logger';
 
 const positionOf = (req: Request): { albumId: number; disc: number; track: number } | null => {
@@ -26,10 +26,41 @@ const lyricsController = {
         res.status(404).json({ error: 'No such track on this album' });
         return;
       }
-      res.json(lyrics);
+      res.json(shown(lyrics));
     } catch (error) {
       logger.error('Error looking up lyrics:', error);
       res.status(502).json({ error: (error as Error).message || 'Failed to look up the lyrics' });
+    }
+  },
+
+  /**
+   * A track's lines retimed by hand (PUT, `{ synced, intoLyrics }`), or back
+   * to LRCLIB's (DELETE). `lrc` says what became of the file beside the rip.
+   */
+  timing: async (req: Request, res: Response): Promise<void> => {
+    const position = positionOf(req);
+    if (!position) {
+      res.status(400).json({ error: 'Album, disc and track must be numbers' });
+      return;
+    }
+    const resetting = req.method === 'DELETE';
+    const { synced, intoLyrics } = (req.body ?? {}) as { synced?: unknown; intoLyrics?: unknown };
+    if (!resetting && !isTimedText(synced)) {
+      res.status(400).json({ error: 'The timing must be LRC lines, "[mm:ss.xx] words"' });
+      return;
+    }
+    try {
+      const done = resetting
+        ? await lyricsService.resetTiming(position.albumId, position.disc, position.track)
+        : await lyricsService.fixTiming(position.albumId, position.disc, position.track, synced as string, intoLyrics === true);
+      if (!done) {
+        res.status(404).json({ error: 'This track has no timed words to retime' });
+        return;
+      }
+      res.json({ lyrics: shown(done.lyrics), lrc: done.lrc });
+    } catch (error) {
+      logger.error('Error retiming lyrics:', error);
+      res.status(500).json({ error: (error as Error).message || 'Failed to keep the timing' });
     }
   },
 

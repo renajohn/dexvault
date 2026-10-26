@@ -151,10 +151,20 @@ export interface AlbumNote {
 export interface TrackLyrics {
   status: 'found' | 'instrumental' | 'missing';
   plain: string | null;
-  /** LRC, "[mm:ss.xx] line", when the source times its lines. */
+  /** LRC, "[mm:ss.xx] line", when the source times its lines: the timing fixed by hand, when it was. */
   synced: string | null;
+  /** LRCLIB's own timing, under the one fixed by hand. */
+  lrclibSynced?: string | null;
+  /** LRCLIB's timing, fixed by hand in DexVault, or saved into the lyrics (the .lrc beside the rip). */
+  timing?: 'lrclib' | 'fixed' | 'saved';
   source: string | null;
   checkedAt: string;
+}
+
+/** A timing kept, and what became of the .lrc beside the rip: rewritten, left as someone else wrote it, or none to write. */
+export interface TimingKept {
+  lyrics: TrackLyrics;
+  lrc: 'written' | 'kept' | 'none';
 }
 
 /** Whether a track has words, for its row: "pending" while DexVault looks them up. */
@@ -957,6 +967,16 @@ class MusicService {
       throw new Error(body.error || `HTTP error! status: ${response.status}`);
     }
     return body;
+  }
+
+  /** A track's lines retimed by hand; `intoLyrics` writes them into the .lrc beside the rip too. */
+  fixLyricsTiming(albumId: number | string, disc: number, track: number, synced: string, intoLyrics: boolean): Promise<TimingKept> {
+    return this.send(`/music/albums/${albumId}/discs/${disc}/tracks/${track}/lyrics/timing`, 'PUT', { synced, intoLyrics });
+  }
+
+  /** Back to LRCLIB's timing. */
+  resetLyricsTiming(albumId: number | string, disc: number, track: number): Promise<TimingKept> {
+    return this.send(`/music/albums/${albumId}/discs/${disc}/tracks/${track}/lyrics/timing`, 'DELETE');
   }
 
   /** Whether each track of an album has words; those never looked up are, in the background, and come back "pending". */
