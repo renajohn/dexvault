@@ -18,7 +18,11 @@ import logger from '../../logger';
  * When something else takes the appliance (another input chosen on the
  * Onkyo, AirPlay, Spotify), the session lets go: `taken`, no command, no
  * scrobble, the place kept, until Resume. Off or out of the network, it is
- * `unreachable` after three calls unanswered.
+ * `unreachable` after three calls unanswered; back within a few minutes
+ * with nothing else playing, it is given our play again by itself, from
+ * where it was, or the play asked of it while it was away. The Onkyo stops
+ * answering for half a minute as it wakes, and comes back holding whatever
+ * track of ours it had last: that is not someone else's play.
  */
 
 export type SessionStatus = 'playing' | 'paused' | 'stopped' | 'taken' | 'unreachable';
@@ -110,6 +114,14 @@ const UNREACHABLE_AFTER = 3;
 const POLL_PLAYING_MS = 1000;
 const POLL_PAUSED_MS = 5000;
 const POLL_AWAY_MS = [5000, 15000, 60000];
+/** Away with a play to give it as soon as it answers: asked this often. */
+const POLL_WANTED_MS = 5000;
+/** Back within this long of going away, or of a play asked while away, it plays on by itself; later, it waits for ▶. */
+const RETAKE_WITHIN_MS = 5 * 60_000;
+/** Someone else's track, or none, read this many polls in a row before letting go: one reading alone may be a step between two tracks. */
+const FOREIGN_STRIKES = 2;
+/** An address of ours (the media listener's) for a track that is not in the list: left over from an earlier play, nobody else's. */
+const STALE = -2;
 /** Its volume asked every fifth poll, playing: every 5 s. */
 const VOLUME_EVERY = 5;
 /** Written down this often while it plays, and at every track. */
@@ -146,6 +158,12 @@ export class OutputSession {
   private counted = false;
   private lastPosition = 0;
   private failures = 0;
+  /** When a play was last wanted of the appliance while it was away (it played as it went, or one was asked): given as soon as it answers; null for none. */
+  private wantedAt: number | null = null;
+  /** The play wanted is a track asked (Play, ▶, ⏭), to give even over what it plays; else to play on as it was. */
+  private wantedTrack = false;
+  /** Polls in a row that found someone else's track, or none, on the appliance. */
+  private strikes = 0;
   private probed = false;
   private awayPolls = 0;
   private polls = 0;
@@ -227,11 +245,38 @@ export class OutputSession {
     if (this.failures === 1) this.deps.reload?.().catch(() => undefined);
     // Stopped by hand, it stays so: switched off and on again it plays nothing of ours, as was asked.
     if (this.failures >= UNREACHABLE_AFTER && this.status !== 'unreachable' && this.status !== 'stopped' && this.album) {
+      // Playing as it went: to play on once it answers.
+      if (this.status === 'playing') {
+        this.wantedAt = this.now();
+        this.wantedTrack = false;
+      }
       this.status = 'unreachable';
       this.onDevice = false;
       this.awayPolls = 0;
       this.emit(true);
     }
+  }
+
+  /** A play asked of an appliance that did not answer: kept, and given as soon as it does. */
+  private keepWanted(): void {
+    this.wantedAt = this.now();
+    this.wantedTrack = true;
+    this.status = 'unreachable';
+    this.onDevice = false;
+    this.awayPolls = 0;
+    this.at = this.now();
+    this.save();
+    this.emit(true);
+  }
+
+  /** Whether a play waits for the appliance to answer. */
+  private wanted(): boolean {
+    return this.wantedAt != null && this.now() - this.wantedAt <= RETAKE_WITHIN_MS;
+  }
+
+  /** A play kept for when the appliance answers: the page is told so. */
+  wantsPlay(): boolean {
+    return this.status === 'unreachable' && this.album !== null && this.wanted();
   }
 
   // The addresses the appliance is given: the media listener's, by this session's token.
@@ -260,15 +305,21 @@ export class OutputSession {
     });
   }
 
-  /** The track of ours an address stands for: -1 for someone else's, null for none at all. */
+  /**
+   * The track of ours an address stands for: -1 for someone else's (another
+   * player's, another DexVault's), STALE for one of ours that is not in the
+   * list (left from an earlier play), null for none at all.
+   */
   private indexOfUri(uri: string): number | null {
     if (!uri) return null;
     const match = /\/upnp\/stream\/([^/]+)\/([^/?#]+?)(?:\.[a-z0-9]+)?(?:[?#].*)?$/i.exec(uri);
-    if (!match || match[1] !== this.token) return -1;
+    if (!match || !uri.startsWith(`${this.deps.mediaBase}/`)) return -1;
+    if (match[1] !== this.token) return STALE;
     const songId = decodeURIComponent(match[2]);
     // A song twice in a mixtape: the one playing, else the next one, else the first.
     for (const at of [this.index, this.index + 1]) if (this.tracks[at]?.songId === songId) return at;
-    return this.tracks.findIndex(track => track.songId === songId);
+    const index = this.tracks.findIndex(track => track.songId === songId);
+    return index === -1 ? STALE : index;
   }
 
   // What the pages are told.
@@ -337,7 +388,7 @@ export class OutputSession {
     if (this.status === 'playing') return POLL_PLAYING_MS;
     // Paused with nothing of ours on the appliance (after a restart): asked once whether it still plays our track.
     if (this.status === 'paused') return this.onDevice || !this.probed ? POLL_PAUSED_MS : null;
-    if (this.status === 'unreachable') return POLL_AWAY_MS[Math.min(this.awayPolls, POLL_AWAY_MS.length - 1)];
+    if (this.status === 'unreachable') return this.wanted() ? POLL_WANTED_MS : POLL_AWAY_MS[Math.min(this.awayPolls, POLL_AWAY_MS.length - 1)];
     return null;
   }
 
@@ -394,8 +445,21 @@ export class OutputSession {
     }
   }
 
-  /** Plays track `index` from `at` seconds: given, played, sought, and the one after it given as next. */
+  /**
+   * Plays track `index` from `at` seconds: given, played, sought, and the
+   * one after it given as next. Unanswered, the play is kept for when the
+   * appliance answers: it is what was asked of it.
+   */
   private async startTrack(index: number, at = 0, skipped = 0): Promise<void> {
+    try {
+      await this.giveTrack(index, at, skipped);
+    } catch (error) {
+      if (error instanceof OutputUnreachableError) this.keepWanted();
+      throw error;
+    }
+  }
+
+  private async giveTrack(index: number, at: number, skipped: number): Promise<void> {
     const track = this.tracks[index];
     if (!track) return;
     this.index = index;
@@ -429,6 +493,8 @@ export class OutputSession {
     this.onDevice = true;
     await this.call(renderer => renderer.play());
     this.status = 'playing';
+    this.wantedAt = null;
+    this.strikes = 0;
     await this.waitPlaying();
     if (at > 0) await this.call(renderer => renderer.seek(at)).catch(error => {
       if (error instanceof OutputUnreachableError) throw error;
@@ -443,9 +509,8 @@ export class OutputSession {
 
   /** An album in, from its track `index` at `at` seconds: what played before stopped first. */
   private async loadAlbum(album: PlayerAlbum, tracks: PlayerTrack[], index: number, at: number, queue: 'listenNext' | null): Promise<void> {
-    if (this.onDevice && this.status === 'playing') await this.call(renderer => renderer.stop()).catch(error => {
-      if (error instanceof OutputUnreachableError) throw error;
-    });
+    // Unanswered, the track given next tells so, and is kept for when it answers.
+    if (this.onDevice && this.status === 'playing') await this.call(renderer => renderer.stop()).catch(() => undefined);
     this.album = album;
     this.tracks = tracks;
     this.queue = queue;
@@ -529,6 +594,36 @@ export class OutputSession {
     this.status = 'taken';
     this.onDevice = false;
     this.nextSet = -1;
+    this.strikes = 0;
+    this.wantedAt = null;
+    this.save();
+    this.emit(true);
+  }
+
+  /**
+   * Back from away without the track wanted playing. A track asked of it
+   * while away is given, even over what it plays: it was asked. Otherwise
+   * someone else's play is left alone (taken); and whatever it holds
+   * (nothing, or a track of ours left over), the play wanted of it is given
+   * again, from where it was, if it was wanted within the last minutes;
+   * else it waits, paused, for ▶.
+   */
+  private async cameBack(ours: number | null, playingNow: boolean): Promise<void> {
+    if (ours === -1 && playingNow && !(this.wantedTrack && this.wanted())) return this.letGo();
+    if (this.wanted()) {
+      // Unanswered again, it stays wanted as it was: tried again at the next poll.
+      const asked = this.wantedTrack;
+      try {
+        await this.startTrack(this.index, this.position);
+      } catch (error) {
+        this.wantedTrack = asked;
+        throw error;
+      }
+      return;
+    }
+    this.wantedAt = null;
+    this.status = 'paused';
+    this.at = this.now();
     this.save();
     this.emit(true);
   }
@@ -554,11 +649,14 @@ export class OutputSession {
 
     if (!this.onDevice) {
       // After a restart, or back from away: ours again only if it still plays our track.
-      if (ours != null && ours >= 0 && playingNow) {
+      // A track asked of it while it was away is given even when it plays another of ours.
+      const asked = this.wantedTrack && this.wanted() && ours !== this.index;
+      if (ours != null && ours >= 0 && playingNow && !asked) {
         this.onDevice = true;
+        this.strikes = 0;
         if (ours !== this.index && !await this.followed(ours)) return;
       } else {
-        if (wasAway) this.letGo();
+        if (wasAway) await this.cameBack(ours, playingNow);
         return;
       }
     }
@@ -572,10 +670,12 @@ export class OutputSession {
       await this.trackEnded();
       return;
     }
-    if (transport.state === 'NO_MEDIA_PRESENT' || ours === -1) {
-      this.letGo();
+    if (transport.state === 'NO_MEDIA_PRESENT' || ours === -1 || ours === STALE) {
+      // Read twice in a row before letting go: between two tracks the appliance may say nothing for a moment.
+      if (++this.strikes >= FOREIGN_STRIKES) this.letGo();
       return;
     }
+    this.strikes = 0;
     if (ours != null && ours !== this.index) {
       // Gone on to the next track by itself, with no gap; or to another of ours, by its own buttons.
       if (ours !== this.nextSet) this.nextSet = -1;

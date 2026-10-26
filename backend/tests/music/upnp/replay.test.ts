@@ -84,7 +84,7 @@ describe.each([
     // Another input chosen on the appliance: let go, the place kept; Resume there.
     await r.playFor(30);
     r.fake.takeOver();
-    await r.playFor(1);
+    await r.playFor(2);
     expect(r.session.state()).toMatchObject({ status: 'taken', index: 1, position: 30 });
     r.fake.calls = [];
     await r.session.resume();

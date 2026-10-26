@@ -58,12 +58,15 @@ const sessionOf = (req: Request, res: Response): OutputSession | null => {
   return session;
 };
 
-/** What went wrong, as the page reads it: 409 taken, 503 away, 404 unknown album. */
-const fail = (res: Response, error: unknown, what: string): void => {
+/** What went wrong, as the page reads it: 409 taken, 503 away (the play kept for when it answers, if it is), 404 unknown album. */
+const fail = (res: Response, error: unknown, what: string, session?: OutputSession): void => {
   const status = (error as { status?: number }).status;
   if (status) res.status(status).json({ error: (error as Error).message });
   else if (error instanceof OutputTakenError) res.status(409).json({ error: error.message, status: 'taken' });
-  else if (error instanceof OutputUnreachableError) res.status(503).json({ error: error.message, status: 'unreachable' });
+  else if (error instanceof OutputUnreachableError) {
+    const kept = session?.wantsPlay() ? `${outputs.nameOf(session.id)} does not answer: it will play once it is on` : error.message;
+    res.status(503).json({ error: kept, status: 'unreachable' });
+  }
   else if ((error as Error).message === 'Album not found') res.status(404).json({ error: 'Album not found' });
   else {
     logger.warn(`${what}: ${(error as Error).message}`);
@@ -80,7 +83,7 @@ const command = (what: string, work: (session: OutputSession, req: Request) => P
       await work(session, req);
       res.json(session.state());
     } catch (error) {
-      fail(res, error, `${what} on ${outputs.nameOf(session.id)}`);
+      fail(res, error, `${what} on ${outputs.nameOf(session.id)}`, session);
     }
   };
 

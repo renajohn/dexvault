@@ -1,4 +1,4 @@
-import { OutputTakenError, type OutputState } from '../../../src/services/upnp/session';
+import { OutputTakenError, OutputUnreachableError, type OutputState } from '../../../src/services/upnp/session';
 import { albumOf, rig, tracksOf, urlOf, MEDIA_BASE, TOKEN, type Rig } from './helpers';
 
 let r: Rig;
@@ -136,10 +136,13 @@ describe('an appliance that does not follow on (the Panasonic)', () => {
 describe('an appliance taken by something else, or away', () => {
   beforeEach(async () => { r = await rig('wiim'); });
 
-  it('lets go when it plays someone else’s: no command, no scrobble, the place kept; Resume plays on there', async () => {
+  it('lets go when it plays someone else’s, read twice: no command, no scrobble, the place kept; Resume plays on there', async () => {
     await r.session.playAlbum(albumOf(7), tracksOf(7), 1);
     await r.playFor(42);
     r.fake.takeOver();
+    await r.playFor(1);
+    // Once may be a step between two tracks: still ours.
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 1 });
     await r.playFor(1);
     expect(stateOf(r)).toMatchObject({ status: 'taken', index: 1, position: 42 });
 
@@ -160,16 +163,43 @@ describe('an appliance taken by something else, or away', () => {
     expect(stateOf(r)).toMatchObject({ status: 'playing', index: 1, position: 42 });
   });
 
-  it('lets go when the appliance has no media any more', async () => {
+  it('lets go when the appliance has no media any more, read twice', async () => {
     await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
     await r.playFor(10);
     r.fake.uri = '';
     r.fake.state = 'NO_MEDIA_PRESENT';
-    await r.playFor(1);
+    await r.playFor(2);
     expect(stateOf(r).status).toBe('taken');
   });
 
-  it('is away after three calls unanswered, asked ever less often, and taken when back without our track', async () => {
+  it('plays on when the appliance says nothing for one reading between two tracks', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(10);
+    const [uri, state] = [r.fake.uri, r.fake.state];
+    r.fake.uri = '';
+    r.fake.state = 'NO_MEDIA_PRESENT';
+    await r.playFor(1);
+    r.fake.uri = uri;
+    r.fake.state = state;
+    await r.playFor(1);
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 0 });
+    r.fake.takeOver();
+    await r.playFor(1);
+    r.fake.uri = uri;
+    await r.playFor(1);
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 0 });
+  });
+
+  it('lets go of a track given by another DexVault, never of one of ours left over', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(10);
+    // Another DexVault (one in development) plays there: someone else's.
+    r.fake.takeOver(urlOf('a9t1').replace(MEDIA_BASE, 'http://192.168.86.51:3002'));
+    await r.playFor(2);
+    expect(stateOf(r).status).toBe('taken');
+  });
+
+  it('is away after three calls unanswered, asked every 5 s, and plays on by itself when back within minutes, its memory wiped', async () => {
     await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
     await r.playFor(10);
     r.fake.down = true;
@@ -179,16 +209,91 @@ describe('an appliance taken by something else, or away', () => {
     expect(stateOf(r)).toMatchObject({ status: 'unreachable', position: 10 });
     expect(r.session.pollDelay()).toBe(5000);
     await r.session.tick();
-    expect(r.session.pollDelay()).toBe(15000);
-    await r.session.tick();
-    expect(r.session.pollDelay()).toBe(60000);
+    expect(r.session.pollDelay()).toBe(5000);
 
-    // Switched off and on: it has forgotten our track.
+    // Switched off and on: it has forgotten our track. Ours is given again, from where it was.
     r.fake.down = false;
     r.fake.uri = '';
     r.fake.state = 'NO_MEDIA_PRESENT';
+    r.fake.calls = [];
+    await r.session.tick();
+    expect(r.fake.commands()).toEqual(['SetAVTransportURI', 'Play', 'Seek', 'SetNextAVTransportURI']);
+    expect(r.fake.uri).toBe(urlOf('a7t1'));
+    expect(r.fake.of('Seek')[0].args.Target).toBe('0:00:10');
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 0, position: 10 });
+  });
+
+  it('takes the appliance back when it comes back holding an earlier track of ours, stopped (the Onkyo as it wakes)', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 2);
+    await r.playFor(10);
+    r.fake.down = true;
+    await r.playFor(3);
+    expect(stateOf(r).status).toBe('unreachable');
+    // Asked another album while away: kept for when it answers.
+    await expect(r.session.playAlbum(albumOf(8), tracksOf(8), 0)).rejects.toBeInstanceOf(OutputUnreachableError);
+    expect(stateOf(r)).toMatchObject({ status: 'unreachable', index: 0, album: { id: 8 } });
+    expect(r.session.pollDelay()).toBe(5000);
+
+    r.fake.down = false;
+    r.fake.uri = urlOf('a7t3');
+    r.fake.state = 'STOPPED';
+    r.fake.calls = [];
+    await r.session.tick();
+    expect(r.fake.commands()).toEqual(['SetAVTransportURI', 'Play', 'SetNextAVTransportURI']);
+    expect(r.fake.uri).toBe(urlOf('a8t1'));
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 0, album: { id: 8 } });
+  });
+
+  it('is taken when back playing someone else’s', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(10);
+    r.fake.down = true;
+    await r.playFor(3);
+    r.fake.down = false;
+    r.fake.takeOver();
     await r.session.tick();
     expect(stateOf(r)).toMatchObject({ status: 'taken', position: 10 });
+    expect(r.session.pollDelay()).toBeNull();
+  });
+
+  it('waits for ▶, paused where it was, when back after more than five minutes', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(10);
+    r.fake.down = true;
+    await r.playFor(3);
+    expect(stateOf(r).status).toBe('unreachable');
+    await r.session.tick();
+    await r.session.tick();
+    await r.session.tick();
+    expect(r.session.pollDelay()).toBe(5000);
+    r.fake.advance(6 * 60);
+    expect(r.session.pollDelay()).toBe(60000);
+    r.fake.down = false;
+    r.fake.uri = '';
+    r.fake.state = 'NO_MEDIA_PRESENT';
+    r.fake.calls = [];
+    await r.session.tick();
+    expect(stateOf(r)).toMatchObject({ status: 'paused', index: 0, position: 10 });
+    expect(r.fake.commands()).toEqual([]);
+    expect(r.session.pollDelay()).toBeNull();
+    await r.session.toggle();
+    expect(r.fake.uri).toBe(urlOf('a7t1'));
+    expect(stateOf(r).status).toBe('playing');
+  });
+
+  it('gives a play asked of it while off as soon as it answers', async () => {
+    r.fake.down = true;
+    await expect(r.session.playAlbum(albumOf(7), tracksOf(7), 1)).rejects.toBeInstanceOf(OutputUnreachableError);
+    expect(stateOf(r)).toMatchObject({ status: 'unreachable', index: 1, album: { id: 7 } });
+    expect(r.session.pollDelay()).toBe(5000);
+    await r.session.tick();
+    expect(stateOf(r).status).toBe('unreachable');
+    r.fake.down = false;
+    await r.session.tick();
+    expect(r.fake.uri).toBe(urlOf('a7t2'));
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 1 });
+    await r.playFor(5);
+    expect(stateOf(r)).toMatchObject({ status: 'playing', position: 5 });
   });
 
   it('follows on again when back still playing our track (a blip in the network)', async () => {

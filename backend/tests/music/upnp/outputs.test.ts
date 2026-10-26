@@ -160,15 +160,24 @@ describe('with it', () => {
     await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7 }).expect(200);
     onkyo.takeOver();
     await outputs.session(ONKYO)!.tick();
+    await outputs.session(ONKYO)!.tick();
     const taken = await request(app).post(`/api/outputs/${ONKYO}/toggle`);
     expect(taken.status).toBe(409);
     expect(taken.body).toEqual({ error: 'Salon is playing something else', status: 'taken' });
     expect((await request(app).post(`/api/outputs/${ONKYO}/resume`)).body.status).toBe('playing');
 
     onkyo.down = true;
+    const volume = await request(app).put(`/api/outputs/${ONKYO}/volume`).send({ volume: 30 });
+    expect(volume.status).toBe(503);
+    expect(volume.body).toEqual({ error: 'Salon does not answer: is it on?', status: 'unreachable' });
+    // A track asked of it while away is kept, and given once it answers.
     const away = await request(app).post(`/api/outputs/${ONKYO}/next`);
     expect(away.status).toBe(503);
-    expect(away.body).toEqual({ error: 'Salon does not answer: is it on?', status: 'unreachable' });
+    expect(away.body).toEqual({ error: 'Salon does not answer: it will play once it is on', status: 'unreachable' });
+    expect((await request(app).get('/api/outputs')).body[0].session).toMatchObject({ status: 'unreachable', index: 1 });
+    onkyo.down = false;
+    await outputs.session(ONKYO)!.tick();
+    expect((await request(app).get('/api/outputs')).body[0].session).toMatchObject({ status: 'playing', index: 1 });
   });
 
   it('writes the play down, and takes it up again after a restart', async () => {

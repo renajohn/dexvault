@@ -50,8 +50,12 @@ Retour arrière à tout moment : vider `UPNP_MEDIA_BASE_URL` et redéployer.
 6. [ ] **Navidrome** : « en cours » au début de chaque piste, puis la lecture comptée **une
        seule fois**, pour le bon utilisateur (`NAVIDROME_USER`).
 7. [ ] **Pris ailleurs** : passer l'Onkyo sur une autre entrée → la barre dit « Salon is playing
-       something else », ⏯ devient Resume, qui reprend **au même endroit**. Éteindre l'Onkyo →
-       « away » (gris) ; le rallumer → il revient (Resume).
+       something else », ⏯ devient Resume, qui reprend **au même endroit**. Éteindre l'Onkyo en
+       pleine lecture → « away » (gris) ; le rallumer dans les 5 minutes → **il reprend tout seul**
+       au même endroit, sans Resume (revu le 26.10.2026) ; le rallumer plus tard → en pause, ▶.
+       Onkyo éteint, Play depuis DexVault → toast « it will play once it is on », l'album dans
+       la barre « Salon, away » ; l'allumer → la lecture part seule, même si l'Onkyo tenait
+       encore une ancienne piste DexVault (il cesse de répondre ~30 s après l'allumage).
 8. [ ] **Veille réseau** : récepteur en veille, Play depuis DexVault : s'allume-t-il et
        passe-t-il sur NET ? (Noter ; pas d'eISCP prévu.)
 9. [ ] **Deux pages** : Mac et iPhone ouverts ensemble, une commande sur l'un se voit sur

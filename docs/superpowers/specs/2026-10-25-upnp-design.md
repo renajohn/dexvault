@@ -184,15 +184,26 @@ ouvert (iPhone verrouillé).
 7. `toggle` : `Pause` / `Play`.
 8. Volume : `SetVolume` borné par `maxVolume` de l'appareil (§2.4) ; `SetMute`.
 
-**Reprise quand l'appareil est pris par autre chose** : si `TrackURI` n'est plus une de nos
-URL (on a changé d'entrée sur l'Onkyo, AirPlay, Spotify Connect, l'app WiiM), ou si l'état
-devient `NO_MEDIA_PRESENT`, la session passe en `taken` : plus de commande envoyée, plus de
-scrobble, la position gardée. L'interface propose « Resume on Salon », qui relance la piste
-au même endroit (`SetAVTransportURI` + `Seek` + `Play`). Jamais de reprise automatique.
+**Reprise quand l'appareil est pris par autre chose** : si `TrackURI` est l'adresse d'un
+autre lecteur (on a changé d'entrée sur l'Onkyo, AirPlay, Spotify, l'app WiiM, ou un autre
+DexVault), ou si l'état devient `NO_MEDIA_PRESENT`, **deux sondages de suite** (une seule
+lecture peut être un pas entre deux pistes), la session passe en `taken` : plus de commande
+envoyée, plus de scrobble, la position gardée. L'interface propose « Resume on Salon », qui
+relance la piste au même endroit (`SetAVTransportURI` + `Seek` + `Play`). Une adresse de
+l'écoute médias qui n'est pas dans la liste (une piste d'un album d'avant, restée dans
+l'appareil) est à nous, pas à quelqu'un d'autre.
 
 **Appareil éteint ou hors réseau** : 3 échecs SOAP de suite (délai 4 s) → `unreachable`,
-le poller espace ses essais (5 s, 15 s, 60 s), la position est gardée, l'interface le dit.
-Revenu, il repasse en `taken` (il n'a plus notre piste) : même « Resume ».
+la position gardée, l'interface le dit. **La lecture voulue reste due** (révisé le
+26.10.2026, branche `fix-salon`) : s'il jouait quand il a cessé de répondre, ou si une
+lecture lui a été demandée pendant son absence (Play, ▶, ⏭ : l'API répond 503 « it will
+play once it is on », l'album est dans la barre, « Salon, away »), le sondeur l'interroge
+toutes les 5 s et, dès qu'il répond sans jouer la lecture d'un autre, lui redonne la piste
+au même endroit. L'Onkyo cesse de répondre une demi-minute juste après l'allumage et
+revient avec la dernière piste de DexVault qu'il tenait : c'est ce cas. Passé **5 minutes**
+depuis la lecture voulue, il espace ses essais (15 s, 60 s) et, revenu, attend ▶ en pause,
+là où il en était : un appareil éteint pour la soirée ne se met pas à jouer tout seul le
+lendemain. Revenu en jouant la lecture d'un autre → `taken`, même « Resume ».
 
 **Redémarrage de DexVault** : les sessions sont écrites en base à chaque changement de piste
 et toutes les 10 s (§2.5) ; au démarrage, une session relue regarde `GetPositionInfo` : si
