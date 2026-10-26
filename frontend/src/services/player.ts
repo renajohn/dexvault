@@ -631,6 +631,12 @@ export const player = {
     const want = playing ?? audio.paused;
     if (want) {
       holdAwake();
+      // Brought back by a reload, its track not loaded: started now, within the touch, as any track is. An iPhone
+      // loads a source set outside a touch in a state it can neither take up at its place nor seek in.
+      if (!audio.src) {
+        start(state.index, state.position);
+        return;
+      }
       audio.play().then(() => { if (state.error) set({ error: null }); }).catch(error => set({ error: (error as Error).message }));
     } else audio.pause();
   },
@@ -771,9 +777,10 @@ export const registerQueue = (queue: PlayerQueue, restore: (album: PlayerAlbum &
 };
 
 /**
- * After a reload: the bar comes back, paused where the play was, its track in
- * the audio element at its moment. No sound until ▶: a browser plays nothing
- * a click has not asked for.
+ * After a reload: the bar comes back, paused where the play was, its track
+ * and its moment known, nothing loaded. No sound until ▶, which starts the
+ * track then: a browser plays nothing a click has not asked for, and an
+ * iPhone loads a source set outside a touch in a state it cannot seek in.
  */
 export const restorePlayer = (): void => {
   const saved = readResume();
@@ -792,14 +799,8 @@ export const restorePlayer = (): void => {
   set({ album: saved.album, queue, tracks: saved.tracks, index, playing: false, position: saved.position,
     duration: track.durationSec || 0, barShown: true, resume: null, error: null });
   if (waitingQueue) waitingQueue.album = state.album!;
-  const audio = current();
-  audio.src = streamUrl(track.songId);
-  // The place kept: the browser goes there once the data comes (on an iPhone, at the first touch), and forgets it
-  // with a new source; a listener waiting for the metadata outlived the album and took the next one back there.
-  if (saved.position > 0) wantAt(audio, saved.position);
   scrobbled = countedAt(track, saved.position);
   announced = false;
-  preloadNext();
   updateMediaSession();
 };
 

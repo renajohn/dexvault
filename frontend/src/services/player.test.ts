@@ -201,13 +201,16 @@ describe('player', () => {
       restorePlayer();
 
       expect(player.getState()).toMatchObject({ album, index: 1, position: 42, playing: false, barShown: true, resume: null });
-      expect(created[0].src).toContain('/stream/s2');
-      expect(created[0].currentTime).toBe(42);
-      // No sound before ▶: a browser plays nothing a click has not asked for.
+      // Nothing loaded before ▶: a browser plays nothing a click has not asked for, and an iPhone cannot seek in
+      // a source set outside a touch.
+      expect(created.every(audio => !audio.src)).toBe(true);
       const play = vi.mocked(HTMLMediaElement.prototype.play);
       expect(play).not.toHaveBeenCalled();
       player.toggle();
       expect(play).toHaveBeenCalledTimes(1);
+      expect(created[0].src).toContain('/stream/s2');
+      expect(created[0].currentTime).toBe(42);
+      expect(player.getState()).toMatchObject({ index: 1, position: 42, playing: true });
     });
 
     it('tells Navidrome only once it really plays, and does not count again a track counted before', () => {
@@ -215,6 +218,7 @@ describe('player', () => {
       restorePlayer();
       expect(fetch).not.toHaveBeenCalled();
 
+      player.toggle();
       const audio = playingAudio();
       audio.dispatchEvent(new Event('playing'));
       Object.defineProperty(audio, 'duration', { value: 145, configurable: true });
@@ -226,14 +230,15 @@ describe('player', () => {
     });
 
     it('on an iPhone, which loads nothing before a touch, a seek before the data comes is kept, and another album starts where it is asked', () => {
-      // The element kept the place of the track left yesterday, its metadata never read.
+      // The place of the track left yesterday is known, nothing loaded.
       playThenReload(143);
       restorePlayer();
-      const kept = created[0];
-      expect(kept.currentTime).toBe(143);
 
-      // ▶: iOS reads the data only now and starts from 0, so the place kept is set again as the metadata comes.
+      // ▶ loads it now, within the touch; iOS starts from 0, so the place kept is set again as the metadata comes.
       player.toggle();
+      const kept = created[0];
+      expect(kept.src).toContain('/stream/s2');
+      expect(kept.currentTime).toBe(143);
       kept.currentTime = 0;
       kept.dispatchEvent(new Event('loadedmetadata'));
       expect(kept.currentTime).toBe(143);
