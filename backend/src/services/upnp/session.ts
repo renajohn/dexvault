@@ -130,6 +130,9 @@ const SAVE_EVERY_MS = 10_000;
 const EMIT_EVERY_MS = 1000;
 /** Formats an appliance cannot play (UPnP 714: illegal MIME type; 716: resource not found). */
 const UNPLAYABLE = new Set([714, 716]);
+/** Play refused while the appliance is between two tracks: asked again, 300 ms apart, this many times in all. */
+const TRANSITION_NOT_AVAILABLE = 701;
+const PLAY_TRIES = 10;
 
 const countedAt = (track: PlayerTrack, at: number): boolean =>
   at >= SCROBBLE_AFTER_SEC || (Boolean(track.durationSec) && at >= (track.durationSec as number) / 2);
@@ -428,6 +431,26 @@ export class OutputSession {
     }
   }
 
+  /**
+   * Play, asked again while the appliance is still between two tracks: the Onkyo, given a track
+   * as it stops another (a CD changed), refuses Play (701, transition not available) for a moment.
+   * Playing meanwhile by itself, it is not asked again.
+   */
+  private async playNow(): Promise<void> {
+    const wait = this.deps.wait ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    for (let tries = 1; ; tries++) {
+      try {
+        await this.call(renderer => renderer.play());
+        return;
+      } catch (error) {
+        if (!(error instanceof UPnPError && error.code === TRANSITION_NOT_AVAILABLE) || tries >= PLAY_TRIES) throw error;
+      }
+      await wait(300);
+      const { state } = await this.call(renderer => renderer.transportInfo());
+      if (state === 'PLAYING') return;
+    }
+  }
+
   /** Gives the appliance the track after this one, for it to follow on with no gap. */
   private async postNext(): Promise<void> {
     const renderer = this.deps.renderer();
@@ -491,7 +514,7 @@ export class OutputSession {
       throw error;
     }
     this.onDevice = true;
-    await this.call(renderer => renderer.play());
+    await this.playNow();
     this.status = 'playing';
     this.wantedAt = null;
     this.strikes = 0;
@@ -786,7 +809,7 @@ export class OutputSession {
       }
       const want = playing ?? this.status !== 'playing';
       if (want) {
-        await this.call(renderer => renderer.play());
+        await this.playNow();
         this.status = 'playing';
         await this.postNext().catch(() => undefined);
       } else {

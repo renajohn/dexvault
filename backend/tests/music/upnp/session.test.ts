@@ -97,6 +97,25 @@ describe('an album played on an appliance that follows on (the Onkyo)', () => {
     expect(stateOf(r)).toMatchObject({ index: 1, position: 75, status: 'playing' });
   });
 
+  it('asks Play again while the appliance is still between two tracks, a CD changed', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(30);
+    r.fake.settling = 3;
+    r.fake.calls = [];
+    await r.session.playAlbum(albumOf(8), tracksOf(8), 0);
+    await r.session.idle();
+    expect(r.fake.commands()).toEqual(['Stop', 'SetAVTransportURI', 'Play', 'Play', 'Play', 'SetNextAVTransportURI']);
+    expect(r.fake.state).toBe('PLAYING');
+    expect(r.fake.uri).toBe(urlOf('a8t1'));
+    expect(stateOf(r)).toMatchObject({ status: 'playing', album: { id: 8 }, index: 0, error: null });
+  });
+
+  it('says so when the appliance still refuses Play after three seconds', async () => {
+    r.fake.settling = 100;
+    await expect(r.session.playAlbum(albumOf(7), tracksOf(7), 0)).rejects.toThrow('Play refused (701)');
+    expect(r.fake.commands().filter(action => action === 'Play')).toHaveLength(10);
+  });
+
   it('never sets the volume above the ceiling', async () => {
     await r.session.setVolume({ volume: 95 });
     expect(r.fake.volume).toBe(70);

@@ -57,6 +57,9 @@ export class FakeRenderer {
   durations = new Map<string, number>();
   /** Takes a moment before playing: PLAYING only at the next question. */
   slowStart = false;
+  /** Given a track, between two for this many questions: Play refused (701), TRANSITIONING (the Onkyo, a CD changed). */
+  settling = 0;
+  private settlingLeft = 0;
   /** The clock, in ms, the sessions read too. */
   clock = 1_000_000;
   /** How long each SOAP answer takes, in real ms: two calls at once can then be caught. */
@@ -146,12 +149,17 @@ export class FakeRenderer {
         this.nextUri = '';
         this.position = 0;
         this.state = 'STOPPED';
+        this.settlingLeft = this.settling;
         return {};
       case 'SetNextAVTransportURI':
         this.nextUri = args.NextURI;
         return {};
       case 'Play':
         if (!this.uri) throw Object.assign(new Error('Transition not available'), { code: 701 });
+        if (this.settlingLeft > 0) {
+          this.settlingLeft--;
+          throw Object.assign(new Error('Transition not available'), { code: 701 });
+        }
         if (this.slowStart && this.state !== 'PAUSED_PLAYBACK') {
           this.state = 'TRANSITIONING';
           this.pendingPlay = true;
@@ -168,6 +176,10 @@ export class FakeRenderer {
         this.position = secondsOf(args.Target);
         return {};
       case 'GetTransportInfo':
+        if (this.settlingLeft > 0) {
+          this.settlingLeft--;
+          return { CurrentTransportState: 'TRANSITIONING', CurrentTransportStatus: 'OK', CurrentSpeed: 1 };
+        }
         if (this.pendingPlay) {
           // Asked once while it fetches the file: playing the next time.
           this.pendingPlay = false;
