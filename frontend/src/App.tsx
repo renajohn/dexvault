@@ -53,6 +53,16 @@ const DigitalRedirect = () => {
   return <Navigate to={search ? `/musicdex?digital=1&search=${encodeURIComponent(search)}` : '/musicdex?digital=1&filter=buy'} replace />;
 };
 
+/** The sections of the header's buttons, in their order, Shelves last. */
+const SECTIONS = ['/filmdex', '/musicdex', '/bookdex', '/scores', '/wishlist', '/analytics', '/shelves'];
+const LAST_SECTION_KEY = 'dexvault-last-section';
+
+/** The app opened at its start (on an iPhone, from the home screen) comes back to the section left last. */
+const LastSection = () => {
+  const last = readStored(LAST_SECTION_KEY);
+  return <Navigate to={last && SECTIONS.includes(last) ? last : '/filmdex'} replace />;
+};
+
 function AppContent() {
   const [refreshTrigger] = useState<number>(0);
   const movieSearchRef = useRef<any>(null);
@@ -81,10 +91,9 @@ function AppContent() {
   // ⌘1…⌘7 (Ctrl+1…7) go to a section, in the order of the header's buttons, Shelves last.
   // In a browser's tab ⌘1…⌘9 stay the browser's (Ctrl works there on a Mac); in DexVault installed as an app they are its own.
   useEffect(() => {
-    const sections = ['/filmdex', '/musicdex', '/bookdex', '/scores', '/wishlist', '/analytics', '/shelves'];
     const toSection = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
-      const path = sections[Number(e.code.replace('Digit', '')) - 1];
+      const path = SECTIONS[Number(e.code.replace('Digit', '')) - 1];
       if (!path || !e.code.startsWith('Digit')) return;
       e.preventDefault();
       navigate(path);
@@ -92,6 +101,10 @@ function AppContent() {
     window.addEventListener('keydown', toSection);
     return () => window.removeEventListener('keydown', toSection);
   }, [navigate]);
+  // The section shown, for the next start.
+  useEffect(() => {
+    if (SECTIONS.includes(location.pathname)) writeStored(LAST_SECTION_KEY, location.pathname);
+  }, [location.pathname]);
   // Helper to get product name from path
   const getProductFromPath = (path: string): string | null => {
     if (path === '/filmdex') return 'filmdex';
@@ -646,7 +659,7 @@ function AppContent() {
         <Routes>
           <Route
             path="/"
-            element={<Navigate to="/filmdex" replace />}
+            element={<LastSection />}
           />
           <Route
             path="/filmdex"
