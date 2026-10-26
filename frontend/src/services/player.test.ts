@@ -151,8 +151,8 @@ describe('player', () => {
     expect((heard.mock.calls[0][0] as CustomEvent).detail).toEqual({ id: 3, albumId: 7 });
     window.removeEventListener(LISTEN_NEXT_LEFT_EVENT, heard);
   });
-  it('keeps the Mac awake across the step from one track to the next, and lets go a while after a pause', () => {
-    vi.useFakeTimers();
+  /** A Web Audio context as the keep-awake makes it, its constant source's level in `level`. */
+  const fakeAudioContext = () => {
     const level = { value: 0 };
     const context = {
       state: 'running',
@@ -162,7 +162,19 @@ describe('player', () => {
       destination: {},
       createConstantSource: () => ({ offset: level, connect: vi.fn(), start: vi.fn() }),
     };
-    vi.stubGlobal('AudioContext', function AudioContext() { return context; });
+    const made = vi.fn(function AudioContext() { return context; });
+    vi.stubGlobal('AudioContext', made);
+    return { level, context, made };
+  };
+  /** A computer: a pointer that hovers. jsdom has no matchMedia, so a test is a phone unless it says so. */
+  const onComputer = () => {
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({ matches: query === '(hover: hover) and (pointer: fine)', media: query })));
+  };
+
+  it('keeps the Mac awake across the step from one track to the next, and lets go a while after a pause', () => {
+    vi.useFakeTimers();
+    onComputer();
+    const { level, context } = fakeAudioContext();
     try {
       player.playAlbum(album, tracks, 0);
       expect(level.value).toBeGreaterThan(0);
@@ -179,6 +191,14 @@ describe('player', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+  it('runs no Web Audio on a phone, whose lock screen would lose the track to it', () => {
+    const { made } = fakeAudioContext();
+    player.prime();
+    player.playAlbum(album, tracks, 0);
+    player.toggle(false);
+    player.toggle(true);
+    expect(made).not.toHaveBeenCalled();
   });
 
   describe('after a reload', () => {

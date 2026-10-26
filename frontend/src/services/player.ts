@@ -301,9 +301,14 @@ const KEEP_AWAKE_GRACE_MS = 30000;
 let keepAwakeContext: AudioContext | null = null;
 let keepAwakeRelease: ReturnType<typeof setTimeout> | null = null;
 
-/** Called from a click or a key: a browser starts no sound otherwise. */
+/**
+ * Called from a click or a key: a browser starts no sound otherwise. On a
+ * computer alone: a phone plays on with its screen off by itself, and an
+ * iPhone whose page runs a Web Audio stream takes the page's sound for that
+ * stream, its lock screen and Control Center no longer showing the track.
+ */
 const holdAwake = () => {
-  if (typeof AudioContext === 'undefined') return;
+  if (typeof AudioContext === 'undefined' || !isComputer()) return;
   try {
     if (!keepAwakeContext) {
       keepAwakeContext = new AudioContext();
