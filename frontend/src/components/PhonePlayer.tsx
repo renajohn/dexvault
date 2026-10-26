@@ -119,7 +119,11 @@ const Scrubber: React.FC<{ position: number; length: number; playing: boolean; s
           seek!(at(event.clientX));
           setHeld(null);
         }}
-        onPointerCancel={() => setHeld(null)}
+        onPointerCancel={() => {
+          // Taken by the system (Safari's swipe back from the left edge): the music still goes where the finger was.
+          if (held != null) seek!(held);
+          setHeld(null);
+        }}
         onKeyDown={event => {
           if (event.key === 'ArrowRight') seek?.(position + 10);
           if (event.key === 'ArrowLeft') seek?.(position - 10);
@@ -497,7 +501,10 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   return (
     <>
       <div ref={pillRef} className="player-pill"
-        onPointerDown={event => { pillStart.current = event.clientY; }}
+        onPointerDown={event => {
+          // ⏯ and ⏭ are their own: a finger that moves a little on them opens nothing.
+          pillStart.current = (event.target as HTMLElement).closest('button:not(.player-pill-open)') ? null : event.clientY;
+        }}
         onPointerUp={event => {
           if (pillStart.current != null && pillStart.current - event.clientY > SWIPE_OPEN_PX) setFull(true);
           pillStart.current = null;

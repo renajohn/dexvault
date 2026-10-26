@@ -103,6 +103,7 @@ export const loadPlayable = async (albumId: number | string, { listenNext = fals
  * On an appliance the server loads it and plays it there.
  */
 export const playAlbumById = async (albumId: number | string, options?: PlayOptions, index = 0, shuffle = false, disc = 0): Promise<boolean> => {
+  player.prime();
   const renderer = player.rendererId();
   if (renderer) {
     try {

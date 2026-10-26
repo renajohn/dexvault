@@ -235,6 +235,7 @@ export const listenNextQueue = {
 
   /** Plays Listen Next from entry `key`, from the top without it. False when nothing could be played. */
   start: async (key?: EntryKey): Promise<boolean> => {
+    player.prime();
     const renderer = player.rendererId();
     if (renderer) return onRenderer(renderer, key ? { key } : {});
     played.clear();

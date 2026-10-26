@@ -225,6 +225,29 @@ describe('player', () => {
       expect(bodies).toEqual([{ submission: false }]);
     });
 
+    it('on an iPhone, which loads nothing before a touch, a seek before the data comes is kept, and another album starts where it is asked', () => {
+      // The element kept the place of the track left yesterday, its metadata never read.
+      playThenReload(143);
+      restorePlayer();
+      const kept = created[0];
+      expect(kept.currentTime).toBe(143);
+
+      // ▶, then the scrubber drawn to 0:40 while the stream still loads: the metadata coming must not take it back.
+      player.toggle();
+      player.seek(40);
+      expect(player.getState().position).toBe(40);
+      kept.dispatchEvent(new Event('loadedmetadata'));
+      expect(kept.currentTime).toBe(40);
+
+      // Another album on the same element: it starts at its own place, not at yesterday's.
+      const other = { id: 8, title: 'Feels Like Home', artist: 'Norah Jones', cover: null };
+      player.playAlbum(other, [{ songId: 's9', title: 'Sunrise', disc: 1, no: 1, durationSec: 200 }], 0);
+      const audio = playingAudio();
+      audio.dispatchEvent(new Event('loadedmetadata'));
+      expect(audio.currentTime).toBe(0);
+      expect(player.getState()).toMatchObject({ album: other, index: 0, position: 0, playing: true });
+    });
+
     it('brings nothing back after ✕: the album’s card still offers Resume', () => {
       player.playAlbum(album, tracks, 1);
       player.stop();

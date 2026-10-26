@@ -451,24 +451,28 @@ const start = (index: number, at = 0) => {
   const track = state.tracks[index];
   if (!track) return;
   const url = streamUrl(track.songId);
-  current().pause();
-  if (spare().src.endsWith(url)) active = 1 - active;
+  if (spare().src.endsWith(url)) {
+    // The spare holds it: the one playing stops, and its late 'pause' finds it no longer mine.
+    current().pause();
+    active = 1 - active;
+  }
   const audio = current();
-  if (!audio.src.endsWith(url)) audio.src = url;
+  // A new source stops the element by itself, with no 'pause' of its own to show Play a moment.
+  const changed = !audio.src.endsWith(url);
+  if (changed) audio.src = url;
   // Played on from where it was left: counted then already if far enough in.
   scrobbled = countedAt(track, at);
   announced = false;
   set({ index, position: at, duration: track.durationSec || 0, playing: true, error: null });
-  const play = () => {
-    if (at > 0) audio.currentTime = at;
-    audio.play().catch(error => {
-      // Interrupted by a newer load or play (iOS does so as a track follows another): the sound goes on, nothing is wrong.
-      if ((error as Error).name === 'AbortError' || !audio.paused) return;
-      set({ playing: false, error: (error as Error).message });
-    });
-  };
-  if (at > 0 && audio.readyState < 1) audio.addEventListener('loadedmetadata', play, { once: true });
-  else play();
+  // Where to start, set before the data is there: the browser goes there once it has it, and a new source forgets it.
+  // No listener waiting for the metadata: on an iPhone nothing loads before a touch, and one left waiting took the
+  // next album, or a seek made meanwhile, back to this place. And play() at once, within the touch that asked it.
+  if (at > 0 || changed) audio.currentTime = at;
+  audio.play().catch(error => {
+    // Interrupted by a newer load or play (iOS does so as a track follows another): the sound goes on, nothing is wrong.
+    if ((error as Error).name === 'AbortError' || !audio.paused) return;
+    set({ playing: false, error: (error as Error).message });
+  });
   preloadNext();
   updateMediaSession();
   // Where it starts, kept at once: a reload right away still offers Resume.
@@ -562,6 +566,19 @@ const stopHere = () => {
 };
 
 export const player = {
+  /**
+   * Called within a touch or a click, before the tracks are asked for: an
+   * iPhone lets an element play only when asked within a gesture, and the
+   * asking for the tracks takes it past one when the network is slow. A load
+   * of nothing within the gesture lifts that for the element's next play.
+   */
+  prime: () => {
+    if (player.rendererId() || typeof Audio === 'undefined') return;
+    setUp();
+    holdAwake();
+    for (const audio of audios) if (!audio.src) audio.load();
+  },
+
   /** Plays an album's tracks from `index`, the rest of the album after it; a list goes on after it when given. */
   playAlbum: (album: PlayerAlbum, tracks: PlayerTrack[], index = 0, at = 0, playOptions: PlayOptions = {}) => {
     if (tracks.length === 0) return;
@@ -583,7 +600,7 @@ export const player = {
   /** Pauses or plays on; `playing` forces one or the other, as the Mac's keys ask. */
   toggle: (playing?: boolean) => {
     // An appliance taken by something else, or stopped: ▶ takes it back where it was.
-    if (onRenderer(id => (view.outputStatus === 'taken' || view.resume
+    if (onRenderer(id => ((view.outputStatus === 'taken' || view.resume) && playing !== false
       ? outputs.resume(id)
       : outputs.toggle(id, playing ?? !view.playing)))) return;
     if (!state.album) return;
@@ -620,8 +637,10 @@ export const player = {
     if (onRenderer(id => outputs.seek(id, Math.max(0, seconds)))) return;
     const audio = current();
     if (!audio) return;
-    audio.currentTime = Math.max(0, seconds);
-    set({ position: audio.currentTime });
+    // The place asked, not the element's, which before its data is loaded (an iPhone's, before a touch) may still say 0.
+    const at = Math.max(0, seconds);
+    audio.currentTime = at;
+    set({ position: at });
   },
 
   /** ✕: stops, keeps where it was for Resume, and takes the bar away: a reload does not bring it back. */
@@ -751,10 +770,9 @@ export const restorePlayer = (): void => {
   if (waitingQueue) waitingQueue.album = state.album!;
   const audio = current();
   audio.src = streamUrl(track.songId);
-  if (saved.position > 0) {
-    audio.addEventListener('loadedmetadata', () => { audio.currentTime = saved.position; }, { once: true });
-    audio.currentTime = saved.position;
-  }
+  // The place kept: the browser goes there once the data comes (on an iPhone, at the first touch), and forgets it
+  // with a new source; a listener waiting for the metadata outlived the album and took the next one back there.
+  if (saved.position > 0) audio.currentTime = saved.position;
   scrobbled = countedAt(track, saved.position);
   announced = false;
   preloadNext();
