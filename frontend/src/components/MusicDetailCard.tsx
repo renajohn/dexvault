@@ -37,7 +37,7 @@ import { seedFavourite, setFavourite, useFavourite } from '../services/favourite
 import MixtapeMenu, { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
 import Chip from './shared/Chip';
 import { confirm } from './shared/ConfirmDialog';
-import { setFullPlayer, useCoversPlayer } from '../services/phoneDoor';
+import { showAlbum, useCoversPlayer } from '../services/phoneDoor';
 import NowPlayingDisc, { useNowPlayingDoor } from './NowPlayingDisc';
 import { useMedia } from '../utils/useNarrow';
 import { useMixtapes } from '../utils/mixtapeStore';
@@ -745,9 +745,9 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
           src={frontCover}
           alt={`${cd.title} front cover`}
           className="album-head-cover"
-          // On a phone, this album playing, its cover opens the full screen player (its bars say so); else it grows.
-          onClick={() => (phone && playingHere ? setFullPlayer(true) : handleCoverClick(frontCover, 'Front'))}
-          title={phone && playingHere ? 'Now playing: open the player' : undefined}
+          // On a phone, a ripped album's cover opens the full screen player on it (playing, or at rest); else it grows.
+          onClick={() => (phone && ownPlayer ? showAlbum(cd) : handleCoverClick(frontCover, 'Front'))}
+          title={phone && ownPlayer ? (playingHere ? 'Now playing: open the player' : 'Open in the player') : undefined}
           onError={() => setCoverBroken(true)}
         />
       ) : (

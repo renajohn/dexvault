@@ -56,3 +56,13 @@ redessinée comme la piste A. Contrainte ajoutée : **aucun bouton ne dépasse**
 à 375 px comme à 393 px. La rangée de puces de A (« Also on » était coupée dans le
 prototype) passe à la ligne au lieu de défiler ; le pied tient ses trois boutons en une
 ligne. L'ordinateur ne change pas.
+
+## Correction (27.10.2026, le soir)
+
+L'aperçu codé à part (AlbumSheet) faisait **deux écrans de lecture** : refusé. L'idée de B
+était d'utiliser **le lecteur plein écran lui-même**. Toucher une pochette ouvre donc
+PhonePlayer sur l'album, au repos tant qu'il ne joue pas : sa ligne (CD · 12 tracks ·
+45 min · 2012) à la place du curseur, ▶ seul, le guide et les pistes au pied, ⋯ › Open
+<album> pour la fiche. Si un autre album joue, sa **mini-pochette** (le disque cerclé de la
+variante E4) se tient en bas à gauche et ramène à lui. La fiche garde son disque au pied ;
+sa pochette ouvre aussi le lecteur. Un CD sans rip ouvre sa fiche, comme avant.

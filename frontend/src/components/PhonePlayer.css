@@ -698,3 +698,24 @@
   margin-bottom: 12px;
   font-size: 1.35rem;
 }
+
+/* An album a cover opened, at rest: what it is, in the place in the track's height, nothing moving once it plays. */
+.now-playing-rest {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 39px;
+  margin: 20px 0 0;
+  overflow: hidden;
+  font-size: 0.85rem;
+  color: var(--dv-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* What plays, at the left of the foot while another album is shown: its own column, against the edge. */
+.now-playing-foot--door .now-playing-door {
+  justify-self: start;
+  margin-left: 10px;
+}

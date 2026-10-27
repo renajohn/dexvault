@@ -28,16 +28,18 @@ interface NowPlayingDiscProps {
   /** The track and its artist beside the disc, when the foot has room for them. */
   withWords?: boolean;
   className?: string;
+  /** Touched: in the full screen player, back to what plays; else the full screen player opened. */
+  onOpen?: () => void;
 }
 
 /**
- * What plays, on a phone, at the foot of a music window that takes the whole
- * page (an album's sheet, a record's card), the player's pill having given way
+ * What plays, on a phone, at the foot of a record's card, which takes the
+ * whole page, or of the full screen player showing another album, the player's pill having given way
  * to it: the cover round as a disc in a ring of the place in the track, gold
  * while it plays, grey when paused, with its bars. A tap, or a finger drawn up,
  * opens the full screen player, whose handle comes back to the window.
  */
-const NowPlayingDisc: React.FC<NowPlayingDiscProps> = ({ exceptAlbumId = null, withWords = false, className }) => {
+const NowPlayingDisc: React.FC<NowPlayingDiscProps> = ({ exceptAlbumId = null, withWords = false, className, onOpen = () => setFullPlayer(true) }) => {
   const door = useNowPlayingDoor(exceptAlbumId);
   const album = usePlayer(state => state.album);
   const track = usePlayer(state => state.tracks[state.index]);
@@ -57,10 +59,10 @@ const NowPlayingDisc: React.FC<NowPlayingDiscProps> = ({ exceptAlbumId = null, w
   return (
     <button type="button" className={`now-playing-disc${playing ? '' : ' now-playing-disc--paused'}${withWords ? ' now-playing-disc--words' : ''}${className ? ` ${className}` : ''}`}
       aria-label={label} title={`${track.title} · ${artist}`}
-      onClick={() => setFullPlayer(true)}
+      onClick={onOpen}
       onPointerDown={event => { from.current = event.clientY; }}
       onPointerUp={event => {
-        if (from.current != null && from.current - event.clientY > SWIPE_OPEN_PX) setFullPlayer(true);
+        if (from.current != null && from.current - event.clientY > SWIPE_OPEN_PX) onOpen();
         from.current = null;
       }}
       onPointerCancel={() => { from.current = null; }}>

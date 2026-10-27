@@ -92,6 +92,14 @@ export interface PhonePlayerProps {
   foot?: React.ReactNode;
   /** Out of sight (the bar slid away): the full screen goes back to the pill. */
   out: boolean;
+  /**
+   * An album a cover opened, at rest while another plays or nothing does: its
+   * line (CD · 12 tracks · 45 min) where the place in the track would be, ▶
+   * alone, its own entries in ⋯.
+   */
+  rest?: { albumId: number | string; line: string; menu: React.ReactNode } | null;
+  /** At the left of the foot: the disc of what plays, the album shown being another. */
+  door?: React.ReactNode;
 }
 
 /**
@@ -205,7 +213,10 @@ type View = 'cover' | 'lyrics' | 'guide' | 'tracks';
  * track, its ♥ and ⋯, the place in the track, ⏮ ⏯ ⏭, the volume; at the
  * foot the words, the output and the tracks, the words and the tracks taking
  * the cover's place, which goes small at the top. The handle, a finger drawn
- * down or Escape make it a pill again.
+ * down or Escape make it a pill again. A cover touched in MusicDex opens it
+ * on that album, at rest while another plays or nothing does (`rest`): ▶
+ * plays it, a track from its tracks, and the disc of what plays, at the
+ * left of the foot, goes back to it.
  */
 const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const { cover, playing, position, length, hasNext, controls, favourite, away = false, taken = null } = props;
@@ -265,6 +276,9 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   }, [guideOf]);
 
   useEffect(() => { if (!props.out) setFull(false); }, [props.out]);
+  // An album opened at rest shows its cover first; played from its tracks, it stays on them.
+  const restId = props.rest?.albumId ?? null;
+  useEffect(() => { if (restId != null) setView('cover'); }, [restId]);
   // A view the track playing has not (no words for a computer far away): back to the cover.
   useEffect(() => {
     if ((view === 'lyrics' && !hasLyrics) || (view === 'tracks' && !hasTracks) || (view === 'guide' && !guide)) setView('cover');
@@ -365,10 +379,11 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
     <Menu drop="down" align="end" label="More" className="output-menu" trigger={triggerProps => (
       <button type="button" {...triggerProps} className="player-bar-button now-playing-more" aria-label="More"><BsThreeDots aria-hidden="true" /></button>
     )}>
-      <Menu.Section title={`Playing from ${props.from}`} />
+      {props.from && <Menu.Section title={`Playing from ${props.from}`} />}
       {props.onOpen && <Menu.Item icon={<BsDisc />} onSelect={() => leave(props.onOpen!)}>Open {cover.title}</Menu.Item>}
       {props.onOpenMixtape && <Menu.Item icon={<BsDisc />} onSelect={() => leave(props.onOpenMixtape!.open)}>Open {props.onOpenMixtape.title}</Menu.Item>}
       {props.onAllTracks && <Menu.Item icon={<BsMusicNoteList />} onSelect={props.onAllTracks}>Listen Next's tracks…</Menu.Item>}
+      {props.rest?.menu}
       {props.onAmperfy && <Menu.Item icon={<BsBoxArrowUpRight />} onSelect={() => leave(props.onAmperfy!)}>Open in Amperfy</Menu.Item>}
       {props.mixtape && (
         <>
@@ -420,7 +435,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   );
 
   const sheet = (
-    <div ref={sheetRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Now playing" aria-hidden={!full} inert={!full}
+    <div ref={sheetRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={props.rest ? cover.title : 'Now playing'} aria-hidden={!full} inert={!full}
       className={`now-playing now-playing--${view}${full ? ' now-playing--open' : ''}${away ? ' now-playing--away' : ''}${fixing ? ' now-playing--timing' : ''}`}
       onPointerDown={grab} onPointerMove={pull} onPointerUp={letGo} onPointerCancel={() => { start.current = null; place(null); }}
       onClickCapture={event => { if (dragged.current) { event.stopPropagation(); event.preventDefault(); } }}>
@@ -463,9 +478,14 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
           <TryBar timing={timing} touch className="now-playing-timing" />
         ) : (
           <>
-          <Scrubber position={position} length={length} playing={playing} seek={controls.seek} />
+          {props.rest ? (
+            // At rest: what the album is, where the place in the track would be.
+            <p className="now-playing-rest">{props.rest.line}</p>
+          ) : <Scrubber position={position} length={length} playing={playing} seek={controls.seek} />}
 
-          {taken ? (
+          {props.rest ? (
+            <div className="now-playing-transport now-playing-transport--rest">{playButton(true)}</div>
+          ) : taken ? (
             // The appliance plays something else: Resume takes it back at the same place.
             <div className="now-playing-taken">
               <span>{taken} is playing something else</span>
@@ -489,7 +509,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
           {/* Where it plays, over the buttons: "Playing on" and the output's name, which opens the outputs to change it. */}
           {!props.foot && outputs.length > 0 && (
             <p className="now-playing-where">
-              Playing on{' '}
+              {props.rest ? 'Plays on' : 'Playing on'}{' '}
               <OutputMenu drop="up" align="start" volume={false} trigger={(triggerProps, open) => (
                 <button type="button" {...triggerProps} aria-label={`Output: ${props.where || localOutputName()}`}
                   className={`now-playing-where__output${props.where ? ' now-playing-where__output--away' : ''}${open ? ' now-playing-where__output--open' : ''}`}>
@@ -500,7 +520,8 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
           )}
 
           {/* The words, the guide, the tracks: as many even columns as there are, each centred in its own. */}
-          <footer className="now-playing-foot">
+          <footer className={`now-playing-foot${props.door ? ' now-playing-foot--door' : ''}`}>
+            {props.door}
             {hasLyrics && (
               <button type="button" className={`player-bar-button now-playing-tool${view === 'lyrics' ? ' now-playing-tool--on' : ''}`}
                 onClick={() => toggleView('lyrics')} aria-pressed={view === 'lyrics'} aria-label="Lyrics">

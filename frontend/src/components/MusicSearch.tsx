@@ -5,7 +5,8 @@ import { base64ToFile } from '../utils/downscaleImage';
 import MusicForm from './MusicForm';
 import MusicThumbnail from './MusicThumbnail';
 import MusicDetailCard from './MusicDetailCard';
-import AlbumSheet from './AlbumSheet';
+import { showAlbum, type ShownAlbum } from '../services/phoneDoor';
+import { LISTEN_NEXT_CHANGED_EVENT } from './useAlbumAtRest';
 import AddMusicDialog from './AddMusicDialog';
 import AlphabeticalIndex from './AlphabeticalIndex';
 import { NextBanner, NextBannerPending, NextBannerSlot, CollectionHeader, EmptyState } from './shared';
@@ -156,8 +157,7 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   const [pendingCover, setPendingCover] = useState<{ base64: string; mimeType: string } | null>(null);
   const [pendingBack, setPendingBack] = useState<{ base64: string; mimeType: string } | null>(null);
   const [selectedCdDetails, setSelectedCdDetails] = useState<any>(null);
-  // On a phone, the album a cover opens: its sheet (the player at rest), its card a tap behind (i).
-  const [sheetAlbum, setSheetAlbum] = useState<any>(null);
+  // On a phone, a cover opens the full screen player on its album, its card in ⋯.
   const phone = useMedia('(max-width: 767px)');
   const [, setLoadingDetails] = useState(false);
   const [cdDetailsBeforeEdit, setCdDetailsBeforeEdit] = useState<any>(null);
@@ -281,6 +281,12 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   useEffect(() => {
     refreshListenNextAlbums();
   }, [refreshTrigger, refreshListenNextAlbums]);
+  // Changed from the full screen player's ⋯, an album at rest there: the banner reads its lists again.
+  useEffect(() => {
+    const changed = () => { void refreshListenNextAlbums(); };
+    window.addEventListener(LISTEN_NEXT_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(LISTEN_NEXT_CHANGED_EVENT, changed);
+  }, [refreshListenNextAlbums]);
 
   // Playing Listen Next from its banner: ▶, Repeat, the albums leaving it once played.
   const listenNext = useListenNextPlay(listenNextAlbums, refreshListenNextAlbums, albums => setListenNextAlbums(albums as Album[]));
@@ -1020,10 +1026,11 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     try {
       setLoadingDetails(true);
       const details = await musicService.getAlbumById(cdId);
-      // On a phone a cover opens the album's sheet, not its card; a card open (Also on…) gives way to it.
-      if (phone && !isMixtape(details as { titleStatus?: string })) {
+      // On a phone a ripped album's cover opens the full screen player on it, not its card; a card open (Also on…)
+      // gives way to it. A CD with no rip, a mixtape, has its card: there is nothing to play, or it is played from there.
+      if (phone && !isMixtape(details as { titleStatus?: string }) && (details as { fileQuality?: string }).fileQuality !== 'none') {
         setSelectedCdDetails(null);
-        setSheetAlbum(details);
+        showAlbum(details as ShownAlbum);
         return;
       }
       setSelectedCdDetails(details);
@@ -1622,17 +1629,6 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
         />
       )}
 
-      {sheetAlbum && (
-        <AlbumSheet
-          key={sheetAlbum.id}
-          album={sheetAlbum}
-          onClose={() => setSheetAlbum(null)}
-          onOpenCard={() => setSelectedCdDetails(sheetAlbum)}
-          isInListenNext={listenNextAlbums.some(album => album.id === sheetAlbum.id)}
-          listenNextMedium={listenNextMediumOf(sheetAlbum.id)}
-          onListenNextChange={refreshListenNextAlbums}
-        />
-      )}
 
       {openMixtape != null && (
         <MixtapeDialog albumId={openMixtape} onClose={() => setOpenMixtape(null)}

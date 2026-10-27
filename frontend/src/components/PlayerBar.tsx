@@ -11,8 +11,10 @@ import Menu, { MenuChevron } from './shared/Menu';
 import PlayerTracks from './PlayerTracks';
 import OutputMenu, { OutputEntries } from './OutputMenu';
 import OutputSettings from './OutputSettings';
-import { useCovered } from '../services/phoneDoor';
+import { setFullPlayer, showPlaying, useCovered, useShownAlbum } from '../services/phoneDoor';
 import PhonePlayer from './PhonePlayer';
+import NowPlayingDisc from './NowPlayingDisc';
+import { useAlbumAtRest } from './useAlbumAtRest';
 import { useMedia } from '../utils/useNarrow';
 import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
 // Listen Next registers itself with the player, to go on after a reload whatever the page; the bar asks it what comes next.
@@ -129,9 +131,17 @@ const PlayerBar: React.FC = () => {
   const outputName = output.kind === 'renderer' ? output.name : '';
   // A phone's width: a pill at the foot, full screen at a tap.
   const phone = useMedia('(max-width: 767px)');
-  // On a phone, a music window over the whole page (an album's sheet, a record's card): the pill gives way to
-  // the disc at its foot, and its room goes back to the window. The full screen stays, the disc opening it.
+  // On a phone, a record's card over the whole page: the pill gives way to the disc at its foot, and its room
+  // goes back to the card. The full screen stays, the disc opening it.
   const covered = useCovered() && phone;
+  // The album a cover opened in the full screen player: at rest, unless it is the one playing.
+  const shownAlbum = useShownAlbum();
+  const shownPlaying = shownAlbum != null && album?.id != null && Number(shownAlbum.id) === album.id;
+  const restAlbum = phone && shownAlbum && !shownPlaying ? shownAlbum : null;
+  // Played from there (or the one playing touched): the full screen shows it playing, and stays so as Listen Next goes on.
+  useEffect(() => { if (shownPlaying) showPlaying(); }, [shownPlaying]);
+  // A CD with nothing to play: its card, which says why.
+  const atRest = useAlbumAtRest(restAlbum, albumId => { setFullPlayer(false); navigate(`/musicdex?album=${albumId}`); });
   // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
   const idle = !shown && output.kind === 'renderer' && known.length > 0 && inMusic && !isComputer() && !covered;
   // The settings of an appliance, opened from the ⋯ of a phone's bar.
@@ -175,14 +185,24 @@ const PlayerBar: React.FC = () => {
     if (length > 0) player.seek(((event.clientX - box.left) / box.width) * length);
   };
 
-  if (idle) return <IdleBar name={outputName} away={outputStatus === 'unreachable'} />;
+  if (idle && !atRest) return <IdleBar name={outputName} away={outputStatus === 'unreachable'} />;
   const away = outputStatus === 'unreachable';
   const taken = outputStatus === 'taken';
 
   return (
     <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}${phone ? ' player-bar--pill' : ''}${covered ? ' player-bar--covered' : ''}`} role="region"
       aria-label={outputName ? `Playing on ${outputName}` : 'Player'} aria-hidden={!out || covered}>
-      {last.current && (() => {
+      {restAlbum && atRest ? (
+        // A cover's album at rest: the same full screen, ▶ playing it, the disc of what plays at its foot.
+        <PhonePlayer title={atRest.title} subtitle={atRest.artist} cover={{ src: atRest.cover, title: atRest.title }}
+          playing={false} position={0} length={0} hasNext={false}
+          controls={{ toggle: () => atRest.playFrom(0), next: () => undefined, previous: () => undefined, playTrack: atRest.playFrom }}
+          guideOf={Number(restAlbum.id)} tracks={atRest.tracks} index={-1} from=""
+          onOpen={() => navigate(`/musicdex?album=${restAlbum.id}`)}
+          rest={{ albumId: restAlbum.id, line: atRest.line, menu: atRest.menu }}
+          door={out ? <NowPlayingDisc exceptAlbumId={restAlbum.id} onOpen={showPlaying} className="now-playing-door" /> : null}
+          out />
+      ) : last.current && (() => {
         const { album, track } = last.current;
         // A song of a mixtape shows the cover of its CD, and leads there.
         const cover = track.cover !== undefined ? { src: track.cover, title: `the album of ${track.title}` } : { src: album.cover, title: album.title };
@@ -342,6 +362,7 @@ const PlayerBar: React.FC = () => {
         </>
         );
       })()}
+      {atRest?.dialog}
       <PlayerTracks show={tracksOpen && out} onClose={() => setTracksOpen(false)} />
       {settingsFor && <OutputSettings output={settingsFor} onClose={() => setSettingsFor(null)} />}
     </div>
