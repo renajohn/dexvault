@@ -60,6 +60,9 @@ const notFound = (res: http.ServerResponse): void => {
 
 const stream = async (req: http.IncomingMessage, res: http.ServerResponse, songId: string): Promise<void> => {
   const range = typeof req.headers.range === 'string' ? req.headers.range : undefined;
+  // Closed before Navidrome answers (the appliance given another track meanwhile): the close is seen now, not missed.
+  let gone = false;
+  res.on('close', () => { gone = true; });
   let upstream;
   try {
     upstream = await navidromeService.stream(songId, range);
@@ -70,6 +73,10 @@ const stream = async (req: http.IncomingMessage, res: http.ServerResponse, songI
     return;
   }
   const destroy = () => (upstream.data as unknown as { destroy?: () => void }).destroy?.();
+  if (gone) {
+    destroy();
+    return;
+  }
   // Subsonic answers an unknown song with a JSON error, not with sound.
   if (upstream.status >= 400 || upstream.headers['content-type']?.includes('json')) {
     destroy();

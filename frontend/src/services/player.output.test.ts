@@ -96,7 +96,7 @@ describe('the player on an output', () => {
     expect(JSON.parse(window.localStorage.getItem('dexvault.player.resume')!)).toMatchObject({ barOpen: false });
   });
 
-  it('shows what plays on the appliance, and sends it the bar’s commands', () => {
+  it('shows what plays on the appliance, and sends it the bar’s commands', async () => {
     player.setOutput(SALON);
     takeState(session());
     expect(player.getState()).toMatchObject({ album, index: 1, playing: true, barShown: true, outputStatus: null });
@@ -108,7 +108,25 @@ describe('the player on an output', () => {
     player.seek(90);
     expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/seek', body: { position: 90 } });
     player.playTrack(0);
+    await vi.waitFor(() => expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/track', body: { index: 0 } }));
+  });
+
+  it('sends only the last of tracks clicked quickly on an appliance, each shown at once; ⏭ right after goes after it', async () => {
+    player.setOutput(SALON);
+    takeState(session());
+    const before = commands().length;
+    player.playTrack(0);
+    expect(player.getState()).toMatchObject({ index: 0, position: 0, playing: true });
+    player.playTrack(1);
+    expect(player.getState()).toMatchObject({ index: 1, position: 0 });
+    player.playTrack(0);
+    expect(commands()).toHaveLength(before);
+    await vi.waitFor(() => expect(commands()).toHaveLength(before + 1));
     expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/track', body: { index: 0 } });
+
+    player.playTrack(0);
+    player.next();
+    expect(commands().slice(-2).map(call => call.url)).toEqual(['/api/outputs/uuid%3Asalon/track', '/api/outputs/uuid%3Asalon/next']);
   });
 
   it('says an appliance taken by something else, and ▶ takes it back', () => {
@@ -142,12 +160,12 @@ describe('the player on an output', () => {
     expect(player.getState().output).toEqual({ kind: 'local' });
   });
 
-  it('follows an appliance paused when nothing is in the player here: an album’s Play goes there', () => {
+  it('follows an appliance paused when nothing is in the player here: an album’s Play goes there', async () => {
     takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused' }));
     expect(player.getState()).toMatchObject({ output: BUREAU, playing: false, barShown: true });
 
     player.playAlbum(album, tracks, 0);
-    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Abureau/play', body: { index: 0 } });
+    await vi.waitFor(() => expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Abureau/play', body: { index: 0 } }));
     expect(window.HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
   });
 

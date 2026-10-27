@@ -202,11 +202,60 @@ const send = async (method: 'POST' | 'PUT', path: string, body: unknown = {}): P
   return answer;
 };
 
-/** A command to an output, answered with what then plays there. */
+/** A command to an output, answered with what then plays there; a track chosen just before sent first. */
 const command = async (id: string, verb: string, body: unknown = {}): Promise<OutputState> => {
+  sendChosen(id);
   const state = await send('POST', `${encodeURIComponent(id)}/${verb}`, body) as OutputState;
   if (state?.id) takeState(state);
   return state;
+};
+
+/** A track, an album, chosen on an appliance: sent once the clicks stop this long, the last alone. */
+export const CHOOSE_DELAY_MS = 250;
+const choosing = new Map<string, { timer: ReturnType<typeof setTimeout>; send: () => void; dropped: () => void }>();
+
+/** The choice waiting for that appliance sent now: ⏭ or ⏯ pressed right after it go after it, as they were pressed. */
+const sendChosen = (id: string) => {
+  const waiting = choosing.get(id);
+  if (!waiting) return;
+  clearTimeout(waiting.timer);
+  waiting.send();
+};
+
+/**
+ * Tracks clicked one after the other quickly: each shown at once, only the
+ * last sent, a moment after; the ones it replaces answer null. The appliance
+ * takes a few seconds to start a track, and the server would play them all
+ * in turn.
+ */
+const choose = (id: string, verb: string, body: unknown, shown: (output: Output) => Output): Promise<OutputState | null> => {
+  const waiting = choosing.get(id);
+  if (waiting) {
+    clearTimeout(waiting.timer);
+    waiting.dropped();
+  }
+  const undo = guess(id, shown);
+  return new Promise<OutputState | null>((resolve, reject) => {
+    const send = () => {
+      choosing.delete(id);
+      unless(undo, command(id, verb, body)).then(resolve, reject);
+    };
+    choosing.set(id, { timer: setTimeout(send, CHOOSE_DELAY_MS), send, dropped: () => resolve(null) });
+  });
+};
+
+/** The track `index` shown playing there from its start, before the appliance says so. */
+const playingFrom = (output: Output, album: PlayerAlbum | null, tracks: PlayerTrack[], index: number): Output => {
+  const track = tracks[index];
+  if (!album || !track) return output;
+  const session: OutputState = {
+    id: output.id, name: output.name, volume: output.volume, muted: output.muted, upcoming: [], queue: null, error: null,
+    ...output.session,
+    album, tracks, index, count: tracks.length, status: 'playing', position: 0, at: Date.now() - clockGap(),
+    duration: track.durationSec || 0,
+    track: { songId: track.songId, title: track.title, disc: track.disc, no: track.no, artist: track.artist ?? album.artist, cover: track.cover ?? album.cover ?? null, durationSec: track.durationSec },
+  };
+  return { ...output, session };
 };
 
 const outputs = {
@@ -219,9 +268,14 @@ const outputs = {
     return known;
   },
 
-  play: (id: string, body: PlayBody) => command(id, 'play', body),
+  /** An album played there; tracks given, shown at once. Null when a newer choice took its place before it was sent. */
+  play: (id: string, body: PlayBody) => choose(id, 'play', body, output => ('tracks' in body
+    ? playingFrom(output, body.album, body.tracks, Math.max(0, Math.min(body.index ?? 0, body.tracks.length - 1)))
+    : output)),
+  /** A play carried over there from another output, at its place: at once, not a choice among clicks. */
+  carry: (id: string, body: PlayBody) => command(id, 'play', body),
   /** Listen Next played there, from entry `key` (and its track `index`), else from the top. */
-  listenNext: (id: string, body: { key?: EntryKey; index?: number } = {}) => command(id, 'listen-next', body),
+  listenNext: (id: string, body: { key?: EntryKey; index?: number } = {}) => choose(id, 'listen-next', body, output => output),
   toggle: (id: string, playing?: boolean) => {
     const undo = playing === undefined ? () => undefined : guess(id, output => (output.session && (output.session.status === 'playing' || output.session.status === 'paused')
       ? { ...output, session: { ...output.session, status: playing ? 'playing' : 'paused', position: positionAt(output.session), at: Date.now() - clockGap() } }
@@ -232,7 +286,9 @@ const outputs = {
   previous: (id: string) => command(id, 'previous'),
   stop: (id: string) => command(id, 'stop'),
   resume: (id: string) => command(id, 'resume'),
-  track: (id: string, index: number) => command(id, 'track', { index }),
+  track: (id: string, index: number) => choose(id, 'track', { index }, output => (output.session
+    ? playingFrom(output, output.session.album, output.session.tracks, index)
+    : output)),
   seek: (id: string, position: number) => command(id, 'seek', { position }),
 
   /** The volume (never above its ceiling, the server sees to it) or the sound off. */

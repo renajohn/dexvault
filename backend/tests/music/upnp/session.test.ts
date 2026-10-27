@@ -116,6 +116,46 @@ describe('an album played on an appliance that follows on (the Onkyo)', () => {
     expect(r.fake.commands().filter(action => action === 'Play')).toHaveLength(10);
   });
 
+  it('plays only the last of tracks clicked one after the other quickly, the one under way given up', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7, 5), 0);
+    await r.playFor(30);
+    r.fake.settling = 3;
+    r.fake.calls = [];
+    const first = r.session.playTrack(1);
+    while (r.fake.of('SetAVTransportURI').length === 0) await new Promise(resolve => setImmediate(resolve));
+    await Promise.all([first, ...[2, 3, 4].map(index => r.session.playTrack(index))]);
+    await r.session.idle();
+    // Track 2 was given, then given up between two Plays refused; 3 and 4, still waiting their turn, never given.
+    expect(r.fake.of('SetAVTransportURI').map(call => call.args.CurrentURI)).toEqual([urlOf('a7t2'), urlOf('a7t5')]);
+    expect(r.fake.uri).toBe(urlOf('a7t5'));
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 4, error: null });
+    expect(r.scrobbles.map(([id]) => id)).toEqual(['a7t1', 'a7t5']);
+  });
+
+  it('goes on from the track a click chose for ⏭ pressed right after it, and twice for ⏭ pressed twice', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7, 6), 0);
+    await r.playFor(30);
+    r.fake.settling = 3;
+    await Promise.all([r.session.playTrack(2), r.session.next()]);
+    await r.session.idle();
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 3 });
+    r.fake.settling = 3;
+    await Promise.all([r.session.next(), r.session.next()]);
+    await r.session.idle();
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 5 });
+    expect(r.fake.uri).toBe(urlOf('a7t6'));
+  });
+
+  it('plays nothing more once ✕ is pressed after a click', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7, 5), 0);
+    await r.playFor(30);
+    r.fake.calls = [];
+    await Promise.all([r.session.playTrack(3), r.session.stop()]);
+    await r.session.idle();
+    expect(r.fake.of('SetAVTransportURI')).toHaveLength(0);
+    expect(stateOf(r).status).toBe('stopped');
+  });
+
   it('never sets the volume above the ceiling', async () => {
     await r.session.setVolume({ volume: 95 });
     expect(r.fake.volume).toBe(70);

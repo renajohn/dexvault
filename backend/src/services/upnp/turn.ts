@@ -75,6 +75,11 @@ export interface TurnDeps {
 /** Plays track `index` of an entry; false when it has nothing to play (no rip). */
 export type PlayEntry = (key: EntryKey, index: number) => Promise<boolean>;
 
+/** A play given up halfway for a newer one asked meanwhile: not an entry with nothing to play, the next one is not tried. */
+export class Superseded extends Error {
+  constructor() { super('A newer play was asked'); this.name = 'Superseded'; }
+}
+
 export const listenNextDeps: TurnDeps = {
   listIds: async () => (await musicCollectionService.getListenNextAlbums())
     .filter(album => (album as { medium?: string }).medium !== 'cd')
@@ -125,7 +130,10 @@ export class ListenNextTurn {
   }
 
   private async play(play: PlayEntry, key: EntryKey, index = 0): Promise<boolean> {
-    const started = await play(key, index).catch(() => false);
+    const started = await play(key, index).catch(error => {
+      if (error instanceof Superseded) throw error;
+      return false;
+    });
     if (started) {
       this.state.currentKey = key;
       if (!this.state.albums.includes(key)) this.state.albums.push(key);

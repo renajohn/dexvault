@@ -82,6 +82,37 @@ const prune = () => {
 
 const encoding = new Map<string, Promise<string>>();
 
+/**
+ * Two encodings at a time, the last asked first: tracks clicked one after
+ * the other quickly each ask for theirs, the one wanted now being the last.
+ * Past four waiting, the oldest is given up; the browser asks it again if
+ * it still wants it.
+ */
+const RUNNING_AT_MOST = 2;
+const WAITING_AT_MOST = 4;
+let running = 0;
+const waiting: Array<{ start: () => void; drop: () => void }> = [];
+
+/** An encoding given up for newer ones before it started: 503, to be asked again. */
+export class EncodingDropped extends Error {
+  constructor() { super('Newer tracks were asked for first'); this.name = 'EncodingDropped'; }
+}
+
+const slot = (): Promise<void> => new Promise((resolve, reject) => {
+  if (running < RUNNING_AT_MOST) {
+    running++;
+    resolve();
+    return;
+  }
+  waiting.push({ start: () => { running++; resolve(); }, drop: () => reject(new EncodingDropped()) });
+  if (waiting.length > WAITING_AT_MOST) waiting.shift()!.drop();
+});
+
+const release = () => {
+  running--;
+  waiting.pop()?.start();
+};
+
 const transcodeService = {
   /** Whether the song's lighter file is on the disk already. */
   kept: (songId: string): boolean => fs.existsSync(fileOf(songId)),
@@ -98,7 +129,7 @@ const transcodeService = {
     const known = encoding.get(songId);
     if (known) return known;
     const started = Date.now();
-    const work = encode(songId, file).then(() => {
+    const work = slot().then(() => encode(songId, file).finally(release)).then(() => {
       logger.info(`Song ${songId} encoded in AAC ${BITRATE_KBPS} in ${((Date.now() - started) / 1000).toFixed(1)} s`);
       prune();
       return file;

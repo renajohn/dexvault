@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import navidromeService from '../services/navidromeService';
 import waveformService, { canRead } from '../services/waveformService';
-import transcodeService from '../services/transcodeService';
+import transcodeService, { EncodingDropped } from '../services/transcodeService';
 import { scrobble } from '../services/scrobble';
 import logger from '../logger';
 
@@ -23,8 +23,15 @@ const playerController = {
       res.status(503).json({ error: 'Navidrome is not configured' });
       return;
     }
+    // Closed before Navidrome answers (another track clicked meanwhile): the close is seen now, not missed.
+    let gone = false;
+    res.on('close', () => { gone = true; });
     try {
       const upstream = await navidromeService.stream(id, typeof req.headers.range === 'string' ? req.headers.range : undefined);
+      if (gone) {
+        (upstream.data as unknown as { destroy?: () => void }).destroy?.();
+        return;
+      }
       // Subsonic answers an unknown song with a JSON error, not with sound.
       if (upstream.status >= 400 || upstream.headers['content-type']?.includes('json')) {
         (upstream.data as unknown as { destroy?: () => void }).destroy?.();
@@ -71,6 +78,10 @@ const playerController = {
       await transcodeService.prepare(id);
       res.json({ ready: true });
     } catch (error) {
+      if (error instanceof EncodingDropped) {
+        res.status(503).json({ error: error.message });
+        return;
+      }
       logger.warn(`Encoding song ${id}: ${(error as Error).message}`);
       res.status(502).json({ error: (error as Error).message });
     }
@@ -95,6 +106,10 @@ const playerController = {
       const file = await transcodeService.prepare(id);
       res.sendFile(file, { headers: { 'Content-Type': 'audio/mp4', 'Cache-Control': 'no-store' } });
     } catch (error) {
+      if (error instanceof EncodingDropped) {
+        if (!res.headersSent) res.status(503).json({ error: error.message });
+        return;
+      }
       logger.warn(`Encoding song ${id}: ${(error as Error).message}`);
       if (!res.headersSent) res.status(502).json({ error: (error as Error).message });
     }

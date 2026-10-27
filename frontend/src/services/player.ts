@@ -346,7 +346,7 @@ const playCarried = (index: number, position: number): boolean => {
   if (!carrying || !id || !state.album) return false;
   const was = state.album;
   const { from: _from, ...album } = was;
-  outputs.play(id, {
+  outputs.carry(id, {
     album, tracks: state.tracks, index: Math.max(0, Math.min(index, state.tracks.length - 1)), position, listenNext: state.queue === 'listenNext',
   }).then(() => { if (state.album === was && !state.playing) stopHere(); }, reportOutputError);
   return true;
@@ -542,7 +542,8 @@ const prepareLight = (songId: string): Promise<boolean> => {
     .then(response => {
       if (response.ok) lightReady.add(songId);
       else if (response.status === 501) lightUnavailable = true;
-      else lightFailed.add(songId);
+      // Given up on the server for newer tracks asked meanwhile: asked again when it comes.
+      else if (response.status !== 503) lightFailed.add(songId);
       return response.ok;
     }, () => false)
     .finally(() => lightAsked.delete(songId));
@@ -1114,7 +1115,7 @@ export const player = {
       refresh();
       if (moving && carried && next.kind === 'renderer') {
         const { from: _from, ...album } = carried.album;
-        outputs.play(next.id, { album, tracks: carried.tracks, index: carried.index, position: carried.position, listenNext: carried.queue === 'listenNext' })
+        outputs.carry(next.id, { album, tracks: carried.tracks, index: carried.index, position: carried.position, listenNext: carried.queue === 'listenNext' })
           .catch(reportOutputError);
       }
       return;
@@ -1123,7 +1124,7 @@ export const player = {
     refresh();
     if (moving && session?.album) {
       if (next.kind === 'renderer') {
-        outputs.play(next.id, { from: from.id }).catch(reportOutputError);
+        outputs.carry(next.id, { from: from.id }).catch(reportOutputError);
         return;
       }
       // Here: it plays first, while the click still lets a browser play, then the appliance falls silent.

@@ -79,3 +79,33 @@ describe('a song made lighter for a weak network', () => {
     expect(stream).toHaveBeenCalledWith('abc123', undefined);
   });
 });
+
+describe('songs made lighter many at once', () => {
+  it('encodes two at a time, the last asked first, and gives up the oldest past four waiting', async () => {
+    const { default: transcodeService, EncodingDropped } = await import('../../src/services/transcodeService');
+    const asked: string[] = [];
+    const answers: Array<() => void> = [];
+    jest.spyOn(navidromeService, 'stream').mockImplementation(songId => {
+      asked.push(songId);
+      return new Promise(resolve => answers.push(() => resolve({
+        status: 200, headers: { 'content-type': 'audio/flac' }, data: Readable.from([Buffer.from('fLaC')]),
+      })));
+    });
+    const songs = ['s1', 's2', 's3', 's4', 's5', 's6', 's7'];
+    const works = songs.map(id => transcodeService.prepare(id).then(() => 'done', error => (error instanceof EncodingDropped ? 'dropped' : 'failed')));
+    await new Promise(resolve => setImmediate(resolve));
+    expect(asked).toEqual(['s1', 's2']);
+    // s1 and s2 encoding, s3 to s7 waiting: s3, the oldest, given up.
+    expect(await works[2]).toBe('dropped');
+
+    const settle = async () => {
+      while (answers.length > 0) answers.shift()!();
+      await new Promise(resolve => setTimeout(resolve, 100));
+    };
+    await settle();
+    await settle();
+    await settle();
+    expect(asked).toEqual(['s1', 's2', 's7', 's6', 's5', 's4']);
+    expect(await Promise.all(works)).toEqual(['done', 'done', 'dropped', 'done', 'done', 'done', 'done']);
+  });
+});

@@ -1,7 +1,7 @@
 import { DeviceUnreachableError, UPnPError } from './soap';
 import type { Renderer } from './device';
 import { didlOf, mimeTypeOf } from './didl';
-import { ListenNextTurn, entryKey, listenNextDeps, parseEntryKey, type EntryKey, type TurnDeps, type TurnState } from './turn';
+import { ListenNextTurn, Superseded, entryKey, listenNextDeps, parseEntryKey, type EntryKey, type TurnDeps, type TurnState } from './turn';
 import type { Playable, PlayerAlbum, PlayerTrack } from '../playable';
 import type { ListenNextDeparture } from '../../models/listenNextPlay';
 import logger from '../../logger';
@@ -174,6 +174,17 @@ export class OutputSession {
   private lastEmitted = 0;
   private emitTimer: ReturnType<typeof setTimeout> | null = null;
   private chain: Promise<unknown> = Promise.resolve();
+  /**
+   * Plays asked (a track, an album, ⏭, ✕, …) and, of them, those that choose
+   * where to go rather than go on from where the last one left. The command
+   * under way gives up at its next step once a newer play is asked; one still
+   * waiting its turn is skipped once a newer one chooses: tracks clicked one
+   * after the other quickly, the appliance plays the last alone.
+   */
+  private asked = 0;
+  private chosen = 0;
+  /** The play the command under way stands for: `asked` as it was when it was asked. */
+  private running = 0;
   /** Scrobbles under way, which commands do not wait for: Navidrome may be slow. */
   private background = new Set<Promise<unknown>>();
 
@@ -205,11 +216,33 @@ export class OutputSession {
     return turn;
   }
 
-  /** One command after the other, a poll included. */
-  private run<T>(work: () => Promise<T>): Promise<T> {
-    const result = this.chain.then(work);
+  /** One command after the other, a poll included; given up for a newer play, it answers `instead`. */
+  private run<T>(work: () => Promise<T>, instead?: T, asked?: number): Promise<T> {
+    const result = this.chain.then(() => {
+      this.running = asked ?? this.asked;
+      return work();
+    }).catch(error => {
+      if (error instanceof Superseded) return instead as T;
+      throw error;
+    });
     this.chain = result.catch(() => undefined);
     return result;
+  }
+
+  /** A play that chooses its track (an album, a track, Resume, ✕): skipped if another chooses before its turn. */
+  private choose<T>(work: () => Promise<T>, instead?: T): Promise<T> {
+    const mine = ++this.chosen;
+    return this.run(async () => (mine === this.chosen ? work() : instead as T), instead, ++this.asked);
+  }
+
+  /** ⏭ or ⏮: from where the plays before it left the track, so never skipped; it still makes them give up. */
+  private step(work: () => Promise<void>): Promise<void> {
+    return this.run(work, undefined, ++this.asked);
+  }
+
+  /** Between two steps of a play: a newer one asked meanwhile, this one goes no further. */
+  private stillWanted(): void {
+    if (this.running !== this.asked) throw new Superseded();
   }
 
   /** For the tests: the commands and the scrobbles under way done. */
@@ -428,6 +461,7 @@ export class OutputSession {
       if (state === 'PLAYING') return;
       if (state !== 'TRANSITIONING' && state !== 'STOPPED') return;
       await wait(300);
+      this.stillWanted();
     }
   }
 
@@ -446,6 +480,7 @@ export class OutputSession {
         if (!(error instanceof UPnPError && error.code === TRANSITION_NOT_AVAILABLE) || tries >= PLAY_TRIES) throw error;
       }
       await wait(300);
+      this.stillWanted();
       const { state } = await this.call(renderer => renderer.transportInfo());
       if (state === 'PLAYING') return;
     }
@@ -494,6 +529,7 @@ export class OutputSession {
     this.announced = false;
     this.nextSet = -1;
     this.error = null;
+    this.stillWanted();
     try {
       await this.call(renderer => renderer.setUri(this.urlOf(track), this.didlOf(track)));
     } catch (error) {
@@ -514,16 +550,19 @@ export class OutputSession {
       throw error;
     }
     this.onDevice = true;
+    this.stillWanted();
     await this.playNow();
     this.status = 'playing';
     this.wantedAt = null;
     this.strikes = 0;
     await this.waitPlaying();
+    this.stillWanted();
     if (at > 0) await this.call(renderer => renderer.seek(at)).catch(error => {
       if (error instanceof OutputUnreachableError) throw error;
       logger.warn(`${this.deps.name()} would not seek: ${(error as Error).message}`);
     });
     this.at = this.now();
+    this.stillWanted();
     this.announce();
     await this.postNext();
     this.save();
@@ -534,6 +573,7 @@ export class OutputSession {
   private async loadAlbum(album: PlayerAlbum, tracks: PlayerTrack[], index: number, at: number, queue: 'listenNext' | null): Promise<void> {
     // Unanswered, the track given next tells so, and is kept for when it answers.
     if (this.onDevice && this.status === 'playing') await this.call(renderer => renderer.stop()).catch(() => undefined);
+    this.stillWanted();
     this.album = album;
     this.tracks = tracks;
     this.queue = queue;
@@ -544,6 +584,7 @@ export class OutputSession {
   private playEntry = async (key: EntryKey, index: number): Promise<boolean> => {
     const { albumId, disc } = parseEntryKey(key);
     const playable = await this.deps.load(albumId, { listenNext: true, disc });
+    this.stillWanted();
     if (playable.tracks.length === 0) return false;
     await this.loadAlbum(playable.album, playable.tracks, index, 0, 'listenNext');
     return true;
@@ -554,7 +595,7 @@ export class OutputSession {
     if (this.queue === 'listenNext' && this.turn) {
       const album = this.album;
       const played = await this.turn.albumEnded(this.playEntry, how).catch(error => {
-        if (error instanceof OutputUnreachableError) throw error;
+        if (error instanceof OutputUnreachableError || error instanceof Superseded) throw error;
         logger.warn(`Listen Next on ${this.deps.name()}: ${(error as Error).message}`);
         return false;
       });
@@ -757,7 +798,7 @@ export class OutputSession {
 
   /** Plays an album's tracks from `index` (at `at` seconds); Listen Next goes on after it when `turn` is given. */
   playAlbum(album: PlayerAlbum, tracks: PlayerTrack[], index = 0, at = 0, turn: ListenNextTurn | null = null): Promise<void> {
-    return this.run(async () => {
+    return this.choose(async () => {
       if (tracks.length === 0) return;
       this.turn = turn;
       if (turn) turn.onLeft = left => this.deps.emit('left', { output: this.id, ...left });
@@ -770,7 +811,8 @@ export class OutputSession {
    * without one; of a turn under way, a jump within it. False when nothing could be played.
    */
   playListenNext(key: EntryKey | null = null, index = 0): Promise<boolean> {
-    return this.run(async () => {
+    // Given up for a newer play: not a list with nothing to play.
+    return this.choose(async () => {
       if (key != null && this.queue === 'listenNext' && this.turn?.currentKey != null && this.status !== 'taken' && this.onDevice) {
         const turn = this.turn;
         const started = await turn.jumpTo(this.playEntry, async at => this.startTrack(at), key, index, this.index);
@@ -786,7 +828,7 @@ export class OutputSession {
         this.queue = previous.queue;
       }
       return started;
-    });
+    }, true);
   }
 
   /** Carries a play over from elsewhere (the page's player, another appliance), Listen Next's turn with it. */
@@ -832,7 +874,7 @@ export class OutputSession {
 
   /** The next track; on the last one, the next album of Listen Next. */
   next(): Promise<void> {
-    return this.run(async () => {
+    return this.step(async () => {
       this.refuseTaken();
       if (!this.album) return;
       if (this.index + 1 < this.tracks.length) await this.startTrack(this.index + 1);
@@ -842,7 +884,7 @@ export class OutputSession {
 
   /** Back to the start of the track, or to the one before in its first seconds. */
   previous(): Promise<void> {
-    return this.run(async () => {
+    return this.step(async () => {
       this.refuseTaken();
       if (!this.album) return;
       if (this.positionNow() > RESTART_AFTER_SEC || this.index === 0) await this.seekTo(0);
@@ -852,7 +894,7 @@ export class OutputSession {
 
   /** Another track of the album, from its start, Listen Next kept. */
   playTrack(index: number): Promise<void> {
-    return this.run(async () => {
+    return this.choose(async () => {
       this.refuseTaken();
       if (!this.album || !this.tracks[index]) return;
       await this.startTrack(index);
@@ -901,7 +943,7 @@ export class OutputSession {
 
   /** ✕: stopped, the place kept for Resume. Someone else's play is left alone. */
   stop(): Promise<void> {
-    return this.run(async () => {
+    return this.choose(async () => {
       if (this.onDevice && this.status !== 'taken' && this.status !== 'unreachable') {
         this.position = this.positionNow();
         await this.call(renderer => renderer.stop()).catch(error => {
@@ -919,7 +961,7 @@ export class OutputSession {
 
   /** The track given again where it was left, after something else took the appliance, a stop, or a restart. */
   resume(): Promise<void> {
-    return this.run(async () => {
+    return this.choose(async () => {
       if (!this.album) return;
       this.failures = 0;
       await this.startTrack(this.index, this.position);

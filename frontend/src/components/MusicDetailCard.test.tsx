@@ -525,8 +525,12 @@ describe('MusicDetailCard on the outputs', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Salon' }));
 
     expect(player.getState().output).toEqual({ kind: 'renderer', id: 'uuid:salon', name: 'Salon' });
-    const play = sent.find(call => call.url === '/api/outputs/uuid%3Asalon/play');
-    expect(play?.body).toMatchObject({ album: { id: 1, title: 'Abbey Road' }, index: 0, tracks: [{ songId: 'song-1' }, { songId: 'song-2' }, { songId: 'song-3' }] });
+    const play = await vi.waitFor(() => {
+      const found = sent.find(call => call.url === '/api/outputs/uuid%3Asalon/play');
+      if (!found) throw new Error('Not sent yet');
+      return found;
+    });
+    expect(play.body).toMatchObject({ album: { id: 1, title: 'Abbey Road' }, index: 0, tracks: [{ songId: 'song-1' }, { songId: 'song-2' }, { songId: 'song-3' }] });
 
     // The gold Play says where it plays; in the ▾ Salon is now the one ✓, this browser a choice.
     expect(await screen.findByText(/· Salon/)).toBeInTheDocument();

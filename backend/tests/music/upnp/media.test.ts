@@ -48,6 +48,23 @@ describe('the media listener', () => {
     expect(stream).toHaveBeenCalledWith('a7t1', 'bytes=100-103');
   });
 
+  it('lets go of Navidrome when the appliance hung up before it answered', async () => {
+    const data = new Readable({ read() { /* never ends: a whole FLAC */ } });
+    let answer: () => void = () => undefined;
+    jest.spyOn(navidromeService, 'stream').mockImplementation(() => new Promise(resolve => {
+      answer = () => resolve({ status: 200, headers: { 'content-type': 'audio/flac' }, data });
+    }));
+    const { port } = server.address() as { port: number };
+    const asked = (await import('http')).get(`http://127.0.0.1:${port}/upnp/stream/${token}/a7t1.flac`);
+    asked.on('error', () => undefined);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    asked.destroy();
+    await new Promise(resolve => setTimeout(resolve, 50));
+    answer();
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(data.destroyed).toBe(true);
+  });
+
   it('answers HEAD with the headers alone', async () => {
     flac(200, { 'content-type': 'audio/flac', 'content-length': '5000' });
     const res = await request(server).head(`/upnp/stream/${token}/a7t1.flac`);
