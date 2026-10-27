@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BsBoxArrowUpRight, BsXLg } from 'react-icons/bs';
 import musicService, { type ListenNextMedium, type RipTracks } from '../services/musicService';
-import { player } from '../services/player';
+import { player, type PlayerTrack } from '../services/player';
 import { setFullPlayer, type ShownAlbum } from '../services/phoneDoor';
 import { playerAlbumOf, playerTracksOf } from '../utils/playAlbum';
 import { playingTime } from '../utils/albumHead';
@@ -20,8 +20,8 @@ export interface AlbumAtRest {
   cover: string | null;
   /** Under the title, where the place in the track would be: CD · 12 tracks · 45 min · 2012. */
   line: string;
-  /** Its tracks as the player would play them; empty until the rip is read. */
-  tracks: { title: string; durationSec: number | null }[];
+  /** Its tracks as the player would play them, their ♥ and their dot with them; empty until the rip is read. */
+  tracks: PlayerTrack[];
   /** ▶, or a track touched: the album played from there, the full screen then showing it playing. */
   playFrom: (index: number) => void;
   /** Listen Next, the mixtapes, Amperfy: the album's own entries of ⋯. */
@@ -123,7 +123,7 @@ export const useAlbumAtRest = (album: ShownAlbum | null, onNoRip: (albumId: numb
     artist: Array.isArray(album.artist) ? album.artist.join(', ') : album.artist || '',
     cover: musicService.getImageUrl(album.cover),
     line,
-    tracks: playerTracks.map(track => ({ title: track.title, durationSec: track.durationSec })),
+    tracks: playerTracks,
     playFrom: index => { if (playerTracks.length > 0) player.playAlbum(playerAlbumOf(album, rip), playerTracks, index); },
     menu,
     dialog: naming ? <NewMixtapeDialog songIds={songIds} onClose={() => setNaming(false)} /> : null,
