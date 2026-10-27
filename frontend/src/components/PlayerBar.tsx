@@ -223,7 +223,7 @@ const PlayerBar: React.FC = () => {
                 playTrack: at => player.playTrack(at),
               }}
               lyricsOf={album.id != null ? { albumId: album.id, disc: track.disc, no: track.no } : null} timingSongId={track.songId}
-              guideOf={track.albumId ?? album.id} mixtape={{ songId: track.songId, title: track.title }}
+              guideOf={track.albumId ?? album.id} heartsOf={track.artist == null ? album.id ?? null : null} mixtape={{ songId: track.songId, title: track.title }}
               tracks={tracks} index={index} onAllTracks={fromListenNext ? () => setTracksOpen(true) : null}
               onAmperfy={isAppleMobile() && album.navidromeId ? () => {
                 // Not both at once: DexVault's player pauses, and Amperfy starts the album.

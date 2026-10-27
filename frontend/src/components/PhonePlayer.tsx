@@ -80,6 +80,11 @@ export interface PhonePlayerProps {
   timingSongId?: string | null;
   /** The album whose listening guide can be read, for an album DexVault holds. */
   guideOf?: number | null;
+  /**
+   * The album playing, for DexVault: its hearts read again from Navidrome as its
+   * tracks are shown, those the tracks came with being of the moment it started.
+   */
+  heartsOf?: number | null;
   /** The album's tracks, the one playing at `index`; a song of Navidrome's has its ♥ and a menu under a long press. */
   tracks?: PhoneTrack[];
   index?: number;
@@ -295,6 +300,18 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const hasTracks = Boolean(props.tracks && props.tracks.length > 0);
   // What Navidrome said of the tracks' hearts as they were read, unless a heart is known better already.
   useEffect(() => { props.tracks?.forEach(track => seedFavourite(track.songId, track.starred, true)); }, [props.tracks]);
+  // Its tracks shown: Navidrome's hearts of now. A session started on the Salon an hour ago, a heart given since
+  // from the Mac or Amperfy, still said none.
+  const heartsOf = props.heartsOf ?? null;
+  const tracksShown = full && view === 'tracks';
+  useEffect(() => {
+    if (!tracksShown || heartsOf == null) return undefined;
+    let current = true;
+    musicService.getNavidromeTracks(heartsOf)
+      .then(rip => { if (current) rip?.tracks.forEach(file => seedFavourite(file.id, file.starred)); })
+      .catch(() => undefined);
+    return () => { current = false; };
+  }, [tracksShown, heartsOf]);
   // The album's listening guide, read as the album starts: its button shows only when there is one.
   const [guide, setGuide] = useState<string | null>(null);
   // The words of the track, read as they are shown; fixing their timing works on them in place of the controls.

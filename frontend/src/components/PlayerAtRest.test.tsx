@@ -135,6 +135,23 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     expect(within(fullScreen('Now playing')).queryByRole('button', { name: 'Back to Kind of Blue' })).not.toBeInTheDocument();
   });
 
+  it('the tracks of what plays shown, their hearts are read again from Navidrome: one given since the album started shows', async () => {
+    await playOther();
+    vi.mocked(fetch).mockImplementation(((url: string) => {
+      if (url.endsWith('/albums/7/navidrome-tracks')) {
+        return Promise.resolve(new Response(JSON.stringify({ ...rip, tracks: [{ id: 's1', discNumber: 1, track: 1, title: 'Don’t Know Why', durationSec: 186, starred: true }] })));
+      }
+      if (url === '/api/outputs') return Promise.resolve(new Response(JSON.stringify([SALON_LISTED])));
+      return Promise.resolve(new Response('{}'));
+    }) as typeof fetch);
+    page();
+    act(() => { setFullPlayer(true); });
+    const sheet = fullScreen('Now playing');
+    expect(within(sheet).queryByLabelText('Favourite')).not.toBeInTheDocument();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Tracks' }));
+    expect(await within(sheet).findByLabelText('Favourite')).toBeInTheDocument();
+  });
+
   it('the album playing, its cover opens the full screen on it, playing', async () => {
     await playOther();
     page();
