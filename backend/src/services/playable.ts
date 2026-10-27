@@ -26,6 +26,9 @@ export interface PlayerTrack {
   place?: number;
   /** The file's kind, as Navidrome names it (flac, mp3): what an appliance is told it is. */
   suffix?: string;
+  /** What the page says is heard: the file lossless (FLAC, ALAC…), or its format (MP3, AAC). */
+  lossless?: boolean;
+  format?: string;
 }
 
 /** The album a play belongs to. */

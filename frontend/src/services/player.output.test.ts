@@ -72,6 +72,30 @@ describe('the player on an output', () => {
     expect(player.getState().output).toEqual(SALON);
   });
 
+  it('keeps an album paused here in the bar when Salon is chosen, ▶ playing it there from where it was', async () => {
+    player.playAlbum(album, tracks, 1, 40);
+    player.toggle(false);
+    audios.forEach(audio => audio.dispatchEvent(new Event('pause')));
+    expect(player.getState().playing).toBe(false);
+
+    player.setOutput(SALON);
+    expect(commands()).toEqual([]);
+    expect(player.getState()).toMatchObject({ album, index: 1, playing: false, barShown: true, output: SALON });
+
+    // Back here before ▶: the album paused, as it was.
+    player.setOutput({ kind: 'local' });
+    expect(player.getState()).toMatchObject({ album, index: 1, playing: false, output: { kind: 'local' } });
+
+    player.setOutput(SALON);
+    player.toggle();
+    expect(commands()).toHaveLength(1);
+    expect(commands()[0].url).toBe('/api/outputs/uuid%3Asalon/play');
+    expect(commands()[0].body).toMatchObject({ album: { id: 7 }, tracks, index: 1, position: 40 });
+    // Salon plays it: the bar shows Salon's play, this browser has let go of it.
+    await vi.waitFor(() => expect(player.getState()).toMatchObject({ album, playing: true, output: SALON }));
+    expect(JSON.parse(window.localStorage.getItem('dexvault.player.resume')!)).toMatchObject({ barOpen: false });
+  });
+
   it('shows what plays on the appliance, and sends it the bar’s commands', () => {
     player.setOutput(SALON);
     takeState(session());

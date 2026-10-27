@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import navidromeService from '../services/navidromeService';
 import waveformService, { canRead } from '../services/waveformService';
+import transcodeService from '../services/transcodeService';
 import { scrobble } from '../services/scrobble';
 import logger from '../logger';
 
@@ -43,6 +44,58 @@ const playerController = {
       upstream.data.pipe(res);
     } catch (error) {
       logger.warn(`Streaming song ${id}: ${(error as Error).message}`);
+      if (!res.headersSent) res.status(502).json({ error: (error as Error).message });
+    }
+  },
+
+  /**
+   * A song made lighter for this browser on a weak network (AAC 256 in an
+   * .m4a), encoded now if need be: `{ ready: true }` once it can be played,
+   * 501 where ffmpeg is not, and the browser plays the file as it is.
+   */
+  prepareLight: async (req: Request, res: Response): Promise<void> => {
+    const id = String(req.params.id);
+    if (!SONG_ID.test(id)) {
+      res.status(400).json({ error: 'Not a song id' });
+      return;
+    }
+    if (!navidromeService.isConfigured()) {
+      res.status(503).json({ error: 'Navidrome is not configured' });
+      return;
+    }
+    if (!transcodeService.kept(id) && !(await canRead())) {
+      res.status(501).json({ error: 'ffmpeg is not installed here' });
+      return;
+    }
+    try {
+      await transcodeService.prepare(id);
+      res.json({ ready: true });
+    } catch (error) {
+      logger.warn(`Encoding song ${id}: ${(error as Error).message}`);
+      res.status(502).json({ error: (error as Error).message });
+    }
+  },
+
+  /** The lighter song as a file, every Range answered, as Safari asks it. Never to an appliance: they play the FLAC. */
+  streamLight: async (req: Request, res: Response): Promise<void> => {
+    const id = String(req.params.id);
+    if (!SONG_ID.test(id)) {
+      res.status(400).json({ error: 'Not a song id' });
+      return;
+    }
+    if (!navidromeService.isConfigured()) {
+      res.status(503).json({ error: 'Navidrome is not configured' });
+      return;
+    }
+    if (!transcodeService.kept(id) && !(await canRead())) {
+      res.status(501).json({ error: 'ffmpeg is not installed here' });
+      return;
+    }
+    try {
+      const file = await transcodeService.prepare(id);
+      res.sendFile(file, { headers: { 'Content-Type': 'audio/mp4', 'Cache-Control': 'no-store' } });
+    } catch (error) {
+      logger.warn(`Encoding song ${id}: ${(error as Error).message}`);
       if (!res.headersSent) res.status(502).json({ error: (error as Error).message });
     }
   },

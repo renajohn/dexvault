@@ -92,6 +92,8 @@ export interface PhonePlayerProps {
   foot?: React.ReactNode;
   /** Out of sight (the bar slid away): the full screen goes back to the pill. */
   out: boolean;
+  /** What is heard: Lossless, AAC 256, MP3…, between the two times under the line. */
+  format?: string | null;
   /**
    * An album a cover opened, at rest while another plays or nothing does: its
    * line (CD · 12 tracks · 45 min) where the place in the track would be, ▶
@@ -107,7 +109,7 @@ export interface PhonePlayerProps {
  * its dot following the finger, the music going there once it is let go;
  * ← → step 10 s.
  */
-const Scrubber: React.FC<{ position: number; length: number; playing: boolean; seek?: (seconds: number) => void }> = ({ position, length, playing, seek }) => {
+const Scrubber: React.FC<{ position: number; length: number; playing: boolean; seek?: (seconds: number) => void; format?: string | null }> = ({ position, length, playing, seek, format }) => {
   const [held, setHeld] = useState<number | null>(null);
   const line = useRef<HTMLDivElement>(null);
   const at = (clientX: number) => {
@@ -146,6 +148,7 @@ const Scrubber: React.FC<{ position: number; length: number; playing: boolean; s
       </div>
       <div className="now-playing-times">
         <span>{time(shown)}</span>
+        {format && <span className="now-playing-format" title={format === 'AAC 256' ? 'The lighter file, for a weak network' : undefined}>{format}</span>}
         <span>-{time(Math.max(0, length - shown))}</span>
       </div>
     </div>
@@ -480,7 +483,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
           {props.rest ? (
             // At rest: what the album is, where the place in the track would be.
             <p className="now-playing-rest">{props.rest.line}</p>
-          ) : <Scrubber position={position} length={length} playing={playing} seek={controls.seek} />}
+          ) : <Scrubber position={position} length={length} playing={playing} seek={controls.seek} format={props.format} />}
 
           {props.rest ? (
             <div className="now-playing-transport now-playing-transport--rest">{playButton(true)}</div>

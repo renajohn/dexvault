@@ -23,6 +23,9 @@ export interface PlayerTrack {
   cover?: string | null;
   /** A song of a mixtape: its place in it, from 0, which a shuffled play keeps while `no` follows the play. */
   place?: number;
+  /** The file as it lies in Navidrome: lossless (FLAC, ALAC…), or its format (MP3, AAC); unknown for a mixtape's song. */
+  lossless?: boolean;
+  format?: string;
 }
 
 /** The album a play belongs to, for the bar, the cards and the Mac's own controls. */
@@ -102,7 +105,14 @@ export interface PlayerState {
   outputStatus: 'taken' | 'unreachable' | null;
   /** Of Listen Next played on an appliance, the entries to come, as the server counts them; null here. */
   upcoming: EntryKey[] | null;
+  /** How this browser plays the files: as they are, lighter (AAC 256), or lighter only while the network does not keep up. */
+  quality: PlayerQuality;
+  /** The track playing here is the lighter one. Never on an appliance, which always plays the file as it is. */
+  light: boolean;
 }
+
+/** Auto: lossless while the network keeps up, AAC 256 once it does not. */
+export type PlayerQuality = 'auto' | 'lossless' | 'light';
 
 const RESUME_KEY = 'dexvault.player.resume';
 /** The words were out: they come out again with the next play, in this browser. */
@@ -113,6 +123,14 @@ const SCROBBLE_AFTER_SEC = 240;
 const RESTART_AFTER_SEC = 3;
 
 export const streamUrl = (songId: string) => `/api/music/navidrome/stream/${encodeURIComponent(songId)}`;
+/** The song in AAC 256, encoded by the server once and kept: for this browser on a weak network, never for an appliance. */
+export const lightUrl = (songId: string) => `/api/music/navidrome/light/${encodeURIComponent(songId)}`;
+
+const QUALITY_KEY = 'dv.player.quality';
+const readQuality = (): PlayerQuality => {
+  const value = readStored(QUALITY_KEY);
+  return value === 'lossless' || value === 'light' ? value : 'auto';
+};
 
 const readResume = (): PlayerResume | null => {
   try {
@@ -155,7 +173,21 @@ let state: PlayerState = {
   resume: typeof window !== 'undefined' ? readResume() : null, error: null,
   lyricsOpen: typeof window !== 'undefined' ? readLyricsOpen() : false,
   output: LOCAL, outputStatus: null, upcoming: null,
+  quality: typeof window !== 'undefined' ? readQuality() : 'auto', light: false,
 };
+/**
+ * What is heard of the track playing: AAC 256 when this browser plays the
+ * lighter file, else the file as it is, Lossless or its format (MP3); null
+ * when it is not known. An appliance always plays the file as it is.
+ */
+export const formatOf = (current: PlayerState): string | null => {
+  const track = current.tracks[current.index];
+  if (!current.album || !track) return null;
+  if (current.output.kind === 'local' && current.light) return 'AAC 256';
+  if (track.lossless) return 'Lossless';
+  return track.format ?? null;
+};
+
 /** What the bar, the cards and Listen Next see: this browser's state, or an appliance's play. */
 let view: PlayerState = state;
 let chosen: PlayerOutput = typeof window !== 'undefined' ? readOutput() : LOCAL;
@@ -220,11 +252,34 @@ let lastOutput: PlayerOutput = LOCAL;
 let lastResume: { session: OutputState | null; resume: PlayerResume | null } = { session: null, resume: null };
 
 /** An appliance's play as the bar shows it: the same shape as this browser's. */
+/**
+ * An appliance chosen while this browser's album was paused, and holding
+ * nothing of its own: the bar keeps that album, paused, on the appliance, ▶
+ * playing it there from where it was. Without it the bar went away with the
+ * album, the output's menu with it.
+ */
+let carrying = false;
+
 const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState => {
   const listed = knownOutputs().find(one => one.id === output.id);
   const session = listed?.session ?? null;
   const track = session?.tracks[session.index];
   if (!sameOutput(lastOutput, output) || lastOutput.kind !== 'renderer' || lastOutput.name !== output.name) lastOutput = output;
+  carrying = chosen.kind === 'renderer' && chosen.id === output.id && state.album !== null && !state.playing
+    && (!session?.album || session.status === 'stopped');
+  if (carrying) {
+    return {
+      ...state,
+      playing: false,
+      barShown: true,
+      resume: null,
+      error: null,
+      output: lastOutput,
+      outputStatus: (outputsLoaded() && !listed?.reachable) || session?.status === 'unreachable' ? 'unreachable' : null,
+      upcoming: null,
+      light: false,
+    };
+  }
   if (lastResume.session !== session) {
     lastResume = {
       session,
@@ -249,6 +304,8 @@ const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState 
     output: lastOutput,
     outputStatus: away ? 'unreachable' : session?.status === 'taken' ? 'taken' : null,
     upcoming: session?.queue === 'listenNext' ? session.upcoming : null,
+    quality: state.quality,
+    light: false,
   };
 };
 
@@ -259,6 +316,7 @@ const TICK_MS = 1000;
 const refresh = () => {
   follow();
   const output = effective();
+  carrying = false;
   view = output.kind === 'local' ? state : rendererView(output);
   if (view.output.kind === 'renderer' && view.playing) {
     if (!ticker) ticker = setInterval(refresh, TICK_MS);
@@ -278,6 +336,18 @@ export const reportOutputError = (error: unknown): void => {
   if (refused?.status === 'unreachable') toast(refused.message, { tone: 'warning' });
   else if (refused?.status === 'taken') toast(refused.message, { tone: 'info' });
   else toast((error as Error)?.message || 'The command did not go through', { tone: 'danger' });
+};
+
+/** The album carried to an appliance played there, from `index` at `position`; this browser lets go of it once it plays. */
+const playCarried = (index: number, position: number): boolean => {
+  const id = rendererId();
+  if (!carrying || !id || !state.album) return false;
+  const was = state.album;
+  const { from: _from, ...album } = was;
+  outputs.play(id, {
+    album, tracks: state.tracks, index: Math.max(0, Math.min(index, state.tracks.length - 1)), position, listenNext: state.queue === 'listenNext',
+  }).then(() => { if (state.album === was && !state.playing) stopHere(); }, reportOutputError);
+  return true;
 };
 
 const onRenderer = (work: (id: string) => Promise<unknown>): boolean => {
@@ -429,6 +499,65 @@ const reload = (audio: HTMLAudioElement, url: string) => {
   else audio.src = url;
 };
 
+/*
+ * Lighter files, for a weak network: the server encodes a song in AAC 256
+ * once asked (a few seconds for a song), and the player plays it once it is
+ * there, the file as it is meanwhile. Auto goes lighter for the tracks to come
+ * once the music had to wait for its data, or its stream was cut, and back to
+ * lossless after a while of tracks played without a hitch, a while longer
+ * each time it had to go lighter again soon after.
+ */
+const LEAN_HOLD_MS = 10 * 60_000;
+const LEAN_HOLD_MAX_MS = 60 * 60_000;
+const CALM_TRACKS = 3;
+/** A wait this long while it plays, not after a start or a seek, is the network falling behind. */
+const REBUFFER_MS = 1500;
+let lean = false;
+let troubleAt = 0;
+let calmTracks = 0;
+let leanHold = LEAN_HOLD_MS;
+let backAt = -Infinity;
+/** Songs whose lighter file is there, and those the server could not encode. */
+const lightReady = new Set<string>();
+const lightFailed = new Set<string>();
+const lightAsked = new Map<string, Promise<boolean>>();
+/** No ffmpeg on the server: the files as they are, always. */
+let lightUnavailable = false;
+
+const wantsLight = (): boolean => !lightUnavailable && (state.quality === 'light' || (state.quality === 'auto' && lean));
+
+/** The address a track plays from now. */
+const urlFor = (track: PlayerTrack): string =>
+  (wantsLight() && lightReady.has(track.songId) ? lightUrl(track.songId) : streamUrl(track.songId));
+
+/** Asks the server for the song's lighter file; true once it is there. A network down leaves it to be asked again. */
+const prepareLight = (songId: string): Promise<boolean> => {
+  if (lightReady.has(songId)) return Promise.resolve(true);
+  if (lightFailed.has(songId) || lightUnavailable || typeof fetch === 'undefined') return Promise.resolve(false);
+  const known = lightAsked.get(songId);
+  if (known) return known;
+  const asked = fetch(lightUrl(songId), { method: 'POST' })
+    .then(response => {
+      if (response.ok) lightReady.add(songId);
+      else if (response.status === 501) lightUnavailable = true;
+      else lightFailed.add(songId);
+      return response.ok;
+    }, () => false)
+    .finally(() => lightAsked.delete(songId));
+  lightAsked.set(songId, asked);
+  return asked;
+};
+
+/** Loads `url` into the spare element, muted, unless it holds it already. */
+const loadSpare = (url: string) => {
+  const other = spare();
+  other.muted = true;
+  if (!other.src.endsWith(url) || broken(other)) {
+    other.preload = 'auto';
+    reload(other, url);
+  }
+};
+
 /** Loads the track after the current one into the spare element, ready to take over; again when its load failed. */
 const preloadNext = () => {
   const next = state.tracks[state.index + 1];
@@ -438,11 +567,40 @@ const preloadNext = () => {
     other.removeAttribute('src');
     return;
   }
-  const url = streamUrl(next.songId);
-  other.muted = true;
-  if (!other.src.endsWith(url) || broken(other)) {
-    other.preload = 'auto';
-    reload(other, url);
+  // To go lighter, the lighter file first: the FLAC is not fetched meanwhile, on a network that cannot carry it.
+  if (wantsLight() && !lightReady.has(next.songId) && !lightFailed.has(next.songId)) {
+    prepareLight(next.songId).then(() => {
+      if (state.tracks[state.index + 1] === next) loadSpare(urlFor(next));
+    });
+    return;
+  }
+  loadSpare(urlFor(next));
+};
+
+/** Going lighter: the track playing (for a stream cut) and the next two asked for, the spare loaded with the lighter one. */
+const prepareAhead = () => {
+  for (const track of state.tracks.slice(state.index, state.index + 3)) prepareLight(track.songId);
+  preloadNext();
+};
+
+/** The network fell behind: Auto goes lighter, for a while. */
+const troubled = () => {
+  troubleAt = Date.now();
+  calmTracks = 0;
+  if (state.quality !== 'auto' || lean) return;
+  // Back to lossless too soon: longer in AAC this time.
+  if (Date.now() - backAt < leanHold) leanHold = Math.min(leanHold * 2, LEAN_HOLD_MAX_MS);
+  lean = true;
+  prepareAhead();
+};
+
+/** A track played to its end: enough of them without a hitch, and long enough, Auto goes back to lossless. */
+const playedThrough = () => {
+  if (!lean) return;
+  calmTracks += 1;
+  if (calmTracks >= CALM_TRACKS && Date.now() - troubleAt >= leanHold) {
+    lean = false;
+    backAt = Date.now();
   }
 };
 
@@ -459,10 +617,15 @@ let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let stallTimer: ReturnType<typeof setTimeout> | null = null;
 let retryNow: (() => void) | null = null;
 
+let rebufferTimer: ReturnType<typeof setTimeout> | null = null;
+/** It has played since its start or its last seek: a wait now is the network's. */
+let settled = false;
+
 const calm = () => {
   if (retryTimer) clearTimeout(retryTimer);
   if (stallTimer) clearTimeout(stallTimer);
-  retryTimer = stallTimer = null;
+  if (rebufferTimer) clearTimeout(rebufferTimer);
+  retryTimer = stallTimer = rebufferTimer = null;
   retryNow = null;
 };
 
@@ -474,6 +637,7 @@ const recover = () => {
   const index = state.index;
   const at = audio.currentTime > 0 ? audio.currentTime : state.position;
   calm();
+  troubled();
   if (retries >= RETRY_MS.length) {
     retries = 0;
     audio.pause();
@@ -485,8 +649,11 @@ const recover = () => {
   const again = () => {
     calm();
     if (state.index !== index || current() !== audio || !state.album) return;
-    reload(audio, streamUrl(track.songId));
+    // Lighter if it is there by now: the network that cut it may not carry the FLAC.
+    const url = urlFor(track);
+    reload(audio, url);
     wantAt(audio, at);
+    set({ light: url !== streamUrl(track.songId) });
     watchStall();
     audio.play().catch(error => {
       if ((error as Error).name === 'AbortError') return;
@@ -554,9 +721,10 @@ const updatePositionState = () => {
 const start = (index: number, at = 0) => {
   const track = state.tracks[index];
   if (!track) return;
-  const url = streamUrl(track.songId);
+  const url = urlFor(track);
   calm();
   retries = 0;
+  settled = false;
   const swapped = spare().src.endsWith(url);
   if (swapped) {
     // The spare holds it: the one playing stops, and its late 'pause' finds it no longer mine.
@@ -573,7 +741,7 @@ const start = (index: number, at = 0) => {
   // Played on from where it was left: counted then already if far enough in.
   scrobbled = countedAt(track, at);
   announced = false;
-  set({ index, position: at, duration: track.durationSec || 0, playing: true, error: null });
+  set({ index, position: at, duration: track.durationSec || 0, playing: true, error: null, light: url !== streamUrl(track.songId) });
   // Where to start, set before the data is there: the browser goes there once it has it, and a new source forgets it.
   // No listener waiting for the metadata: on an iPhone nothing loads before a touch, and one left waiting took the
   // next album, or a seek made meanwhile, back to this place. And play() at once, within the touch that asked it.
@@ -602,6 +770,8 @@ const start = (index: number, at = 0) => {
     set({ playing: false, error: (error as Error).message });
   });
   preloadNext();
+  // Lighter: this one asked for too, for a stream cut to be taken up lighter, and the one after next, for a tunnel to find two in hand.
+  if (wantsLight()) for (const ahead of [track, ...state.tracks.slice(index + 2, index + 3)]) prepareLight(ahead.songId);
   updateMediaSession();
   // Where it starts, kept at once: a reload right away still offers Resume.
   writeResume(here(index, at));
@@ -661,13 +831,25 @@ const setUp = () => {
         post(track.songId, false);
       }
       retries = 0;
+      settled = true;
       if (stallTimer) clearTimeout(stallTimer);
-      stallTimer = null;
+      if (rebufferTimer) clearTimeout(rebufferTimer);
+      stallTimer = rebufferTimer = null;
       set({ playing: true, error: null });
       updateMediaSession();
     });
     // Out of data while it plays: taken up again if it stays so.
-    audio.addEventListener('waiting', () => { if (mine() && state.playing) watchStall(); });
+    audio.addEventListener('waiting', () => {
+      if (!mine() || !state.playing) return;
+      watchStall();
+      // Played a while, then out of data: the network falls behind, if it lasts.
+      if (settled && !rebufferTimer) {
+        rebufferTimer = setTimeout(() => {
+          rebufferTimer = null;
+          if (mine() && !audio.paused && audio.readyState < 3) troubled();
+        }, REBUFFER_MS);
+      }
+    });
     audio.addEventListener('pause', () => {
       if (!mine() || audio.ended) return;
       calm();
@@ -680,6 +862,7 @@ const setUp = () => {
     audio.addEventListener('durationchange', () => { if (mine()) updatePositionState(); });
     audio.addEventListener('ended', () => {
       if (!mine()) return;
+      playedThrough();
       if (options.leaveAfterTrack?.()) endAlbum('removed');
       else if (state.index + 1 < state.tracks.length) start(state.index + 1);
       // The album is over: its list goes on, or it can be played again from its card, from the start.
@@ -754,6 +937,11 @@ export const player = {
 
   /** Pauses or plays on; `playing` forces one or the other, as the Mac's keys ask. */
   toggle: (playing?: boolean) => {
+    if (carrying && playing !== false) {
+      playCarried(state.index, current()?.currentTime || state.position);
+      return;
+    }
+    if (carrying) return;
     // An appliance taken by something else, or stopped: ▶ takes it back where it was.
     if (onRenderer(id => ((view.outputStatus === 'taken' || view.resume) && playing !== false
       ? outputs.resume(id)
@@ -776,6 +964,10 @@ export const player = {
 
   /** The next track; on the last one, the next album of the list it is played from. */
   next: () => {
+    if (carrying) {
+      if (state.index + 1 < state.tracks.length) playCarried(state.index + 1, 0);
+      return;
+    }
     if (onRenderer(id => outputs.next(id))) return;
     if (state.index + 1 < state.tracks.length) start(state.index + 1);
     else if (options.onAlbumEnd) endAlbum('skipped');
@@ -783,6 +975,7 @@ export const player = {
 
   /** Another track of the album playing, from its start, the list it is played from kept. */
   playTrack: (index: number) => {
+    if (carrying && playCarried(index, 0)) return;
     if (onRenderer(id => outputs.track(id, index))) return;
     if (!state.album || !state.tracks[index]) return;
     start(index);
@@ -790,17 +983,35 @@ export const player = {
 
   /** Back to the start of the track, or to the one before in its first seconds. */
   previous: () => {
+    if (carrying) {
+      if ((current()?.currentTime || state.position) > RESTART_AFTER_SEC || state.index === 0) player.seek(0);
+      else playCarried(state.index - 1, 0);
+      return;
+    }
     if (onRenderer(id => outputs.previous(id))) return;
     if (current().currentTime > RESTART_AFTER_SEC || state.index === 0) player.seek(0);
     else start(state.index - 1);
   },
 
   seek: (seconds: number) => {
+    // Carried, not playing yet: the place moves here, ▶ starting it there.
+    if (carrying) {
+      const at = Math.max(0, seconds);
+      const audio = current();
+      if (audio?.src) {
+        if (audio.readyState < 1) wantAt(audio, at);
+        else audio.currentTime = at;
+      }
+      set({ position: at });
+      return;
+    }
     if (onRenderer(id => outputs.seek(id, Math.max(0, seconds)))) return;
     const audio = current();
     if (!audio) return;
     // The place asked, not the element's, which before its data is loaded (an iPhone's, before a touch) may still say 0.
     const at = Math.max(0, seconds);
+    // The wait for the data there is the seek's, not the network's.
+    settled = false;
     if (audio.readyState < 1) wantAt(audio, at);
     else audio.currentTime = at;
     set({ position: at });
@@ -808,6 +1019,10 @@ export const player = {
 
   /** ✕: stops, keeps where it was for Resume, and takes the bar away: a reload does not bring it back. */
   stop: () => {
+    if (carrying) {
+      stopHere();
+      return;
+    }
     if (onRenderer(id => outputs.stop(id))) {
       followed = null;
       return;
@@ -817,6 +1032,10 @@ export const player = {
 
   /** Plays on from where ✕ or a reload left it; on an appliance taken by something else, from where it was taken. */
   resume: () => {
+    if (carrying) {
+      playCarried(state.index, state.position);
+      return;
+    }
     if (onRenderer(id => outputs.resume(id))) return;
     const saved = state.resume;
     if (!saved) return;
@@ -833,7 +1052,7 @@ export const player = {
   /** Seconds into the track now, finer than `position`, which the audio element updates a few times a second. */
   currentTime: (): number => {
     const id = rendererId();
-    if (id) {
+    if (id && !carrying) {
       const session = sessionOf(id);
       return session ? positionAt(session) : 0;
     }
@@ -855,6 +1074,15 @@ export const player = {
       audio.playbackRate = rate;
     }
     updatePositionState();
+  },
+
+  /** How this browser plays the files, from the next track on: kept in this browser. */
+  setQuality: (quality: PlayerQuality) => {
+    writeStored(QUALITY_KEY, quality === 'auto' ? '' : quality);
+    set({ quality });
+    if (!state.album) return;
+    if (wantsLight()) prepareAhead();
+    else preloadNext();
   },
 
   /**
@@ -968,13 +1196,21 @@ export const resetPlayer = () => {
   options = {};
   calm();
   retries = 0;
+  lean = false;
+  troubleAt = calmTracks = 0;
+  leanHold = LEAN_HOLD_MS;
+  backAt = -Infinity;
+  lightReady.clear();
+  lightFailed.clear();
+  lightAsked.clear();
+  lightUnavailable = false;
   waitingQueue = null;
   keepAwakeContext?.close().catch(() => undefined);
   keepAwakeContext = null;
   if (keepAwakeRelease) clearTimeout(keepAwakeRelease);
   keepAwakeRelease = null;
   state = { album: null, queue: null, tracks: [], index: 0, playing: false, position: 0, duration: 0, barShown: false, resume: readResume(), error: null,
-    lyricsOpen: readLyricsOpen(), output: LOCAL, outputStatus: null, upcoming: null };
+    lyricsOpen: readLyricsOpen(), output: LOCAL, outputStatus: null, upcoming: null, quality: readQuality(), light: false };
   chosen = readOutput();
   followed = null;
   declined.clear();

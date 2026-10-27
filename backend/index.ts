@@ -289,6 +289,9 @@ app.delete('/api/music/digital/:navidromeId/dismiss', musicController.setDigital
 app.get('/api/music/digital/:navidromeId/tracks', musicController.getDigitalTracks);
 app.get('/api/music/navidrome-cover/:navidromeId', musicController.getNavidromeCover);
 app.get('/api/music/navidrome/stream/:id', playerController.stream);
+// Lighter (AAC 256) for this browser on a weak network; the appliances never ask for it.
+app.post('/api/music/navidrome/light/:id', playerController.prepareLight);
+app.get('/api/music/navidrome/light/:id', playerController.streamLight);
 app.get('/api/music/navidrome/waveform/:id', playerController.waveform);
 // The remote: what plays in which browser, and commands to it from another device.
 // Kept, behind REMOTE_ENABLED, until playing on the appliances (UPnP) is trusted.

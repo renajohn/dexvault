@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BsChatQuote, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill, BsSkipBackwardFill, BsSkipForwardFill, BsSpeaker, BsThreeDots, BsX } from 'react-icons/bs';
-import { player, usePlayer } from '../services/player';
+import { formatOf, player, usePlayer } from '../services/player';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
 import { useOutputs, type Output } from '../services/outputs';
 import { isComputer } from '../utils/isComputer';
@@ -125,6 +125,7 @@ const PlayerBar: React.FC = () => {
   const [tracksOpen, setTracksOpen] = useState(false);
   const output = usePlayer(state => state.output);
   const outputStatus = usePlayer(state => state.outputStatus);
+  const format = usePlayer(formatOf);
   const upcoming = usePlayer(state => state.upcoming);
   const known = useOutputs();
   const inMusic = useLocation().pathname.startsWith('/musicdex');
@@ -229,7 +230,7 @@ const PlayerBar: React.FC = () => {
               favourite={{ on: favourite, toggle: () => { void toggleFavourite(); } }}
               away={away} taken={taken ? outputName : null} following={following}
               left={left > 0 ? `${leftText(left)} left of ${fromListenNext ? 'Listen Next' : album.title}` : null}
-              from={fromListenNext ? 'Listen Next' : album.title} onOpen={open}
+              from={fromListenNext ? 'Listen Next' : album.title} onOpen={open} format={format}
               onOpenMixtape={track.artist != null && album.id != null ? { title: album.title, open: () => navigate(`/musicdex?album=${album.id}`) } : null}
               out={out} />
           );
@@ -307,7 +308,11 @@ const PlayerBar: React.FC = () => {
               <button type="button" className="player-bar-button" onClick={() => player.next()} disabled={!hasNext} aria-label="Next">
                 <BsSkipForwardFill aria-hidden="true" />
               </button>
-              <span className="player-bar-time">{time(length)}</span>
+              <span className="player-bar-time player-bar-time--length">
+                {time(length)}
+                {/* After the length, out of the flow: ⏮ ⏯ ⏭ stay in the middle. */}
+                {format && <span className="player-bar-format">{format}</span>}
+              </span>
             </div>
             )}
             <div className="player-bar-tools">

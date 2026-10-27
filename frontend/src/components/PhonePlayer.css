@@ -575,6 +575,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* What is heard, between the two times: Lossless, AAC 256. */
+.now-playing-format {
+  font-size: 0.6875rem;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+}
+
 /* ⏮ ⏯ ⏭, large and bare. */
 .now-playing-transport {
   flex: none;

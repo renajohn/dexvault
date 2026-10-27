@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { LISTEN_NEXT_LEFT_EVENT, player, resetPlayer, restorePlayer } from './player';
+import { formatOf, LISTEN_NEXT_LEFT_EVENT, player, resetPlayer, restorePlayer } from './player';
 
 const album = { id: 7, title: 'Come Away With Me', artist: 'Norah Jones', cover: null };
 const tracks = [
@@ -402,6 +402,106 @@ describe('player', () => {
       expect(player.getState()).toMatchObject({ index: 1, playing: true, error: null });
       expect(first.src).toContain('/stream/s2');
       expect(first.muted).toBe(false);
+    });
+  });
+  describe('lighter on a weak network', () => {
+    const three = [...tracks, { songId: 's3', title: 'Cold Cold Heart', disc: 1, no: 3, durationSec: 218 }];
+    const asked = () => vi.mocked(fetch).mock.calls
+      .filter(([, init]) => init?.method === 'POST' && String(init?.body ?? '') === '')
+      .map(([url]) => String(url));
+    const settle = async () => { for (let i = 0; i < 5; i += 1) await Promise.resolve(); };
+
+    it('plays the files as they are by default, nothing asked of the server', () => {
+      player.playAlbum(album, tracks, 0);
+      expect(created.map(audio => audio.src)).toEqual([
+        expect.stringContaining('/stream/s1'), expect.stringContaining('/stream/s2'),
+      ]);
+      expect(asked()).toEqual([]);
+      expect(player.getState()).toMatchObject({ quality: 'auto', light: false });
+    });
+
+    it('in AAC 256, has the tracks to come encoded and plays them lighter, the first one at once as it is', async () => {
+      player.setQuality('light');
+      player.playAlbum(album, three, 0);
+      expect(playingAudio().src).toContain('/stream/s1');
+      await settle();
+      expect(asked()).toEqual(expect.arrayContaining(['/api/music/navidrome/light/s1', '/api/music/navidrome/light/s2', '/api/music/navidrome/light/s3']));
+      const spare = created.find(audio => audio !== playingAudio())!;
+      expect(spare.src).toContain('/light/s2');
+
+      created.find(audio => audio.src.includes('/stream/s1'))!.dispatchEvent(new Event('ended'));
+      expect(player.getState()).toMatchObject({ index: 1, light: true });
+      expect(spare.muted).toBe(false);
+    });
+
+    it('keeps the choice in this browser', () => {
+      player.setQuality('lossless');
+      resetPlayer();
+      expect(player.getState().quality).toBe('lossless');
+      player.setQuality('auto');
+      resetPlayer();
+      expect(player.getState().quality).toBe('auto');
+    });
+
+    it('on Auto, goes lighter for the tracks to come once the music waits for its data', async () => {
+      vi.useFakeTimers();
+      try {
+        player.playAlbum(album, three, 0);
+        const audio = playingAudio();
+        Object.defineProperty(audio, 'paused', { value: false, configurable: true });
+        audio.dispatchEvent(new Event('playing'));
+        audio.dispatchEvent(new Event('waiting'));
+        vi.advanceTimersByTime(1600);
+        await settle();
+        expect(asked()).toContain('/api/music/navidrome/light/s2');
+        expect(created.find(one => one !== audio)!.src).toContain('/light/s2');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('on Auto, a wait right after a start or a seek is not the network’s', () => {
+      vi.useFakeTimers();
+      try {
+        player.playAlbum(album, three, 0);
+        const audio = playingAudio();
+        Object.defineProperty(audio, 'paused', { value: false, configurable: true });
+        audio.dispatchEvent(new Event('waiting'));
+        vi.advanceTimersByTime(1600);
+        audio.dispatchEvent(new Event('playing'));
+        player.seek(60);
+        audio.dispatchEvent(new Event('waiting'));
+        vi.advanceTimersByTime(1600);
+        expect(asked()).toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('says what is heard: Lossless, the file’s format, or AAC 256 for the lighter file', async () => {
+      const told = [{ ...three[0], lossless: true, format: 'FLAC' }, { ...three[1], lossless: false, format: 'MP3' }, { ...three[2], lossless: true, format: 'FLAC' }];
+      player.playAlbum(album, told, 0);
+      expect(formatOf(player.getState())).toBe('Lossless');
+      player.playTrack(1);
+      expect(formatOf(player.getState())).toBe('MP3');
+
+      player.setQuality('light');
+      await settle();
+      created.find(audio => audio.src.includes('/stream/s2'))!.dispatchEvent(new Event('ended'));
+      expect(formatOf(player.getState())).toBe('AAC 256');
+    });
+
+    it('says nothing of a song whose file is not known, a mixtape’s', () => {
+      player.playAlbum(album, tracks, 0);
+      expect(formatOf(player.getState())).toBeNull();
+    });
+
+    it('stays as it is where the server cannot encode', async () => {
+      vi.mocked(fetch).mockImplementation(() => Promise.resolve(new Response('{}', { status: 501 })));
+      player.setQuality('light');
+      player.playAlbum(album, three, 0);
+      await settle();
+      expect(created.find(audio => audio !== playingAudio())!.src).toContain('/stream/s2');
     });
   });
 });

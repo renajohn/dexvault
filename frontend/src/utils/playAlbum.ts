@@ -1,7 +1,8 @@
-import musicService, { type RipTracks } from '../services/musicService';
+import musicService, { type RipTrackFile, type RipTracks } from '../services/musicService';
 import { player, reportOutputError, type PlayerAlbum, type PlayOptions, type PlayerTrack } from '../services/player';
 import outputs, { type OutputError } from '../services/outputs';
 import { ripFileFor } from './trackDetail';
+import { formatName, isLossless } from './albumHead';
 import { isMixtape, mixtapeArtists } from './mixtape';
 
 interface AlbumLike {
@@ -23,6 +24,10 @@ export const playerAlbumOf = (album: AlbumLike, rip?: RipTracks | null): PlayerA
   cover: musicService.getImageUrl(album.cover),
 });
 
+/** What a file of the rip is, for the player to say what it plays: lossless, or its format. */
+const fileFormat = (file: RipTrackFile): Pick<PlayerTrack, 'lossless' | 'format'> =>
+  (file.suffix ? { lossless: isLossless(file), format: formatName(file) } : {});
+
 /**
  * The CD's tracks that have a file in the rip, in the CD's order, with its
  * titles. An album DexVault knows no tracks of (a wish, say, whose files
@@ -35,12 +40,12 @@ export const playerTracksOf = (album: AlbumLike, rip: RipTracks | null | undefin
     return rip.tracks
       .filter(file => file.id)
       .sort((a, b) => a.discNumber - b.discNumber || a.track - b.track)
-      .map(file => ({ songId: file.id!, title: file.title, disc: file.discNumber, no: file.track, durationSec: file.durationSec ?? null, starred: file.starred }));
+      .map(file => ({ songId: file.id!, title: file.title, disc: file.discNumber, no: file.track, durationSec: file.durationSec ?? null, starred: file.starred, ...fileFormat(file) }));
   }
   return (album.discs || []).flatMap(disc => disc.tracks.flatMap(track => {
     const file = ripFileFor(rip.tracks, disc.number, Number(track.no));
     return file?.id
-      ? [{ songId: file.id, title: track.title, disc: disc.number, no: Number(track.no), durationSec: file.durationSec ?? track.durationSec ?? null, starred: file.starred }]
+      ? [{ songId: file.id, title: track.title, disc: disc.number, no: Number(track.no), durationSec: file.durationSec ?? track.durationSec ?? null, starred: file.starred, ...fileFormat(file) }]
       : [];
   }));
 };

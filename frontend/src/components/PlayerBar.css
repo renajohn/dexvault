@@ -258,6 +258,23 @@
   outline: none;
 }
 
+/* What is heard, after the length: Lossless, AAC 256. */
+.player-bar-time--length {
+  position: relative;
+}
+
+.player-bar-format {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6875rem;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+  color: #9aa4b2;
+  white-space: nowrap;
+}
+
 .player-bar-time {
   min-width: 34px;
   font-size: 0.75rem;
@@ -430,6 +447,7 @@
   }
 
   .player-bar-time,
+  .player-bar-format,
   .player-bar-ahead,
   .player-bar-previous,
   .player-bar-rule {

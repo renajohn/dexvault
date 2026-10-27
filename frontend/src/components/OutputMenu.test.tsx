@@ -70,6 +70,20 @@ describe('OutputMenu', () => {
     expect(screen.queryByRole('slider', { name: 'Volume' })).toBeNull();
   });
 
+  it('chooses how this browser plays the files, an appliance always lossless with no such choice', () => {
+    render(<OutputMenu />);
+    open();
+    expect(screen.getByRole('menuitemradio', { name: /^Auto/ })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /AAC 256/ }));
+    expect(player.getState().quality).toBe('light');
+
+    open();
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Salon/ }));
+    open();
+    expect(screen.queryByRole('menuitemradio', { name: /AAC 256/ })).toBeNull();
+    expect(screen.queryByRole('menuitemradio', { name: /Lossless/ })).toBeNull();
+  });
+
   it('plays on an appliance once chosen: the ✓ there, its volume under it', () => {
     render(<OutputMenu />);
     open();

@@ -16,9 +16,9 @@ export const playingTime = (seconds: number): string => {
 
 /** The backend's rule: a rip is lossless when every file is. An .m4a is ALAC when Navidrome reports a bit depth. */
 const LOSSLESS = new Set(['flac', 'alac', 'wav', 'aif', 'aiff', 'ape', 'wv']);
-const isLossless = (file: RipTrackFile): boolean =>
+export const isLossless = (file: RipTrackFile): boolean =>
   LOSSLESS.has(file.suffix) || (file.suffix === 'm4a' && Boolean(file.bitDepth));
-const formatName = (file: RipTrackFile): string =>
+export const formatName = (file: RipTrackFile): string =>
   (file.suffix === 'm4a' ? (file.bitDepth ? 'alac' : 'aac') : file.suffix).toUpperCase();
 
 export interface RipSummary {

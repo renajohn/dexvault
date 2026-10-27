@@ -46,6 +46,8 @@ const tracksOf = (value: unknown): PlayerTrack[] | null => {
       ...(track.cover !== undefined ? { cover: optionalText(track.cover, 500) } : {}),
       ...(track.place != null ? { place: count(track.place) } : {}),
       ...(track.suffix != null ? { suffix: text(track.suffix, 8).toLowerCase() } : {}),
+      ...(track.lossless != null ? { lossless: Boolean(track.lossless) } : {}),
+      ...(track.format != null ? { format: text(track.format, 12) } : {}),
     });
   }
   return tracks;

@@ -4,7 +4,7 @@ import Menu, { type MenuTriggerProps } from './shared/Menu';
 import { IconButton } from './shared/Button';
 import OutputSettings from './OutputSettings';
 import outputs, { outputHint, useOutputs, type Output } from '../services/outputs';
-import { localOutputName, player, reportOutputError, sameOutput, usePlayer, type PlayerOutput } from '../services/player';
+import { localOutputName, player, reportOutputError, sameOutput, usePlayer, type PlayerOutput, type PlayerQuality } from '../services/player';
 import './OutputMenu.css';
 
 /** The slider sends the volume at most this often while it is dragged, and once more where it is let go. */
@@ -125,6 +125,35 @@ export const OutputVolume: React.FC<{ output: Output; slim?: boolean }> = ({ out
   );
 };
 
+const QUALITIES: Array<{ value: PlayerQuality; label: string }> = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'lossless', label: 'Lossless' },
+  { value: 'light', label: 'AAC 256 kbps' },
+];
+
+/**
+ * How this browser plays the files: Auto (lossless while the network keeps
+ * up, AAC 256 once it does not), always lossless, always AAC 256. This
+ * browser's alone: the appliances always play the file as it is.
+ */
+export const QualityEntries: React.FC = () => {
+  const quality = usePlayer(state => state.quality);
+  const light = usePlayer(state => state.output.kind === 'local' && state.album !== null && state.light);
+  return (
+    <>
+      <Menu.Separator />
+      <Menu.Section title="Quality" />
+      {QUALITIES.map(one => (
+        <Menu.Choice key={one.value} value={one.value} selected={quality === one.value}
+          hint={one.value === 'auto' && quality === 'auto' && light ? 'AAC now' : undefined}
+          onSelect={() => player.setQuality(one.value)}>
+          {one.label}
+        </Menu.Choice>
+      ))}
+    </>
+  );
+};
+
 /**
  * The outputs as entries of a menu: this browser and the appliances, the one
  * it plays on with the ✓; under them an appliance's volume and its settings.
@@ -151,6 +180,7 @@ export const OutputEntries: React.FC<{ onSettings: (output: Output) => void; vol
           </Menu.Choice>
         );
       })}
+      {output.kind === 'local' && <QualityEntries />}
       {current && (
         <>
           <Menu.Separator />
