@@ -17,17 +17,19 @@ export interface ShownAlbum {
  * What a phone's player shares with the page: whether a record's card takes
  * the whole page, the player's pill then giving way to a disc at its foot;
  * whether the full screen player is open, which the pill and that disc both
- * open; and the album a cover opened in it, at rest, while another plays or
- * nothing does.
+ * open; the album a cover opened in it, at rest, while another plays or
+ * nothing does; and the one left for what plays, to go back to.
  */
 interface PhoneDoorState {
   /** How many full-page music windows are open. */
   covered: number;
   full: boolean;
   shown: ShownAlbum | null;
+  /** The album at rest left for what plays by its disc: a disc in the same place goes back to it. */
+  left: ShownAlbum | null;
 }
 
-let state: PhoneDoorState = { covered: 0, full: false, shown: null };
+let state: PhoneDoorState = { covered: 0, full: false, shown: null, left: null };
 const listeners = new Set<() => void>();
 
 const set = (changes: Partial<PhoneDoorState>) => {
@@ -40,19 +42,25 @@ const subscribe = (listener: () => void) => {
   return () => { listeners.delete(listener); };
 };
 
-/** The full screen player opened (true) or back to the pill or the disc (false), the album shown at rest let go. */
+/** The full screen player opened (true) or back to the pill or the disc (false), the album shown at rest, or left, let go. */
 export const setFullPlayer = (full: boolean) => {
-  if (state.full !== full || (!full && state.shown)) set(full ? { full } : { full, shown: null });
+  if (state.full !== full || (!full && (state.shown || state.left))) set(full ? { full } : { full, shown: null, left: null });
 };
 
 /** A cover touched on a phone: the full screen player, on that album (at rest, unless it is the one playing). */
-export const showAlbum = (album: ShownAlbum) => set({ full: true, shown: album });
+export const showAlbum = (album: ShownAlbum) => set({ full: true, shown: album, left: null });
 
-/** Back to what plays, the full screen staying open: the disc of what plays touched. */
-export const showPlaying = () => { if (state.shown) set({ shown: null }); };
+/** Back to what plays, the full screen staying open: the album shown played. */
+export const showPlaying = () => { if (state.shown || state.left) set({ shown: null, left: null }); };
+
+/** The disc of what plays touched: back to what plays, the album at rest kept to go back to (`useLeftAlbum`). */
+export const leaveForPlaying = () => { if (state.shown) set({ shown: null, left: state.shown }); };
 
 /** The album a cover opened in the full screen player, at rest; null for what plays. */
 export const useShownAlbum = (): ShownAlbum | null => useSyncExternalStore(subscribe, () => state.shown);
+
+/** The album at rest left for what plays, the full screen still open; null when there is none. */
+export const useLeftAlbum = (): ShownAlbum | null => useSyncExternalStore(subscribe, () => state.left);
 
 /** Whether the full screen player is open. */
 export const useFullPlayer = (): boolean => useSyncExternalStore(subscribe, () => state.full);
@@ -70,4 +78,4 @@ export const useCoversPlayer = (active = true) => {
 };
 
 /** For tests: nothing covered, the full screen closed. */
-export const resetPhoneDoor = () => set({ covered: 0, full: false, shown: null });
+export const resetPhoneDoor = () => set({ covered: 0, full: false, shown: null, left: null });

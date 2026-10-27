@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import PlayerBar from './PlayerBar';
 import outputs, { resetOutputs, takeState, type OutputState } from '../services/outputs';
 import { player, resetPlayer } from '../services/player';
-import { resetPhoneDoor, showAlbum, useFullPlayer } from '../services/phoneDoor';
+import { resetPhoneDoor, setFullPlayer, showAlbum, useFullPlayer } from '../services/phoneDoor';
 
 const shown = { id: 12, title: 'Kind of Blue', artist: 'Miles Davis', cover: null, format: 'CD', releaseYear: 1959, titleStatus: 'owned', fileQuality: 'lossless' };
 const rip = {
@@ -114,6 +114,25 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     expect(screen.getByTestId('full')).toHaveTextContent('false');
     // Closed, the full screen is out of reach (inert), and stands for what plays again.
     expect(document.querySelector('.now-playing')).toHaveAttribute('aria-label', 'Now playing');
+  });
+
+  it('back on what plays, the album left takes the disc’s place at the left of the foot, to go back to it', async () => {
+    await playOther();
+    page();
+    act(() => { showAlbum(shown); });
+    await within(fullScreen('Kind of Blue')).findByText(/2 tracks/);
+    fireEvent.click(within(fullScreen('Kind of Blue')).getByRole('button', { name: /Now playing:/ }));
+
+    const back = within(fullScreen('Now playing')).getByRole('button', { name: 'Back to Kind of Blue' });
+    expect(back.closest('.now-playing-foot')).not.toBeNull();
+    fireEvent.click(back);
+    expect(await within(fullScreen('Kind of Blue')).findByText(/2 tracks/)).toBeInTheDocument();
+
+    // And back again; closed, the album left is let go.
+    fireEvent.click(within(fullScreen('Kind of Blue')).getByRole('button', { name: /Now playing:/ }));
+    fireEvent.click(within(fullScreen('Now playing')).getByRole('button', { name: 'Back to the pill' }));
+    act(() => { setFullPlayer(true); });
+    expect(within(fullScreen('Now playing')).queryByRole('button', { name: 'Back to Kind of Blue' })).not.toBeInTheDocument();
   });
 
   it('the album playing, its cover opens the full screen on it, playing', async () => {

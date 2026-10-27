@@ -85,4 +85,21 @@ const NowPlayingDisc: React.FC<NowPlayingDiscProps> = ({ exceptAlbumId = null, w
   );
 };
 
+/**
+ * The album at rest left for what plays, at the left of the full screen
+ * player's foot where the disc of what plays was: the same disc, its ring
+ * empty and no bars, nothing of it playing. A tap goes back to it.
+ */
+export const LeftAlbumDisc: React.FC<{ title: string; artist: string; cover: string | null; onOpen: () => void; className?: string }> = ({ title, artist, cover, onOpen, className }) => (
+  <button type="button" className={`now-playing-disc now-playing-disc--paused${className ? ` ${className}` : ''}`}
+    aria-label={`Back to ${title}`} title={artist ? `${title} · ${artist}` : title} onClick={onOpen}>
+    <span className="now-playing-disc__disc">
+      <svg className="now-playing-disc__ring" viewBox="0 0 40 40" aria-hidden="true">
+        <circle className="now-playing-disc__groove" cx="20" cy="20" r={RADIUS} />
+      </svg>
+      {cover ? <img src={cover} alt="" /> : <span className="now-playing-disc__nocover" aria-hidden="true"><BsDisc /></span>}
+    </span>
+  </button>
+);
+
 export default NowPlayingDisc;

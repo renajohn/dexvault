@@ -103,7 +103,7 @@ export interface PhonePlayerProps {
    * alone, its own entries in ⋯.
    */
   rest?: { albumId: number | string; line: string; menu: React.ReactNode } | null;
-  /** At the left of the foot: the disc of what plays, the album shown being another. */
+  /** At the left of the foot: the disc of what plays, the album shown being another; or, back on what plays, the album left. */
   door?: React.ReactNode;
 }
 
@@ -270,7 +270,8 @@ type View = 'cover' | 'lyrics' | 'guide' | 'tracks';
  * down or Escape make it a pill again. A cover touched in MusicDex opens it
  * on that album, at rest while another plays or nothing does (`rest`): ▶
  * plays it, a track from its tracks, and the disc of what plays, at the
- * left of the foot, goes back to it.
+ * left of the foot, goes back to it, the album left taking its place there
+ * to come back to.
  */
 const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const { cover, playing, position, length, hasNext, controls, favourite, away = false, taken = null } = props;

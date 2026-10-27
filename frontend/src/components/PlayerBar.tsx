@@ -11,9 +11,9 @@ import Menu, { MenuChevron } from './shared/Menu';
 import PlayerTracks from './PlayerTracks';
 import OutputMenu, { OutputEntries } from './OutputMenu';
 import OutputSettings from './OutputSettings';
-import { setFullPlayer, showPlaying, useCovered, useShownAlbum } from '../services/phoneDoor';
+import { leaveForPlaying, setFullPlayer, showAlbum, showPlaying, useCovered, useLeftAlbum, useShownAlbum } from '../services/phoneDoor';
 import PhonePlayer from './PhonePlayer';
-import NowPlayingDisc from './NowPlayingDisc';
+import NowPlayingDisc, { LeftAlbumDisc } from './NowPlayingDisc';
 import { useAlbumAtRest } from './useAlbumAtRest';
 import { useMedia } from '../utils/useNarrow';
 import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
@@ -141,6 +141,9 @@ const PlayerBar: React.FC = () => {
   const restAlbum = phone && shownAlbum && !shownPlaying ? shownAlbum : null;
   // Played from there (or the one playing touched): the full screen shows it playing, and stays so as Listen Next goes on.
   useEffect(() => { if (shownPlaying) showPlaying(); }, [shownPlaying]);
+  // The album at rest left for what plays by its disc: a disc in the same place goes back to it, unless it plays now.
+  const leftAlbum = useLeftAlbum();
+  const backTo = phone && leftAlbum && !(album?.id != null && Number(leftAlbum.id) === album.id) ? leftAlbum : null;
   // A CD with nothing to play: its card, which says why.
   const atRest = useAlbumAtRest(restAlbum, albumId => { setFullPlayer(false); navigate(`/musicdex?album=${albumId}`); });
   // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
@@ -201,7 +204,7 @@ const PlayerBar: React.FC = () => {
           guideOf={Number(restAlbum.id)} tracks={atRest.tracks} index={-1} from=""
           onOpen={() => navigate(`/musicdex?album=${restAlbum.id}`)}
           rest={{ albumId: restAlbum.id, line: atRest.line, menu: atRest.menu }}
-          door={out ? <NowPlayingDisc exceptAlbumId={restAlbum.id} onOpen={showPlaying} className="now-playing-door" /> : null}
+          door={out ? <NowPlayingDisc exceptAlbumId={restAlbum.id} onOpen={leaveForPlaying} className="now-playing-door" /> : null}
           out />
       ) : last.current && (() => {
         const { album, track } = last.current;
@@ -232,6 +235,10 @@ const PlayerBar: React.FC = () => {
               left={left > 0 ? `${leftText(left)} left of ${fromListenNext ? 'Listen Next' : album.title}` : null}
               from={fromListenNext ? 'Listen Next' : album.title} onOpen={open} format={format}
               onOpenMixtape={track.artist != null && album.id != null ? { title: album.title, open: () => navigate(`/musicdex?album=${album.id}`) } : null}
+              door={backTo ? (
+                <LeftAlbumDisc title={backTo.title} artist={Array.isArray(backTo.artist) ? backTo.artist.join(', ') : backTo.artist || ''}
+                  cover={musicService.getImageUrl(backTo.cover)} onOpen={() => showAlbum(backTo)} className="now-playing-door" />
+              ) : null}
               out={out} />
           );
         }
