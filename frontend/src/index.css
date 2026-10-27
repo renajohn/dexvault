@@ -1,3 +1,13 @@
+/* A double tap zooms nothing: ⏭ touched quickly zoomed the iPhone's page, and the
+   full screen player, refusing a finger's moves, let no pinch take it back. A pinch
+   still zooms where the page lets it. */
+html,
+button,
+a,
+[role='button'] {
+  touch-action: manipulation;
+}
+
 html {
   background-color: #1a1a1a;
 }
