@@ -40,6 +40,7 @@ import { confirm } from './shared/ConfirmDialog';
 import { showAlbum, useCoversPlayer } from '../services/phoneDoor';
 import NowPlayingDisc, { useNowPlayingDoor } from './NowPlayingDisc';
 import { useMedia } from '../utils/useNarrow';
+import { useLongPress } from '../utils/useLongPress';
 import { useMixtapes } from '../utils/mixtapeStore';
 import { BsCassetteFill, BsXLg, BsLaptop, BsImage } from 'react-icons/bs';
 import remote, { useRemotePlayers, type RemotePlayer } from '../services/remote';
@@ -219,6 +220,37 @@ const TrackFavourite: React.FC<{ songId: string; title: string }> = ({ songId, t
       onClick={toggle} onKeyDown={event => event.stopPropagation()}>
       {favourite ? <BsHeartFill aria-hidden="true" /> : <BsHeart aria-hidden="true" />}
     </IconButton>
+  );
+};
+
+/** What a track's line takes to open its menu under a long press: spread on the line. */
+type TrackHoldProps = ReturnType<typeof useLongPress> & { ref?: React.Ref<HTMLDivElement>; 'data-held'?: boolean };
+
+/**
+ * On a phone, half a second's press on a track opens its menu, as in the
+ * player's tracks: its ♥, Play from here, its mixtapes. The line's touch still
+ * opens it (docs/superpowers/specs/2026-10-27-fav-et-populaire).
+ */
+const TrackHold: React.FC<{ songId: string | null; title: string; play?: (() => void) | null; children: (hold: TrackHoldProps) => React.ReactElement }> = ({ songId, title, play, children }) => {
+  const favourite = useFavourite(songId);
+  const [menu, setMenu] = useState(false);
+  const [naming, setNaming] = useState(false);
+  const press = useLongPress(songId ? () => setMenu(true) : null);
+  if (!songId) return children({});
+  return (
+    <>
+      <Menu open={menu} onOpenChange={setMenu} label={title}
+        trigger={props => children({ ...press, ref: props.ref as unknown as React.Ref<HTMLDivElement>, 'data-held': menu })}>
+        <Menu.Item icon={favourite ? <BsHeart /> : <BsHeartFill />}
+          onSelect={() => setFavourite(songId, !favourite).catch(error => toast(`Could not change the favourite: ${(error as Error).message}`, { tone: 'danger' }))}>
+          {favourite ? 'Remove from the favourites' : 'Add to the favourites'}
+        </Menu.Item>
+        {play && <Menu.Item icon={<BsPlayFill />} onSelect={play}>Play from here</Menu.Item>}
+        <Menu.Separator />
+        <MixtapeEntries songIds={[songId]} title={title} onNew={() => setNaming(true)} />
+      </Menu>
+      {naming && <NewMixtapeDialog songIds={[songId]} title={title} onClose={() => setNaming(false)} />}
+    </>
   );
 };
 
@@ -1098,6 +1130,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                 // The buttons inside the row act on their own, not as a click on the row.
                 const own = (event: React.SyntheticEvent) => event.stopPropagation();
                 const work = works[trackIndex];
+                const heard = digitalTracks.get(`${disc.number}-${track.no}`);
                 return (
                 <React.Fragment key={trackIndex}>
                 {work?.first && (
@@ -1106,7 +1139,10 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                     {workCredits.get(trackIndex)?.common && <span className="track-work-by"> · {workCredits.get(trackIndex)!.common}</span>}
                   </div>
                 )}
-                <div
+                <TrackHold songId={phone ? (heard?.id || file?.id || null) : null} title={track.title}
+                  play={ownPlay ? () => playFrom(disc.number, Number(track.no)) : null}>
+                {hold => (
+                <div {...hold}
                   className={`track-item track-selectable${open ? ' track-selected' : ''}${work ? ' track-in-work' : ''}${current ? ' track-current' : ''}`}
                   role="button"
                   tabIndex={0}
@@ -1179,13 +1215,14 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                     })()}
                   </span>
                   {(() => {
-                    const heard = digitalTracks.get(`${disc.number}-${track.no}`);
+                    // The ♥ of the song in Navidrome, from the listens read or else from the rip.
+                    const songId = heard?.id || file?.id;
                     // Every play ever, under the pointer and on the open track; a lighter grey when heard in the last 90 days.
-                    return heard && (heard.id || heard.rating > 0 || heard.totalPlays > 0) && (
+                    return (songId || (heard && (heard.rating > 0 || heard.totalPlays > 0))) && (
                       <span className="track-digital">
-                        {heard.rating > 0 && <span title="Your stars, from Navidrome"><BsStarFill aria-hidden="true" /> {heard.rating}</span>}
-                        {heard.id && <TrackFavourite songId={heard.id} title={track.title} />}
-                        {heard.totalPlays > 0 && (
+                        {heard && heard.rating > 0 && <span title="Your stars, from Navidrome"><BsStarFill aria-hidden="true" /> {heard.rating}</span>}
+                        {songId && <TrackFavourite songId={songId} title={track.title} />}
+                        {heard && heard.totalPlays > 0 && (
                           <span className={`track-plays${heard.plays > 0 ? ' track-plays-lately' : ''}`} title={playsText(heard)}>
                             ×{heard.totalPlays}
                           </span>
@@ -1200,6 +1237,8 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                     </span>
                   )}
                 </div>
+                )}
+                </TrackHold>
                 {open && (
                   <TrackDetails
                     id={`track-details-${key}`}
@@ -1208,7 +1247,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                     albumArtists={Array.isArray(cd.artist) ? cd.artist : [cd.artist]}
                     rip={rip}
                     ripError={ripError}
-                    heard={digitalTracks.get(`${disc.number}-${track.no}`)}
+                    heard={heard}
                     view={words ? trackView : 'credits'}
                     onSearch={onSearch ? predicate => { onSearch(predicate); onClose(); } : undefined}
                   />

@@ -41,6 +41,7 @@ const tracksOf = (value: unknown): PlayerTrack[] | null => {
       songId, title: text(track.title, 300), disc: count(track.disc) || 1, no: count(track.no),
       durationSec: track.durationSec == null ? null : seconds(track.durationSec),
       ...(track.starred != null ? { starred: Boolean(track.starred) } : {}),
+      ...(track.popular ? { popular: true } : {}),
       ...(track.artist != null ? { artist: text(track.artist, 300) } : {}),
       ...(track.albumId !== undefined ? { albumId: Number(track.albumId) || null } : {}),
       ...(track.cover !== undefined ? { cover: optionalText(track.cover, 500) } : {}),

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PhonePlayer from './PhonePlayer';
 import musicService from '../services/musicService';
@@ -6,7 +6,7 @@ import musicService from '../services/musicService';
 const mocks = vi.hoisted(() => ({ state: {} as Record<string, unknown> }));
 
 vi.mock('../services/musicService', () => ({
-  default: { getLyrics: vi.fn(), getAlbumGuide: vi.fn(async () => null), fixLyricsTiming: vi.fn(), resetLyricsTiming: vi.fn(), getLyricsVersions: vi.fn(async () => ({ durationSec: 229, versions: [] })) },
+  default: { getMixtapes: vi.fn(async () => []), getLyrics: vi.fn(), getAlbumGuide: vi.fn(async () => null), fixLyricsTiming: vi.fn(), resetLyricsTiming: vi.fn(), getLyricsVersions: vi.fn(async () => ({ durationSec: 229, versions: [] })) },
 }));
 vi.mock('../services/player', () => ({
   usePlayer: (select: (state: Record<string, unknown>) => unknown) => select(mocks.state),
@@ -87,5 +87,47 @@ describe('PhonePlayer, fixing the words’ timing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Lyrics options' }));
     fireEvent.click(await screen.findByText('Find another version…'));
     expect(await screen.findByText('LRCLIB has no other version of this track.')).toBeInTheDocument();
+  });
+});
+
+describe('PhonePlayer, its tracks’ hearts and dots', () => {
+  const tracks = [
+    { title: 'Rolling in the Deep', durationSec: 229, songId: 's1', popular: true },
+    { title: 'Rumour Has It', durationSec: 223, songId: 's2', starred: true },
+  ];
+  const toTracks = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Full screen player' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tracks' }));
+  };
+
+  it('shows the grey dot of a track most listened to and the ♥ of a favourite', () => {
+    render(phone({ tracks, index: 0, controls: { toggle: vi.fn(), next: vi.fn(), previous: vi.fn(), playTrack: vi.fn() } }));
+    toTracks();
+
+    const [first, second] = screen.getAllByRole('button', { name: /Rolling in the Deep|Rumour Has It/ });
+    expect(first).toHaveTextContent('Popular:');
+    expect(within(first).queryByLabelText('Favourite')).not.toBeInTheDocument();
+    expect(within(second).getByLabelText('Favourite')).toBeInTheDocument();
+  });
+
+  it('opens a track’s menu under a long press, and its click plays nothing', () => {
+    vi.useFakeTimers();
+    try {
+      const playTrack = vi.fn();
+      render(phone({ tracks, index: 0, controls: { toggle: vi.fn(), next: vi.fn(), previous: vi.fn(), playTrack } }));
+      toTracks();
+      const line = screen.getByRole('button', { name: /Rolling in the Deep/ });
+
+      fireEvent.pointerDown(line, { pointerType: 'touch', clientX: 10, clientY: 10 });
+      act(() => { vi.advanceTimersByTime(500); });
+      fireEvent.pointerUp(line);
+      fireEvent.click(line);
+
+      expect(playTrack).not.toHaveBeenCalled();
+      expect(screen.getByRole('menuitem', { name: /Add to the favourites/ })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: /Play from here/ })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

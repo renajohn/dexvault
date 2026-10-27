@@ -18,6 +18,9 @@ import { LyricsMenu, TimingDrawer, TryBar } from './LyricsTiming';
 import { useLyricsTiming } from './useLyricsTiming';
 import { GuideText, readingOf } from './AlbumGuide';
 import { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
+import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
+import { useLongPress } from '../utils/useLongPress';
+import toast from './shared/Toast';
 import './PhonePlayer.css';
 
 const time = (seconds: number): string => {
@@ -77,8 +80,8 @@ export interface PhonePlayerProps {
   timingSongId?: string | null;
   /** The album whose listening guide can be read, for an album DexVault holds. */
   guideOf?: number | null;
-  /** The album's tracks, the one playing at `index`. */
-  tracks?: { title: string; durationSec: number | null }[];
+  /** The album's tracks, the one playing at `index`; a song of Navidrome's has its ♥ and a menu under a long press. */
+  tracks?: PhoneTrack[];
   index?: number;
   onOpen?: (() => void) | null;
   onOpenMixtape?: { title: string; open: () => void } | null;
@@ -207,6 +210,54 @@ const Lyrics: React.FC<{ lyrics: TrackLyrics | null | undefined; lines: LyricLin
   );
 };
 
+/** A line of the player's tracks: its song in Navidrome, hearted there when read, one of the album's most listened. */
+export interface PhoneTrack {
+  title: string;
+  durationSec: number | null;
+  songId?: string;
+  starred?: boolean;
+  popular?: boolean;
+}
+
+/**
+ * A line of the player's tracks: a touch plays it; the grey dot of the Mac
+ * before the number of a track most listened to, a small gold ♥ by its length
+ * when it is a favourite. Half a second's press opens its menu: the ♥, Play
+ * from here, the mixtapes (docs/superpowers/specs/2026-10-27-fav-et-populaire).
+ */
+const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing: boolean; play?: () => void; onNewMixtape: () => void }> = ({ track, no, now, playing, play, onNewMixtape }) => {
+  const favourite = useFavourite(track.songId);
+  const [menu, setMenu] = useState(false);
+  const songId = track.songId;
+  const press = useLongPress(songId ? () => setMenu(true) : null);
+  const toggleFavourite = () => {
+    if (songId) setFavourite(songId, !favourite).catch(error => toast(`Could not change the favourite: ${(error as Error).message}`, { tone: 'danger' }));
+  };
+  const line = (props?: React.ComponentProps<'button'>) => (
+    <button type="button" {...props} {...press} className={`now-playing-tracks__track${now ? ' now-playing-tracks__track--now' : ''}${menu ? ' now-playing-tracks__track--held' : ''}`}
+      disabled={!play} onClick={play} aria-current={now ? 'true' : undefined}>
+      <span className="now-playing-tracks__no">
+        {track.popular && <span className="now-playing-tracks__popular" title="One of the album's most listened tracks"><span className="visually-hidden">Popular: </span></span>}
+        {now ? <NowPlayingBars playing={playing} /> : no}
+      </span>
+      <span className="now-playing-tracks__title">{track.title}</span>
+      {favourite && <BsHeartFill className="now-playing-tracks__favourite" aria-label="Favourite" />}
+      <span className="now-playing-tracks__time">{track.durationSec ? time(track.durationSec) : ''}</span>
+    </button>
+  );
+  if (!songId) return line();
+  return (
+    <Menu open={menu} onOpenChange={setMenu} label={track.title} trigger={props => line(props as unknown as React.ComponentProps<'button'>)}>
+      <Menu.Item icon={favourite ? <BsHeart /> : <BsHeartFill />} onSelect={toggleFavourite}>
+        {favourite ? 'Remove from the favourites' : 'Add to the favourites'}
+      </Menu.Item>
+      {play && <Menu.Item icon={<BsPlayFill />} onSelect={play}>Play from here</Menu.Item>}
+      <Menu.Separator />
+      <MixtapeEntries songIds={[songId]} title={track.title} onNew={onNewMixtape} />
+    </Menu>
+  );
+};
+
 type View = 'cover' | 'lyrics' | 'guide' | 'tracks';
 
 /**
@@ -241,6 +292,8 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const renderer = outputs.find(one => one.id === props.outputId) ?? null;
   const hasLyrics = Boolean(props.lyricsOf);
   const hasTracks = Boolean(props.tracks && props.tracks.length > 0);
+  // What Navidrome said of the tracks' hearts as they were read, unless a heart is known better already.
+  useEffect(() => { props.tracks?.forEach(track => seedFavourite(track.songId, track.starred, true)); }, [props.tracks]);
   // The album's listening guide, read as the album starts: its button shows only when there is one.
   const [guide, setGuide] = useState<string | null>(null);
   // The words of the track, read as they are shown; fixing their timing works on them in place of the controls.
@@ -421,12 +474,9 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
       <ol>
         {props.tracks!.map((one, i) => (
           <li key={i}>
-            <button type="button" className={`now-playing-tracks__track${i === props.index ? ' now-playing-tracks__track--now' : ''}`}
-              disabled={!controls.playTrack} onClick={() => controls.playTrack?.(i)} aria-current={i === props.index ? 'true' : undefined}>
-              <span className="now-playing-tracks__no">{i === props.index ? <NowPlayingBars playing={playing} /> : i + 1}</span>
-              <span className="now-playing-tracks__title">{one.title}</span>
-              <span className="now-playing-tracks__time">{one.durationSec ? time(one.durationSec) : ''}</span>
-            </button>
+            <TrackLine track={one} no={i + 1} now={i === props.index} playing={playing}
+              play={controls.playTrack ? () => controls.playTrack!(i) : undefined}
+              onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })} />
           </li>
         ))}
       </ol>

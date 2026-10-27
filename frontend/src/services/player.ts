@@ -14,6 +14,8 @@ export interface PlayerTrack {
   durationSec: number | null;
   /** Hearted in Navidrome when the album was started: the bar's ♥ until it knows better. */
   starred?: boolean;
+  /** One of the album's most listened tracks: the grey dot of its line in the player's tracks. */
+  popular?: boolean;
   /**
    * A song of a mixtape: its own artist, the CD or digital album of DexVault it
    * comes from, and that album's cover, which the bar shows while it plays.

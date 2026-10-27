@@ -18,6 +18,8 @@ export interface PlayerTrack {
   no: number;
   durationSec: number | null;
   starred?: boolean;
+  /** One of the album's most listened tracks (ListenBrainz): the grey dot of its line. */
+  popular?: boolean;
   /** A song of a mixtape: its own artist, the album of DexVault it comes from and that album's cover. */
   artist?: string;
   albumId?: number | null;
@@ -54,7 +56,7 @@ interface AlbumLike {
   title: string;
   artist?: string | string[];
   cover?: string | null;
-  discs?: Array<{ number: number; tracks: Array<{ no?: number | string; title: string; durationSec?: number | null }> }>;
+  discs?: Array<{ number: number; tracks: Array<{ no?: number | string; title: string; durationSec?: number | null; popular?: boolean }> }>;
 }
 
 interface RipTracks {
@@ -108,7 +110,7 @@ export const playerTracksOf = (album: AlbumLike, rip: RipTracks | null | undefin
   return (album.discs || []).flatMap(disc => disc.tracks.flatMap(track => {
     const file = ripFileFor(rip.tracks, disc.number, Number(track.no));
     return file?.id
-      ? [{ songId: file.id, title: track.title, disc: disc.number, no: Number(track.no), durationSec: file.durationSec ?? track.durationSec ?? null, starred: file.starred, suffix: file.suffix }]
+      ? [{ songId: file.id, title: track.title, disc: disc.number, no: Number(track.no), durationSec: file.durationSec ?? track.durationSec ?? null, starred: file.starred, suffix: file.suffix, ...(track.popular ? { popular: true } : {}) }]
       : [];
   }));
 };

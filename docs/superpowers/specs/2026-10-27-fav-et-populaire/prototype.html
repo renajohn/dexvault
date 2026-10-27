@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DexVault — ♥ et pistes populaires sur l'iPhone (prototype)</title>
+<style>
+  :root {
+    --dv-gold: #fbbf24; --dv-gold-ink: #111; --dv-gold-tint: rgba(251,191,36,.14);
+    --dv-silver: #d9d6cf; --dv-danger: #f87171;
+    --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-page: #1a1a1a; --dv-glass: rgba(255,255,255,.06); --dv-glass-hover: rgba(255,255,255,.11);
+    --dv-edge: rgba(255,255,255,.12); --dv-veil: rgba(255,255,255,.08);
+    --dv-surface: rgba(30,30,30,.9); --dv-surface-edge: rgba(255,255,255,.1); --dv-surface-shadow: 0 16px 40px rgba(0,0,0,.55);
+    --dv-radius-sm: 7px; --dv-radius-md: 9px; --dv-radius-lg: 12px;
+    --safe-top: 54px; --safe-foot: 34px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button { font: inherit; }
+  body { margin: 0; background: #0e0e0e; color: var(--dv-text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 393px 1fr; gap: 36px; align-items: start; }
+  .note { color: var(--dv-text-muted); position: sticky; top: 20px; }
+  .note h1 { color: var(--dv-text); font-size: 20px; margin: 0 0 6px; }
+  .note h2 { color: var(--dv-text); font-size: 15px; margin: 18px 0 6px; }
+  .note ul { padding-left: 18px; margin: 6px 0; } .note li { margin: 3px 0; }
+  .note b { color: var(--dv-text); }
+  .note .scen { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: var(--dv-radius-md); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); margin: 8px 0; }
+  .note .scen button { all: unset; cursor: pointer; padding: 6px 11px; border-radius: var(--dv-radius-sm); font-weight: 600; font-size: 13px; color: var(--dv-text-muted); }
+  .note .scen button:hover { background: var(--dv-veil); }
+  .note .scen button.on { background: var(--dv-glass-hover); color: var(--dv-text); }
+  .pro { color: #cfd8c9; } .con { color: #f0b37e; }
+  .variant-note { display: none; } .variant-note.on { display: block; }
+
+  /* ---------- L'iPhone : 393 × 852. ---------- */
+  .phone { position: relative; width: 393px; height: 852px; border-radius: 54px; overflow: hidden; background: var(--dv-page); box-shadow: 0 0 0 10px #232323, 0 0 0 11px #3a3a3a, 0 30px 80px rgba(0,0,0,.6); user-select: none; -webkit-user-select: none; }
+  .status { position: absolute; inset: 0 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; font-weight: 600; font-size: 16px; z-index: 40; pointer-events: none; }
+  .island { position: absolute; left: 50%; top: 11px; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 41; }
+  .home { position: absolute; left: 50%; bottom: 8px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.7); z-index: 41; pointer-events: none; }
+
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; touch-action: pan-y; }
+  .scroll::-webkit-scrollbar { display: none; }
+
+  /* ---------- Le lecteur plein écran, vue Tracks. ---------- */
+  .player { background: var(--dv-page); }
+  .bd { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .bd .grad { position: absolute; left: -20%; top: -20%; width: 140%; height: 140%; filter: blur(42px) saturate(1.3); opacity: .55; }
+  .bd::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(26,26,26,.3), rgba(26,26,26,.85) 70%); }
+  .p-inner { position: relative; display: flex; flex-direction: column; height: 100%; padding: calc(var(--safe-top) + 2px) 22px calc(var(--safe-foot) + 6px); }
+  .handle { align-self: center; width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); margin: 8px 0 12px; flex: none; }
+  .p-head { flex: none; display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+  .p-head .cv { width: 56px; height: 56px; border-radius: 8px; flex: none; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+  .p-head .w { flex: 1; min-width: 0; }
+  .p-head .t { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .p-head .s { font-size: 13px; color: var(--dv-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .round { all: unset; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.1); color: var(--dv-text); flex: none; }
+  .round svg { width: 18px; height: 18px; }
+  .round.on { color: var(--dv-gold); }
+  .p-list { margin: 8px -26px 0; padding: 0 18px 12px; }
+  .ahead { margin: 4px 8px 10px; font-size: 12.8px; color: var(--dv-text-muted); }
+  .ahead b { color: var(--dv-text); font-weight: 600; }
+
+  /* Une ligne de pistes : le contenu glisse au-dessus de l'action révélée (variante A). */
+  .row { position: relative; border-radius: var(--dv-radius-md); overflow: hidden; touch-action: pan-y; }
+  .row .under { position: absolute; inset: 0; display: flex; justify-content: flex-end; align-items: center; padding-right: 18px; background: var(--dv-gold-tint); color: var(--dv-gold); font-size: 12.5px; font-weight: 600; gap: 6px; opacity: 0; }
+  .row .under svg { width: 16px; height: 16px; }
+  .row .under.armed { background: var(--dv-gold); color: var(--dv-gold-ink); }
+  .row.swiping .under { opacity: 1; }
+  .row .over { position: relative; background: transparent; transition: transform .22s cubic-bezier(.22,.8,.3,1); }
+  .row.swiping .over { transition: none; background: #222; }
+  .ptrack { width: 100%; min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 6px 8px; color: var(--dv-text); cursor: pointer; }
+  .ptrack:active, .row.pressing .ptrack { background: var(--dv-veil); }
+  .ptrack.now { color: var(--dv-gold); }
+  .no { position: relative; flex: none; width: 22px; display: flex; justify-content: center; color: var(--dv-text-muted); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  /* Populaire : le point gris du Mac, à gauche du numéro, jamais or. */
+  .pop { position: absolute; left: -7px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: currentColor; opacity: .8; }
+  .ptrack.now .pop { color: var(--dv-text-muted); }
+  .ttl { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .time { flex: none; color: var(--dv-text-muted); font-size: 12.8px; font-variant-numeric: tabular-nums; min-width: 30px; text-align: right; }
+  /* ♥ : petit, or, contre la durée ; seul le favori se montre (A et C). */
+  .heart { flex: none; display: grid; place-items: center; color: var(--dv-gold); }
+  .heart svg { width: 12px; height: 12px; }
+  /* Variante B : un cœur toujours là, en contour pâle, une cible de 36 px. */
+  .hbtn { all: unset; cursor: pointer; flex: none; width: 34px; height: 34px; margin: -6px -8px -6px -4px; display: grid; place-items: center; color: rgba(255,255,255,.22); border-radius: 50%; }
+  .hbtn svg { width: 14px; height: 14px; }
+  .hbtn.on { color: var(--dv-gold); }
+  .hbtn:active { background: var(--dv-veil); }
+  .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 13px; }
+  .bars i { width: 3px; background: var(--dv-gold); border-radius: 1px; animation: eq .9s ease-in-out infinite alternate; }
+  .bars i:nth-child(1) { height: 60%; } .bars i:nth-child(2) { height: 100%; animation-delay: -.3s; } .bars i:nth-child(3) { height: 40%; animation-delay: -.6s; }
+  @keyframes eq { from { transform: scaleY(.35); } to { transform: scaleY(1); } transform-origin: bottom; }
+  .bars i { transform-origin: bottom; }
+
+  .seek { flex: none; margin-top: 10px; }
+  .seek .bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.18); }
+  .seek .bar i { display: block; height: 100%; width: 38%; border-radius: 2px; background: var(--dv-text); }
+  .seek .tm { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--dv-text-faint); margin-top: 5px; font-variant-numeric: tabular-nums; }
+  .ctrl { flex: none; display: flex; justify-content: center; align-items: center; gap: 42px; margin: 4px 0 6px; }
+  .ctrl button { all: unset; cursor: pointer; color: var(--dv-text); display: grid; place-items: center; }
+  .ctrl svg { width: 30px; height: 30px; } .ctrl .big svg { width: 44px; height: 44px; }
+  .foot { flex: none; display: flex; justify-content: space-around; align-items: center; padding: 6px 0 2px; }
+  .foot span { width: 48px; height: 36px; display: grid; place-items: center; color: var(--dv-text-muted); border-radius: 10px; }
+  .foot span.on { color: var(--dv-text); background: rgba(255,255,255,.12); }
+  .foot svg { width: 21px; height: 21px; }
+
+  /* ---------- La fiche du CD (la piste A du 27.10, en plein écran). ---------- */
+  .card { background: var(--dv-page); }
+  .c-inner { display: flex; flex-direction: column; height: 100%; padding: calc(var(--safe-top) + 4px) 0 0; }
+  .c-top { flex: none; display: flex; justify-content: flex-end; padding: 0 14px 6px; }
+  .c-top .x { all: unset; width: 30px; height: 30px; display: grid; place-items: center; color: var(--dv-text-muted); border-radius: 50%; background: var(--dv-glass); }
+  .c-head { display: flex; gap: 12px; height: 112px; padding: 0 16px; }
+  .c-head .cv { width: 112px; height: 112px; border-radius: 8px; flex: none; }
+  .c-head .w { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; }
+  .c-head .a { color: var(--dv-text-muted); font-size: 13px; }
+  .c-head .t { font-size: 17px; font-weight: 700; line-height: 1.2; }
+  .c-head .l { color: var(--dv-text-faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .c-head .st { color: var(--dv-gold); letter-spacing: 1px; font-size: 13px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px 0; }
+  .chips span { padding: 4px 10px; border-radius: 14px; font-size: 12.5px; color: var(--dv-text-muted); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .c-tracks { margin-top: 12px; padding: 8px 8px 20px; border-top: 1px solid rgba(255,255,255,.07); }
+  .ctrack { display: flex; align-items: center; min-height: 44px; padding: 9px 10px; cursor: pointer; }
+  .ctrack.open { background: rgba(255,255,255,.05); }
+  .ctrack .no { width: 30px; justify-content: flex-end; margin-right: 12px; color: #777; font-weight: 500; }
+  .ctrack .no .pop { left: 2px; }
+  .ctrack .ttl { color: #e0e0e0; font-size: 14.5px; }
+  .ctrack .lyr { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dv-text-faint); padding: 1px 5px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--dv-edge); margin-left: 8px; flex: none; }
+  .ctrack .heart, .ctrack .hbtn { margin-left: 8px; }
+  .ctrack .hbtn { margin: -6px -6px -6px 4px; }
+  .ctrack .time { color: #999; margin-left: 10px; }
+  .c-more { display: flex; align-items: center; gap: 6px; padding: 2px 10px 10px 52px; background: rgba(255,255,255,.05); }
+  .q { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: var(--dv-radius-sm); color: var(--dv-text-muted); font-size: 12.5px; font-weight: 500; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .q svg { width: 13px; height: 13px; }
+  .q.on { color: var(--dv-gold); }
+  .c-more .plays { margin-left: auto; color: var(--dv-text-faint); font-size: 12px; }
+  .c-foot { flex: none; display: flex; gap: 8px; padding: 10px 14px calc(var(--safe-foot) + 4px); border-top: 1px solid rgba(255,255,255,.07); background: rgba(20,20,20,.92); }
+  .btn { all: unset; height: 38px; padding: 0 14px; border-radius: var(--dv-radius-md); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; font-size: 14px; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .btn.gold { flex: 1; background: var(--dv-gold); color: var(--dv-gold-ink); box-shadow: none; }
+  .btn svg { width: 16px; height: 16px; }
+
+  /* ---------- Le menu d'un appui long (variante C) : le verre des menus. ---------- */
+  .scrim { position: absolute; inset: 0; z-index: 50; background: rgba(0,0,0,.35); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  .ctx { position: absolute; left: 22px; right: 22px; z-index: 51; }
+  .ctx .lift { border-radius: var(--dv-radius-md); background: #262626; box-shadow: 0 8px 26px rgba(0,0,0,.5); margin-bottom: 8px; }
+  .menu { border-radius: var(--dv-radius-lg); background: var(--dv-surface); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge), var(--dv-surface-shadow); padding: 5px; width: 250px; }
+  .menu .it { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--dv-radius-sm); font-size: 14px; cursor: pointer; }
+  .menu .it:hover { background: var(--dv-veil); }
+  .menu .it svg { width: 16px; height: 16px; color: var(--dv-text-muted); }
+  .menu .it.gold svg { color: var(--dv-gold); }
+  .menu .sep { height: 1px; margin: 4px 6px; background: rgba(255,255,255,.08); }
+
+  /* Un mot qui passe (toast). */
+  .toast { position: absolute; left: 50%; bottom: calc(var(--safe-foot) + 70px); transform: translate(-50%, 20px); opacity: 0; z-index: 60; padding: 9px 14px; border-radius: 12px; background: var(--dv-surface); backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge), var(--dv-surface-shadow); font-size: 13px; white-space: nowrap; transition: .25s; display: flex; gap: 8px; align-items: center; }
+  .toast svg { width: 13px; height: 13px; color: var(--dv-gold); }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone" id="phone">
+    <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+    <div class="island"></div>
+
+    <!-- Le lecteur plein écran, ses pistes. -->
+    <section class="screen player" id="player">
+      <div class="bd"><div class="grad" style="background: radial-gradient(circle at 30% 30%, #b8452f, #3b1d4a 60%, #111)"></div></div>
+      <div class="p-inner">
+        <div class="handle"></div>
+        <div class="p-head">
+          <div class="cv" style="background: linear-gradient(135deg, #b8452f, #3b1d4a)"></div>
+          <div class="w"><div class="t" id="pTitle"></div><div class="s">Franz Ferdinand · Franz Ferdinand</div></div>
+          <button class="round" id="pHeart" aria-label="Favourite"></button>
+          <button class="round" aria-label="More"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg></button>
+        </div>
+        <div class="scroll p-list" id="pScroll">
+          <p class="ahead"><b>34 min</b> left of Franz Ferdinand</p>
+          <div id="pList"></div>
+        </div>
+        <div class="seek"><div class="bar"><i></i></div><div class="tm"><span>1:30</span><span>−2:27</span></div></div>
+        <div class="ctrl">
+          <button><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zm3.5 7L19 5v14z"/></svg></button>
+          <button class="big"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h3.5v14H7zm6.5 0H17v14h-3.5z"/></svg></button>
+          <button><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l9.5 7L5 19z"/></svg></button>
+        </div>
+        <div class="foot">
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h10M4 11h16M4 16h12"/><path d="M18 3v8" opacity=".0"/></svg></span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h11l3 3v13H5z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg></span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg></span>
+          <span class="on"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="6" r="1.4"/><circle cx="5" cy="12" r="1.4"/><circle cx="5" cy="18" r="1.4"/><rect x="9" y="5.2" width="11" height="1.6" rx=".8"/><rect x="9" y="11.2" width="11" height="1.6" rx=".8"/><rect x="9" y="17.2" width="11" height="1.6" rx=".8"/></svg></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- La fiche du CD. -->
+    <section class="screen card" id="card" hidden>
+      <div class="c-inner">
+        <div class="c-top"><span class="x">✕</span></div>
+        <div class="scroll" id="cScroll">
+          <div class="c-head">
+            <div class="cv" style="background: linear-gradient(135deg, #b8452f, #3b1d4a)"></div>
+            <div class="w">
+              <div><div class="a">Franz Ferdinand</div><div class="t">Franz Ferdinand</div></div>
+              <div class="l">CD · 11 tracks · 38:49 · 2004 · Domino</div>
+              <div class="st">★★★★½</div>
+            </div>
+          </div>
+          <div class="chips"><span>Guide</span><span>Notes</span><span>Wikipedia</span><span>Also on</span><span>Links</span><span>Edition &amp; codes</span></div>
+          <div class="c-tracks" id="cList"></div>
+        </div>
+        <div class="c-foot">
+          <span class="btn gold"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Play</span>
+          <span class="btn">Listen Next ▾</span>
+          <span class="btn">⋯</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="scrim" id="scrim" hidden></div>
+    <div class="ctx" id="ctx" hidden></div>
+    <div class="toast" id="toast"></div>
+    <div class="home"></div>
+  </div>
+
+  <div class="note">
+    <h1>♥ et pistes populaires sur l'iPhone</h1>
+    <p>Sur le Mac, la fiche montre déjà le point gris des pistes populaires et le ♥ (or s'il est
+    favori, en contour sous le pointeur). Sur l'iPhone il n'y a pas de pointeur : le contour ne
+    se voit que sur la piste ouverte, et la liste du lecteur ne montre ni l'un ni l'autre.</p>
+
+    <h2>Écran</h2>
+    <div class="scen" id="scrBtns">
+      <button data-scr="player" class="on">Lecteur › Tracks</button>
+      <button data-scr="card">Fiche du CD</button>
+    </div>
+    <h2>Variante</h2>
+    <div class="scen" id="varBtns">
+      <button data-v="A" class="on">A · Glisser</button>
+      <button data-v="B">B · Contour pâle</button>
+      <button data-v="C">C · Appui long</button>
+    </div>
+
+    <h2>Commun aux trois</h2>
+    <ul>
+      <li><b>Populaire</b> : le point gris du Mac, 4 px, à gauche du numéro, dans les deux listes. Jamais or : une invitation, pas une note. Il reste sur la piste qui joue (à gauche des barres).</li>
+      <li><b>Favori</b> : un petit ♥ or de 12 px contre la durée. Dans la fiche, à la même place que sur le Mac.</li>
+      <li>Le ♥ en haut du lecteur (piste qui joue) ne change pas, et suit la liste : c'est le même état (<code>favourites.ts</code>).</li>
+    </ul>
+
+    <div class="variant-note on" data-vn="A">
+      <h2>A · Glisser vers la gauche</h2>
+      <p>Rien de plus à l'écran que les marques. Une ligne tirée vers la gauche révèle « ♥ Favourite » ; passé 70 px elle passe à l'or, lâchée elle bascule le ♥ et revient. Un mot passe en bas.</p>
+      <p>Dans la fiche, toucher une piste l'ouvre comme aujourd'hui, et la rangée ouverte porte un bouton « ♥ Favourite » à côté des écoutes : le geste a un double visible.</p>
+      <p class="pro">+ La plus discrète ; le geste du Mail et de la Musique d'iOS.</p>
+      <p class="con">− Invisible tant qu'on ne le connaît pas ; à coder à la main (pointer events), en concurrence avec le défilement vertical et le glisser vers le bas qui ferme le lecteur.</p>
+    </div>
+    <div class="variant-note" data-vn="B">
+      <h2>B · Le contour pâle toujours là</h2>
+      <p>Chaque ligne porte un ♥ en contour à 22 % de blanc, une cible de 34 px : un toucher le remplit d'or. Le reste de la ligne joue la piste (lecteur) ou l'ouvre (fiche).</p>
+      <p class="pro">+ Se découvre seul, un toucher, rien à apprendre ; c'est le comportement du Mac « sous le pointeur » rendu permanent.</p>
+      <p class="con">− Une colonne de plus sur 393 px : le titre perd ~26 px, et onze contours en colonne se voient, même pâles. Risque de toucher le ♥ en voulant jouer la piste.</p>
+    </div>
+    <div class="variant-note" data-vn="C">
+      <h2>C · Appui long</h2>
+      <p>Un appui d'une demi-seconde soulève la ligne et ouvre un menu de verre : <b>Add to the favourites</b> (ou Remove), Add to a mixtape…, et dans le lecteur Play from here. Le menu des Mixtapes y trouve aussi sa place sur l'iPhone.</p>
+      <p class="pro">+ Discret comme A, mais extensible (mixtapes, Play next plus tard) ; geste iOS standard des menus contextuels.</p>
+      <p class="con">− Aussi caché que A ; Safari en web app ouvre son propre menu sur un appui long si on ne le retient pas (<code>-webkit-touch-callout: none</code>, preventDefault).</p>
+    </div>
+
+    <h2>Recommandation</h2>
+    <p><b>Les marques partout, et C pour poser le ♥</b>, avec le bouton « ♥ Favourite » dans la rangée ouverte de la fiche (de A), qui sert de double visible. B est la plus claire, mais coûte la discrétion demandée. À vérifier en codant : les pistes du lecteur viennent de Navidrome (<code>starred</code> y est déjà) ; <code>popular</code> vient des pistes de l'album dans DexVault, à joindre par disque et numéro.</p>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const HEART = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 14.2 1.7 8A3.9 3.9 0 0 1 8 3.1 3.9 3.9 0 0 1 14.3 8z"/></svg>';
+const HEART_O = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 13.6 2.2 7.9A3.5 3.5 0 0 1 8 3.8a3.5 3.5 0 0 1 5.8 4.1z"/></svg>';
+const LIST = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h9M2 8h9M2 12h6M13 9v5M10.5 11.5h5"/></svg>';
+const PLAY = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>';
+
+const tracks = [
+  ['Jacqueline', '3:49', { lyrics: true }], ['Tell Her Tonight', '2:17', { lyrics: true }],
+  ['Take Me Out', '3:57', { lyrics: true, popular: true }], ['The Dark of the Matinée', '4:03', { lyrics: true, popular: true }],
+  ['Auf Achse', '4:20', { lyrics: true }], ['Cheating on You', '2:36', {}], ['This Fire', '4:14', { lyrics: true }],
+  ['Darts of Pleasure', '2:59', { lyrics: true, popular: true }], ['Michael', '3:21', { lyrics: true }],
+  ['Come On Home', '3:46', {}], ['40\'', '3:24', { lyrics: true }],
+];
+const plays = [4, 2, 31, 18, 3, 2, 6, 14, 5, 1, 3];
+const hearts = new Set([2, 6]);
+let now = 3, variant = 'A', screen = 'player', openTrack = null;
+
+function toast(text) {
+  const t = $('toast'); t.innerHTML = HEART + text; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1800);
+}
+function toggleHeart(i) {
+  if (hearts.has(i)) { hearts.delete(i); toast(`${tracks[i][0]}: no longer a favourite`); }
+  else { hearts.add(i); toast(`${tracks[i][0]}: favourite`); }
+  render();
+}
+const popDot = o => o.popular ? '<span class="pop" title="One of the album\'s most listened tracks"></span>' : '';
+const heartMark = i => variant === 'B'
+  ? `<button class="hbtn${hearts.has(i) ? ' on' : ''}" data-heart="${i}" aria-label="Favourite">${hearts.has(i) ? HEART : HEART_O}</button>`
+  : (hearts.has(i) ? `<span class="heart" title="Favourite">${HEART}</span>` : '');
+const under = i => variant === 'A' ? `<div class="under">${hearts.has(i) ? HEART_O + 'Remove' : HEART + 'Favourite'}</div>` : '';
+
+function render() {
+  $('pTitle').textContent = tracks[now][0];
+  $('pHeart').className = 'round' + (hearts.has(now) ? ' on' : '');
+  $('pHeart').innerHTML = hearts.has(now) ? HEART : HEART_O;
+  $('pList').innerHTML = tracks.map(([t, d, o], i) => `
+    <div class="row" data-i="${i}">${under(i)}<div class="over">
+      <div class="ptrack${i === now ? ' now' : ''}">
+        <span class="no">${popDot(o)}${i === now ? '<span class="bars"><i></i><i></i><i></i></span>' : i + 1}</span>
+        <span class="ttl">${t}</span>${heartMark(i)}<span class="time">${d}</span>
+      </div></div></div>`).join('');
+  $('cList').innerHTML = tracks.map(([t, d, o], i) => `
+    <div class="row" data-i="${i}">${under(i)}<div class="over">
+      <div class="ctrack${openTrack === i ? ' open' : ''}">
+        <span class="no">${popDot(o)}${i + 1}.</span>
+        <span class="ttl">${t}</span>${o.lyrics ? '<span class="lyr">lyrics</span>' : ''}${heartMark(i)}<span class="time">${d}</span>
+      </div>
+      ${openTrack === i ? `<div class="c-more">
+        <span class="q">${PLAY}Play</span>
+        ${variant !== 'B' ? `<span class="q${hearts.has(i) ? ' on' : ''}" data-heart="${i}">${hearts.has(i) ? HEART : HEART_O}Favourite</span>` : ''}
+        <span class="q">${LIST}Mixtape</span>
+        <span class="plays">×${plays[i]} plays</span></div>` : ''}
+    </div></div>`).join('');
+}
+
+/* Les gestes : toucher (jouer / ouvrir), glisser (A), appui long (C). */
+function bind(listId) {
+  const list = $(listId);
+  let st = null;
+  list.addEventListener('pointerdown', e => {
+    if (e.target.closest('[data-heart]')) return;
+    const row = e.target.closest('.row'); if (!row) return;
+    st = { row, i: +row.dataset.i, x: e.clientX, y: e.clientY, dx: 0, mode: null };
+    if (variant === 'C') st.timer = setTimeout(() => { st.mode = 'long'; row.classList.add('pressing'); openCtx(st.i, row); }, 480);
+  });
+  list.addEventListener('pointermove', e => {
+    if (!st) return;
+    const dx = e.clientX - st.x, dy = e.clientY - st.y;
+    if (!st.mode && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      clearTimeout(st.timer);
+      st.mode = variant === 'A' && Math.abs(dx) > Math.abs(dy) && dx < 0 ? 'swipe' : 'scroll';
+      if (st.mode === 'swipe') { st.row.classList.add('swiping'); st.row.setPointerCapture(e.pointerId); }
+    }
+    if (st.mode === 'swipe') {
+      st.dx = Math.max(-140, Math.min(0, dx));
+      st.row.querySelector('.over').style.transform = `translateX(${st.dx}px)`;
+      st.row.querySelector('.under').classList.toggle('armed', st.dx < -70);
+    }
+  });
+  const end = () => {
+    if (!st) return;
+    clearTimeout(st.timer);
+    const { row, i, mode, dx } = st; st = null;
+    if (mode === 'swipe') {
+      const over = row.querySelector('.over');
+      over.style.transition = 'transform .22s cubic-bezier(.22,.8,.3,1)'; over.style.transform = '';
+      setTimeout(() => { row.classList.remove('swiping'); if (dx < -70) toggleHeart(i); }, 220);
+    } else if (!mode) {
+      if (listId === 'pList') { now = i; render(); }
+      else { openTrack = openTrack === i ? null : i; render(); }
+    }
+  };
+  list.addEventListener('pointerup', end);
+  list.addEventListener('pointercancel', () => { if (st) { clearTimeout(st.timer); st = null; } });
+  list.addEventListener('click', e => {
+    const h = e.target.closest('[data-heart]'); if (h) { e.stopPropagation(); toggleHeart(+h.dataset.heart); }
+  });
+  list.addEventListener('contextmenu', e => e.preventDefault());
+}
+bind('pList'); bind('cList');
+
+function openCtx(i, row) {
+  const box = row.getBoundingClientRect(), ph = $('phone').getBoundingClientRect();
+  const fav = hearts.has(i);
+  const ctx = $('ctx');
+  const clone = row.querySelector('.ptrack, .ctrack').outerHTML;
+  let top = box.top - ph.top;
+  if (top > 852 - 260) top = 852 - 260;
+  ctx.style.top = `${top}px`;
+  ctx.innerHTML = `<div class="lift">${clone}</div><div class="menu">
+    <div class="it gold" data-act="fav">${fav ? HEART_O : HEART}${fav ? 'Remove from the favourites' : 'Add to the favourites'}</div>
+    <div class="it">${LIST}Add to a mixtape…</div>
+    ${screen === 'player' ? `<div class="sep"></div><div class="it" data-act="play">${PLAY}Play from here</div>` : ''}
+  </div>`;
+  $('scrim').hidden = false; ctx.hidden = false;
+  ctx.onclick = e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    closeCtx();
+    if (act === 'fav') toggleHeart(i);
+    if (act === 'play') { now = i; render(); }
+  };
+}
+function closeCtx() { $('scrim').hidden = true; $('ctx').hidden = true; document.querySelectorAll('.pressing').forEach(r => r.classList.remove('pressing')); }
+$('scrim').onclick = closeCtx;
+$('pHeart').onclick = () => toggleHeart(now);
+
+$('scrBtns').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  screen = b.dataset.scr;
+  [...$('scrBtns').children].forEach(x => x.classList.toggle('on', x === b));
+  $('player').hidden = screen !== 'player'; $('card').hidden = screen !== 'card';
+  closeCtx();
+};
+$('varBtns').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  variant = b.dataset.v;
+  [...$('varBtns').children].forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.variant-note').forEach(n => n.classList.toggle('on', n.dataset.vn === variant));
+  closeCtx(); render();
+};
+render();
+</script>
+</body>
+</html>

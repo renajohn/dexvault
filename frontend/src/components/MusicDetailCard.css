@@ -1200,6 +1200,22 @@
     padding-top: 8px;
   }
 
+  /* A finger resting on a track opens its menu (♥, Play from here, mixtapes): iOS neither selects its words nor offers its own. */
+  .music-detail-modal--phone .track-item {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .music-detail-modal--phone .track-item[data-held='true'] {
+    background: var(--dv-veil);
+  }
+
+  /* No pointer to show it under: the outline ♥ keeps no room on a closed track, the gold one stays. */
+  .music-detail-modal--phone .track-item:not(.track-selected) .track-favourite:not(.track-favourite-on) {
+    display: none;
+  }
+
   /* The foot: Play takes the room left, Listen Next gives way (its words end in …), ⋯ stays square. */
   .music-detail-modal--phone .music-detail-foot--phone.modal-footer {
     display: flex;

@@ -34,6 +34,8 @@ export interface MenuProps {
   /** For screen readers, when the trigger says nothing. */
   label?: string;
   className?: string;
+  /** Opened from outside, not by a click on its trigger (a long press on a track): it then only tells `onOpenChange`. */
+  open?: boolean;
   onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
 }
@@ -48,27 +50,46 @@ const GAP = 6;
 const MARGIN = 8;
 const ITEMS = '.menu-item:not(:disabled)';
 
-const MenuRoot: React.FC<MenuProps> = ({ trigger, align = 'start', drop = 'down', matchWidth = false, label, className = '', onOpenChange, children }) => {
-  const [open, setOpen] = useState(false);
+/** The click that ends a touch, swallowed: gone by itself if none comes. */
+const swallowNextClick = () => {
+  const swallow = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    done();
+  };
+  const done = () => {
+    document.removeEventListener('click', swallow, true);
+    window.clearTimeout(timer);
+  };
+  document.addEventListener('click', swallow, true);
+  const timer = window.setTimeout(done, 800);
+};
+
+const MenuRoot: React.FC<MenuProps> = ({ trigger, align = 'start', drop = 'down', matchWidth = false, label, className = '', open: held, onOpenChange, children }) => {
+  const [own, setOwn] = useState(false);
+  const open = held ?? own;
   const [container, setContainer] = useState<HTMLElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const id = useId();
 
   const setOpenAndTell = useCallback((next: boolean) => {
-    setOpen(next);
+    if (held === undefined) setOwn(next);
     onOpenChange?.(next);
-  }, [onOpenChange]);
+  }, [held, onOpenChange]);
 
+  // Opened from outside (a finger held on a line), the focus never left for it to come back.
   const close = useCallback((refocus = false) => {
     setOpenAndTell(false);
-    if (refocus) triggerRef.current?.focus();
-  }, [setOpenAndTell]);
+    if (refocus && held === undefined) triggerRef.current?.focus();
+  }, [held, setOpenAndTell]);
 
-  const openMenu = useCallback(() => {
-    setContainer((triggerRef.current?.closest('.modal') as HTMLElement | null) ?? document.body);
-    setOpenAndTell(true);
-  }, [setOpenAndTell]);
+  const openMenu = useCallback(() => setOpenAndTell(true), [setOpenAndTell]);
+
+  // In the open modal when its trigger is in one, however it was opened.
+  useLayoutEffect(() => {
+    if (open) setContainer((triggerRef.current?.closest('.modal') as HTMLElement | null) ?? document.body);
+  }, [open]);
 
   /** Next to its trigger, inside the window: up when asked or when below has no room. */
   const place = useCallback(() => {
@@ -105,6 +126,8 @@ const MenuRoot: React.FC<MenuProps> = ({ trigger, align = 'start', drop = 'down'
       const target = event.target as Node;
       if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
       close();
+      // Opened by a finger held on a line, as iOS's own menus: the touch beside it only closes it, it plays no other line.
+      if (held !== undefined) swallowNextClick();
     };
     const follow = () => place();
     // Entries that come after it opened (a list read then) move it as they come.
@@ -119,7 +142,7 @@ const MenuRoot: React.FC<MenuProps> = ({ trigger, align = 'start', drop = 'down'
       window.removeEventListener('resize', follow);
       window.removeEventListener('scroll', follow, true);
     };
-  }, [open, close, place]);
+  }, [open, close, place, held]);
 
   const onPanelKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const items = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(ITEMS) ?? []);

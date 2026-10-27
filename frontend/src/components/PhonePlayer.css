@@ -463,8 +463,16 @@
   text-align: left;
 }
 
-.now-playing-tracks__track:active {
+.now-playing-tracks__track:active,
+.now-playing-tracks__track--held {
   background: var(--dv-veil);
+}
+
+/* A finger resting on a line opens its menu: iOS neither selects its words nor offers its own. */
+.now-playing-tracks__track {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .now-playing-tracks__track--now {
@@ -472,6 +480,7 @@
 }
 
 .now-playing-tracks__no {
+  position: relative;
   flex: none;
   width: 22px;
   display: flex;
@@ -487,6 +496,27 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* The tracks most listened to: the Mac's small grey dot, left of the number, never gold. */
+.now-playing-tracks__popular {
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--dv-text-muted);
+  opacity: 0.8;
+}
+
+/* A favourite: a small gold ♥ against the length. */
+.now-playing-tracks__favourite {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  color: var(--dv-gold);
 }
 
 .now-playing-tracks__time {

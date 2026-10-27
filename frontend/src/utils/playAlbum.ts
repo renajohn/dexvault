@@ -11,7 +11,7 @@ interface AlbumLike {
   title: string;
   artist?: string | string[];
   cover?: string | null;
-  discs?: Array<{ number: number; tracks: Array<{ no?: number | string; title: string; durationSec?: number }> }>;
+  discs?: Array<{ number: number; tracks: Array<{ no?: number | string; title: string; durationSec?: number; popular?: boolean }> }>;
 }
 
 /** The album as the player names it: on the bar, on the Mac's controls; its rip ties it to Navidrome's. */
@@ -45,7 +45,7 @@ export const playerTracksOf = (album: AlbumLike, rip: RipTracks | null | undefin
   return (album.discs || []).flatMap(disc => disc.tracks.flatMap(track => {
     const file = ripFileFor(rip.tracks, disc.number, Number(track.no));
     return file?.id
-      ? [{ songId: file.id, title: track.title, disc: disc.number, no: Number(track.no), durationSec: file.durationSec ?? track.durationSec ?? null, starred: file.starred, ...fileFormat(file) }]
+      ? [{ songId: file.id, title: track.title, disc: disc.number, no: Number(track.no), durationSec: file.durationSec ?? track.durationSec ?? null, starred: file.starred, ...(track.popular ? { popular: true } : {}), ...fileFormat(file) }]
       : [];
   }));
 };

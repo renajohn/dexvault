@@ -25,6 +25,13 @@ describe('playerTracksOf', () => {
       .toEqual([[1, 'Mr. Rock & Roll'], [2, 'This Is the Life']]);
   });
 
+  it('carries the CD’s most listened tracks, for their dot in the player', () => {
+    const album = { id: 1, title: 'A', discs: [{ number: 1, tracks: [{ no: 1, title: 'One', popular: true }, { no: 2, title: 'Two' }] }] };
+
+    expect(playerTracksOf(album, rip([file(1, 1, 'one.flac'), file(1, 2, 'two.flac')])).map(track => track.popular))
+      .toEqual([true, undefined]);
+  });
+
   it('has nothing to play without a rip', () => {
     expect(playerTracksOf({ id: 1, title: 'A', discs: [] }, null)).toEqual([]);
   });
