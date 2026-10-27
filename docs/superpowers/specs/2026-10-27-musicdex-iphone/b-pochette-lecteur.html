@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DexVault — piste B : la pochette mène au lecteur (prototype iPhone)</title>
+<style>
+  :root {
+    --dv-gold: #fbbf24; --dv-gold-hover: #fcd34d; --dv-gold-ink: #111; --dv-gold-tint: rgba(251,191,36,.12); --dv-gold-tint-edge: rgba(251,191,36,.45);
+    --dv-silver: #d9d6cf; --dv-silver-tint: rgba(217,214,207,.12);
+    --dv-danger: #f87171; --dv-orange: #f59e0b;
+    --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-page: #1a1a1a; --dv-glass: rgba(255,255,255,.06); --dv-glass-hover: rgba(255,255,255,.11);
+    --dv-edge: rgba(255,255,255,.12); --dv-edge-hover: rgba(255,255,255,.24); --dv-veil: rgba(255,255,255,.08);
+    --dv-glass-image: rgba(0,0,0,.68); --dv-edge-image: inset 0 0 0 1px rgba(255,255,255,.16);
+    --dv-surface: rgba(24,24,24,.86); --dv-surface-edge: rgba(255,255,255,.1); --dv-surface-shadow: 0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+    --dv-radius-sm: 7px; --dv-radius-md: 9px; --dv-radius-lg: 12px;
+    --safe-top: 54px; --safe-foot: 34px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button { font: inherit; }
+  body { margin: 0; background: #0e0e0e; color: var(--dv-text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 393px 1fr; gap: 36px; align-items: start; }
+  .note { color: var(--dv-text-muted); position: sticky; top: 20px; }
+  .note h1 { color: var(--dv-text); font-size: 20px; margin: 0 0 6px; }
+  .note h2 { color: var(--dv-text); font-size: 15px; margin: 18px 0 6px; }
+  .note ul { padding-left: 18px; margin: 6px 0; }
+  .note li { margin: 3px 0; }
+  .note b { color: var(--dv-text); }
+  .note .scen { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: var(--dv-radius-md); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); margin: 8px 0; }
+  .note .scen button { all: unset; cursor: pointer; padding: 6px 11px; border-radius: var(--dv-radius-sm); font-weight: 600; font-size: 13px; color: var(--dv-text-muted); }
+  .note .scen button:hover { background: var(--dv-veil); }
+  .note .scen button.on { background: var(--dv-glass-hover); color: var(--dv-text); }
+  .note .state { font: 12px ui-monospace, Menlo, monospace; color: var(--dv-text-faint); margin-top: 10px; }
+  .pro { color: #cfd8c9; } .con { color: #f0b37e; }
+
+  /* ---------- L'iPhone : 393 × 852, la barre d'état, la Dynamic Island, l'indicateur d'accueil. ---------- */
+  .phone { position: relative; width: 393px; height: 852px; border-radius: 54px; overflow: hidden; background: var(--dv-page); box-shadow: 0 0 0 10px #232323, 0 0 0 11px #3a3a3a, 0 30px 80px rgba(0,0,0,.6); user-select: none; -webkit-user-select: none; }
+  .status { position: absolute; inset: 0 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; font-weight: 600; font-size: 16px; z-index: 40; pointer-events: none; }
+  .island { position: absolute; left: 50%; top: 11px; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 41; }
+  .home { position: absolute; left: 50%; bottom: 8px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.7); z-index: 41; pointer-events: none; }
+  .icons { display: inline-flex; gap: 5px; align-items: center; } .icons svg { width: 16px; height: 16px; }
+
+  /* ---------- La page MusicDex : l'en-tête, Listen Next, la grille. ---------- */
+  .page { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; padding: calc(var(--safe-top) + 4px) 12px 110px; scrollbar-width: none; }
+  .page::-webkit-scrollbar { display: none; }
+  .topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .brand { font-weight: 800; font-size: 17px; letter-spacing: .01em; }
+  .brand b { color: var(--dv-gold); }
+  .search { flex: 1; height: 32px; border-radius: 16px; background: #2a2a2a; box-shadow: inset 0 0 0 1px #444; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--dv-text-faint); font-size: 13px; }
+  .search svg { width: 14px; height: 14px; }
+  .sections { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .sections span { width: 30px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: var(--dv-text-muted); }
+  .sections span.on { background: var(--dv-gold); color: var(--dv-gold-ink); }
+  .sections svg { width: 15px; height: 15px; }
+  .ln-head { display: flex; align-items: center; justify-content: space-between; margin: 6px 0 8px; }
+  .ln-head h3 { margin: 0; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dv-text-faint); font-weight: 600; }
+  .seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .seg span { padding: 3px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--dv-text-muted); }
+  .seg span.on { background: var(--dv-glass-hover); color: var(--dv-gold); }
+  .seg span.cd.on { color: var(--dv-silver); }
+  .ln-row { display: flex; gap: 10px; overflow-x: auto; margin: 0 -12px 18px; padding: 0 12px 4px; scrollbar-width: none; }
+  .ln-row::-webkit-scrollbar { display: none; }
+  .ln-row .cover { flex: none; width: 92px; height: 92px; }
+  .cover { position: relative; border-radius: 6px; overflow: hidden; background: #333; box-shadow: 0 2px 8px rgba(0,0,0,.35); cursor: pointer; }
+  .cover img, .cover .grad { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cover .no { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.35); }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; }
+  .tile .cover { width: 100%; aspect-ratio: 1; }
+  .tile h6 { margin: 7px 0 0; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile p { margin: 1px 0 0; font-size: 11.5px; color: var(--dv-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* CoverButton : verre sombre rond, or plein quand « on ». CoverTag : petites capitales sur verre sombre. */
+  .cbtn { all: unset; position: absolute; bottom: 6px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--dv-glass-image); box-shadow: var(--dv-edge-image); color: #fff; cursor: pointer; z-index: 2; }
+  .cbtn svg { width: 15px; height: 15px; }
+  .cbtn.play { left: 6px; } .cbtn.next { right: 6px; }
+  .cbtn.on { background: var(--dv-gold); color: var(--dv-gold-ink); box-shadow: none; }
+  .cbtn.on.cd { background: var(--dv-silver); }
+  .ctag { position: absolute; top: 6px; left: 6px; padding: 2px 6px; font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--dv-glass-image); box-shadow: var(--dv-edge-image); color: var(--dv-text-muted); z-index: 2; }
+  .ctag.silver { color: var(--dv-silver); }
+
+  /* ---------- La pastille du lecteur, quand un album joue et que la feuille est fermée. ---------- */
+  .pill { position: absolute; left: 10px; right: 10px; bottom: calc(var(--safe-foot) + 2px); height: 58px; border-radius: 16px; background: var(--dv-surface); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge), 0 8px 24px rgba(0,0,0,.45); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 7px; z-index: 20; cursor: pointer; overflow: hidden; transition: transform .3s ease, opacity .3s ease; }
+  .pill.gone { transform: translateY(120%); opacity: 0; pointer-events: none; }
+  .pill .thumb { width: 44px; height: 44px; border-radius: 6px; overflow: hidden; flex: none; position: relative; }
+  .pill .thumb img, .pill .thumb .grad { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .pill .w { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .pill .t { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill .f { font-size: 12px; color: var(--dv-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill .prog { position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; background: rgba(255,255,255,.1); }
+  .pill .prog i { display: block; height: 100%; background: var(--dv-gold); }
+  .pbtn { all: unset; width: 40px; height: 40px; display: grid; place-items: center; color: var(--dv-text); cursor: pointer; border-radius: 50%; }
+  .pbtn svg { width: 24px; height: 24px; } .pbtn.small svg { width: 20px; height: 20px; }
+
+  /* ---------- La feuille : l'aperçu d'un album, qui devient le lecteur. ---------- */
+  .sheet { position: absolute; inset: 0; z-index: 30; background: var(--dv-page); transform: translateY(100%); transition: transform .38s cubic-bezier(.22,.8,.3,1); display: flex; flex-direction: column; overflow: hidden; }
+  .sheet.open { transform: none; }
+  .sheet.drag { transition: none; }
+  .bd { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .bd img, .bd .grad { position: absolute; left: -20%; top: -20%; width: 140%; height: 140%; object-fit: cover; filter: blur(42px) saturate(1.3); opacity: .55; }
+  .bd::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(26,26,26,.3), rgba(26,26,26,.82) 75%); }
+  .inner { position: relative; display: flex; flex-direction: column; height: 100%; padding: calc(var(--safe-top) + 2px) 22px calc(var(--safe-foot) + 6px); }
+  .handle { all: unset; align-self: center; width: 80px; height: 22px; display: grid; place-items: center; cursor: pointer; flex: none; }
+  .handle span { width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); }
+  /* La pochette : une hauteur fixe par vue, qui ne bouge pas quand les mots dessous changent. */
+  .hero { flex: none; display: flex; justify-content: center; margin: 4px 0 12px; }
+  .hero .cover { width: 176px; height: 176px; border-radius: var(--dv-radius-lg); box-shadow: 0 10px 30px rgba(0,0,0,.5); transition: width .35s cubic-bezier(.22,.8,.3,1), height .35s cubic-bezier(.22,.8,.3,1); }
+  .sheet.v-cover .hero .cover { width: 300px; height: 300px; }
+  .sheet.v-cover .hero { margin: 14px 0 22px; }
+  .sheet.paused .hero .cover { transform: scale(.94); }
+  .hero .cover { transition: width .35s cubic-bezier(.22,.8,.3,1), height .35s cubic-bezier(.22,.8,.3,1), transform .3s ease; }
+  .words { flex: none; display: flex; align-items: center; gap: 8px; min-height: 60px; }
+  .words .txt { flex: 1; min-width: 0; }
+  .words .artist { color: var(--dv-text-muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .words .title { font-size: 19px; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .words .murmur { color: var(--dv-text-faint); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .words .murmur .ok { color: var(--dv-text-muted); } .words .murmur .cd { color: var(--dv-silver); }
+  .round { all: unset; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.1); color: var(--dv-text); flex: none; }
+  .round svg { width: 18px; height: 18px; }
+  .round.on { color: var(--dv-gold); }
+  .round:disabled { opacity: .35; cursor: default; }
+
+  /* La bande d'action : la même hauteur (104 px) dans l'aperçu et en lecture, pour qu'aucun saut ne vienne du passage. */
+  .band { flex: none; height: 104px; position: relative; margin: 4px 0 2px; }
+  .band > div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity .25s ease, transform .25s ease; }
+  .band .idle { gap: 8px; }
+  .band .live { opacity: 0; transform: translateY(8px); pointer-events: none; }
+  .sheet.playing .band .idle { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+  .sheet.playing .band .live { opacity: 1; transform: none; pointer-events: auto; }
+  .bigplay { all: unset; cursor: pointer; width: 68px; height: 68px; border-radius: 50%; background: var(--dv-gold); color: var(--dv-gold-ink); display: grid; place-items: center; box-shadow: 0 8px 24px rgba(251,191,36,.25); }
+  .bigplay svg { width: 34px; height: 34px; margin-left: 3px; }
+  .bigplay:disabled { background: var(--dv-glass-hover); color: var(--dv-text-faint); box-shadow: inset 0 0 0 1px var(--dv-edge); cursor: default; }
+  .idle .where { font-size: 12.5px; color: var(--dv-text-muted); display: inline-flex; align-items: center; gap: 6px; }
+  .idle .where svg { width: 14px; height: 14px; }
+  .idle .where.silver { color: var(--dv-silver); }
+  .idle .sides { position: absolute; inset: 0 0 24px; display: flex; align-items: center; justify-content: space-between; padding: 0 44px; pointer-events: none; }
+  .idle .sides .round { pointer-events: auto; width: 44px; height: 44px; }
+  .idle .sides .round svg { width: 21px; height: 21px; }
+  .idle .sides .round.cd.on { color: var(--dv-silver); }
+  .seek { width: 100%; }
+  .seek .line { position: relative; height: 22px; display: flex; align-items: center; cursor: pointer; }
+  .seek .rail { width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,.18); overflow: hidden; }
+  .seek .rail i { display: block; height: 100%; background: var(--dv-gold); }
+  .sheet.paused .seek .rail i { background: #8a8f98; }
+  .seek .times { display: flex; justify-content: space-between; font-size: 12px; color: var(--dv-text-faint); font-variant-numeric: tabular-nums; margin-top: -3px; }
+  .transport { display: flex; align-items: center; justify-content: center; gap: 36px; margin-top: 2px; }
+  .transport button { all: unset; cursor: pointer; color: #fff; display: grid; place-items: center; width: 56px; height: 56px; }
+  .transport .step svg { width: 30px; height: 30px; } .transport .tog svg { width: 48px; height: 48px; }
+  .transport button:disabled { opacity: .35; }
+
+  /* La zone qui reste : les pistes, le guide ou les paroles ; elle défile seule. */
+  .zone { flex: 1; min-height: 0; position: relative; margin: 0 -22px; }
+  .zone > div { position: absolute; inset: 0; overflow-y: auto; padding: 4px 14px 12px; scrollbar-width: none; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 10px, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(to bottom, transparent, #000 10px, #000 calc(100% - 14px), transparent); }
+  .zone > div::-webkit-scrollbar { display: none; }
+  .sheet.v-cover .zone { display: none; }
+  .disc { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dv-text-faint); font-weight: 600; margin: 10px 8px 4px; }
+  .track { all: unset; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 8px; border-radius: var(--dv-radius-md); cursor: pointer; }
+  .track:active { background: var(--dv-veil); }
+  .track .no { width: 22px; text-align: center; color: var(--dv-text-faint); font-size: 13px; font-variant-numeric: tabular-nums; flex: none; display: grid; place-items: center; }
+  .track .tt { flex: 1; min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track .tm { color: var(--dv-text-faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .track.now .tt { color: var(--dv-gold); font-weight: 600; }
+  .track.past .tt { color: var(--dv-text-muted); }
+  .track.mute { cursor: default; } .track.mute .tt { color: var(--dv-text-muted); }
+  .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+  .bars i { width: 3px; background: var(--dv-gold); border-radius: 1px; animation: eq .9s ease-in-out infinite alternate; }
+  .bars i:nth-child(2) { animation-delay: -.3s; } .bars i:nth-child(3) { animation-delay: -.6s; }
+  .sheet.paused .bars i { animation-play-state: paused; height: 4px !important; }
+  @keyframes eq { from { height: 4px; } to { height: 14px; } }
+  .guide p { margin: 0 0 12px; color: var(--dv-text); font-size: 15px; line-height: 1.5; padding: 0 10px; }
+  .guide .read { font-size: 12px; color: var(--dv-text-faint); margin: 4px 10px 10px; }
+  .lyrics ol { margin: 0; padding: 20px 10px 40px; list-style: none; }
+  .lyrics li { margin: 0 0 14px; font-size: 24px; font-weight: 700; line-height: 1.22; color: rgba(255,255,255,.32); }
+  .lyrics li.now { color: #fff; } .lyrics li.past { color: rgba(255,255,255,.2); }
+  .zone .note-empty { color: var(--dv-text-muted); font-size: 14px; text-align: center; padding: 30px 20px; }
+
+  /* Un autre album joue : sa pastille vit au pied de l'aperçu, au-dessus des outils. Le son ne s'arrête pas. */
+  .nowbar { flex: none; display: flex; align-items: center; gap: 10px; margin: 6px 0 2px; padding: 6px 8px 6px 7px; border-radius: 14px; background: var(--dv-surface); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge); cursor: pointer; position: relative; overflow: hidden; }
+  .nowbar .thumb { width: 40px; height: 40px; border-radius: 6px; overflow: hidden; position: relative; flex: none; }
+  .nowbar .thumb img, .nowbar .thumb .grad { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .nowbar .w { flex: 1; min-width: 0; }
+  .nowbar .t { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nowbar .f { font-size: 11.5px; color: var(--dv-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nowbar .prog { position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; background: rgba(255,255,255,.1); }
+  .nowbar .prog i { display: block; height: 100%; background: var(--dv-gold); }
+
+  .foot { flex: none; display: flex; justify-content: space-around; align-items: center; padding: 8px 0 4px; }
+  .foot button { all: unset; cursor: pointer; width: 48px; height: 38px; display: grid; place-items: center; color: var(--dv-text-muted); border-radius: 10px; position: relative; }
+  .foot button.on { color: var(--dv-text); background: rgba(255,255,255,.12); }
+  .foot button:disabled { opacity: .3; cursor: default; }
+  .foot svg { width: 22px; height: 22px; }
+  .foot .away { position: absolute; right: 6px; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--dv-gold); }
+
+  /* Un menu : le verre des menus, flou, le rouge pour le danger, jamais d'or sauf le choix fait. */
+  .menu-veil { position: absolute; inset: 0; z-index: 35; }
+  .menu { position: absolute; right: 16px; width: 250px; padding: 6px; border-radius: var(--dv-radius-lg); background: var(--dv-surface); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: var(--dv-surface-shadow), inset 0 0 0 1px var(--dv-surface-edge); z-index: 36; animation: pop .16s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: scale(.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+  .menu .sec { font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--dv-text-faint); padding: 6px 10px 2px; font-weight: 600; }
+  .menu hr { border: 0; border-top: 1px solid var(--dv-surface-edge); margin: 5px 4px; }
+  .menu button { all: unset; display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: var(--dv-radius-sm); font-size: 14.5px; cursor: pointer; color: var(--dv-text); }
+  .menu button:hover { background: var(--dv-veil); }
+  .menu button svg { width: 16px; height: 16px; color: var(--dv-text-muted); flex: none; }
+  .menu button .hint { margin-left: auto; font-size: 12px; color: var(--dv-text-faint); }
+  .menu button.danger, .menu button.danger svg { color: var(--dv-danger); }
+  .menu button.chosen { color: var(--dv-gold); } .menu button.chosen svg { color: var(--dv-gold); }
+
+  /* La fiche album complète (MusicDetailCard, telle qu'elle est), ouverte depuis (i) ou ⋯. */
+  .card { position: absolute; inset: 0; z-index: 38; background: #2d2d2d; transform: translateX(100%); transition: transform .32s cubic-bezier(.22,.8,.3,1); display: flex; flex-direction: column; }
+  .card.open { transform: none; }
+  .card .ch { flex: none; display: flex; align-items: center; gap: 10px; padding: calc(var(--safe-top) + 6px) 14px 10px; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .card .ch .ttl { flex: 1; min-width: 0; font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .ch .shelf { font-size: 12px; color: var(--dv-text-faint); font-variant-numeric: tabular-nums; }
+  .card .cb { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 24px; scrollbar-width: none; }
+  .card .cb::-webkit-scrollbar { display: none; }
+  .card .head { display: grid; grid-template-columns: 104px 1fr; gap: 6px 14px; align-items: center; }
+  .card .head .cover { width: 104px; height: 104px; }
+  .card .who .artist { font-weight: 600; font-size: 16px; }
+  .card .who .shape { font-size: 12.5px; color: var(--dv-text-muted); margin-top: 4px; }
+  .card .line { font-size: 13.5px; color: var(--dv-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 6px; }
+  .card .line .lossless { color: var(--dv-text); }
+  .card .line .star { color: var(--dv-gold); letter-spacing: .05em; }
+  .card .fold { margin-top: 10px; font-size: 13.5px; color: var(--dv-text-muted); display: flex; align-items: center; gap: 6px; }
+  .card .fold svg { width: 12px; height: 12px; }
+  .card h4 { margin: 24px 0 8px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dv-text-faint); font-weight: 600; }
+  .card .text { font-size: 14px; color: var(--dv-text); line-height: 1.5; }
+  .card .quiet { font-size: 13.5px; color: var(--dv-text-muted); margin-top: 8px; }
+  .card .cf { flex: none; display: flex; gap: 6px; padding: 10px 12px calc(var(--safe-foot) + 8px); border-top: 1px solid rgba(255,255,255,.08); }
+  .btn { all: unset; height: 36px; padding: 0 12px; border-radius: var(--dv-radius-md); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; font-size: 14px; cursor: pointer; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); color: var(--dv-text); }
+  .btn svg { width: 16px; height: 16px; }
+  .btn.primary { background: var(--dv-gold); color: var(--dv-gold-ink); box-shadow: none; }
+  .btn.danger { color: var(--dv-danger); }
+  .btn.icon { width: 38px; padding: 0; }
+  .btn.active { color: var(--dv-gold); background: var(--dv-gold-tint); box-shadow: inset 0 0 0 1px var(--dv-gold-tint-edge); }
+  .bgroup { display: inline-flex; } .bgroup .btn:first-child { border-radius: 9px 0 0 9px; } .bgroup .btn:last-child { border-radius: 0 9px 9px 0; padding: 0 8px; }
+  .spacer { flex: 1; }
+
+  .toast { position: absolute; left: 16px; right: 16px; bottom: 104px; padding: 11px 14px; border-radius: 14px; background: var(--dv-surface); backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge); z-index: 39; opacity: 0; transform: translateY(8px); transition: opacity .25s, transform .25s; pointer-events: none; font-size: 14px; }
+  .toast.show { opacity: 1; transform: none; }
+  .toast b { color: var(--dv-gold); margin-right: 6px; }
+  .toast .undo { margin-left: 10px; color: var(--dv-gold); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone" id="phone">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span class="icons">
+      <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="9" width="2.5" height="5" rx=".5"/><rect x="5" y="6.5" width="2.5" height="7.5" rx=".5"/><rect x="9" y="4" width="2.5" height="10" rx=".5"/><rect x="13" y="2" width="2.5" height="12" rx=".5" opacity=".35"/></svg>
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5c2.6 0 5 1 6.8 2.7l-1.3 1.4A8 8 0 0 0 8 5.4a8 8 0 0 0-5.5 2.2L1.2 6.2A9.9 9.9 0 0 1 8 3.5Zm0 3.6c1.7 0 3.2.6 4.3 1.7l-1.3 1.4A4.3 4.3 0 0 0 8 9a4.3 4.3 0 0 0-3 1.2L3.7 8.8A6.1 6.1 0 0 1 8 7.1Zm0 3.5c.8 0 1.5.3 2 .8L8 13.5l-2-2.1c.5-.5 1.2-.8 2-.8Z"/></svg>
+      <svg viewBox="0 0 28 14" fill="currentColor"><rect x=".5" y=".5" width="24" height="13" rx="3.5" fill="none" stroke="currentColor" opacity=".5"/><rect x="2" y="2" width="20" height="10" rx="2"/><rect x="25.5" y="4.5" width="2" height="5" rx="1" opacity=".5"/></svg>
+    </span></div>
+
+    <!-- La page MusicDex -->
+    <div class="page" id="page">
+      <div class="topbar">
+        <div class="brand">Dex<b>Vault</b></div>
+        <div class="search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>Search albums…</div>
+        <div class="sections"><span><svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 3h14v10H1zm2 2v6h10V5zM1 3l2 2m10-2-2 2M1 13l2-2m10 2-2-2"/></svg></span><span class="on"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="7"/><circle cx="8" cy="8" r="2" fill="#111"/></svg></span><span><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v12H2zm7 0h5v12H9z"/></svg></span></div>
+      </div>
+      <div class="ln-head"><h3>Listen next</h3><div class="seg"><span class="on">Digital</span><span class="cd">CD</span></div></div>
+      <div class="ln-row" id="lnRow"></div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <!-- La pastille : un album joue, la feuille est fermée. -->
+    <div class="pill gone" id="pill"></div>
+
+    <!-- La feuille : l'aperçu d'un album, puis le lecteur. -->
+    <div class="sheet" id="sheet">
+      <div class="bd" id="bd"></div>
+      <div class="inner">
+        <button class="handle" id="handle" aria-label="Back to the albums"><span></span></button>
+        <div class="hero"><div class="cover" id="hero"></div></div>
+        <div class="words">
+          <div class="txt"><div class="artist" id="wArtist"></div><div class="title" id="wTitle"></div><div class="murmur" id="wMurmur"></div></div>
+          <button class="round" id="infoBtn" aria-label="About this album"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+          <button class="round" id="moreBtn" aria-label="More"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div class="band">
+          <div class="idle">
+            <div class="sides">
+              <button class="round" id="idleNext" aria-label="Listen Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="7" rx="1.5" fill="currentColor"/><rect x="17" y="13" width="4" height="7" rx="1.5" fill="currentColor"/></svg></button>
+              <button class="round" id="idleOut" aria-label="Output"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="14" r="3.5"/><circle cx="12" cy="7.5" r="1" fill="currentColor"/></svg></button>
+            </div>
+            <button class="bigplay" id="bigPlay" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+            <span class="where" id="where"></span>
+          </div>
+          <div class="live">
+            <div class="seek">
+              <div class="line" id="seekLine"><div class="rail"><i id="fill"></i></div></div>
+              <div class="times"><span id="tNow">0:00</span><span id="tLeft">-0:00</span></div>
+            </div>
+            <div class="transport">
+              <button class="step" id="prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
+              <button class="tog" id="tog" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor" id="togIcon"><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg></button>
+              <button class="step" id="next" aria-label="Next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="zone">
+          <div class="tracks" id="zTracks"></div>
+          <div class="guide" id="zGuide" hidden></div>
+          <div class="lyrics" id="zLyrics" hidden></div>
+        </div>
+        <div class="nowbar" id="nowbar" hidden></div>
+        <footer class="foot">
+          <button id="fLyrics" aria-label="Lyrics"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v12H7l-3 3zM7 8h10v1.6H7zm0 3h7v1.6H7z"/></svg></button>
+          <button id="fGuide" aria-label="Listening guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6z"/></svg></button>
+          <button id="fTracks" aria-label="Tracks"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h12v2H4zm0 5h12v2H4zm0 5h8v2H4zm14-6v6.3a2.5 2.5 0 1 0 2 2.4V12h2v-2z"/></svg></button>
+          <button id="fOut" aria-label="Output"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="14" r="3.5"/><circle cx="12" cy="7.5" r="1" fill="currentColor"/></svg><span class="away" id="awayDot" hidden></span></button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- La fiche album complète : MusicDetailCard telle qu'elle est, en retrait. -->
+    <div class="card" id="card">
+      <div class="ch">
+        <button class="round" id="cardBack" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="ttl" id="cTitle"></div><div class="shelf" id="cShelf">M-2-14</div>
+      </div>
+      <div class="cb" id="cBody"></div>
+      <div class="cf">
+        <span class="bgroup"><button class="btn primary"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button><button class="btn primary">▾</button></span>
+        <span class="bgroup"><button class="btn icon" aria-label="Listen Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="7" rx="1.5" fill="currentColor"/><rect x="17" y="13" width="4" height="7" rx="1.5" fill="currentColor"/></svg></button><button class="btn">▾</button></span>
+        <button class="btn icon" aria-label="Mixtapes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2.5"/><circle cx="16" cy="12" r="2.5"/></svg></button>
+        <span class="spacer"></span>
+        <button class="btn icon" aria-label="I bought the CD"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+        <button class="btn icon" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4l11-11-4-4L4 16z"/></svg></button>
+        <button class="btn icon danger" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+      </div>
+    </div>
+
+    <div id="menuHost"></div>
+    <div class="toast" id="toast"></div>
+    <div class="home"></div>
+  </div>
+
+  <div class="note">
+    <h1>Piste B — la pochette mène au lecteur</h1>
+    <p>Sur l'iPhone, toucher une pochette de la grille ouvre la <b>vue du lecteur</b> sur cet album, sans le jouer encore : grande pochette, qui et quoi, un ▶ or, les pistes dessous. Toucher ▶ ou une piste lance le son dans la même vue, sans saut. Le reste de la fiche (méta, guide, notes, Edit…) est derrière (i) ou ⋯.</p>
+    <div class="scen" id="scen">
+      <button data-s="grid" class="on">1 · Grille, rien ne joue</button>
+      <button data-s="preview">2 · Aperçu de l'album touché</button>
+      <button data-s="other">3 · Aperçu, un autre joue</button>
+      <button data-s="playing">4 · En lecture après ▶</button>
+      <button data-s="unripped">5 · CD non rippé</button>
+    </div>
+    <div class="state" id="stateLine"></div>
+    <h2>À essayer dans le cadre</h2>
+    <ul>
+      <li><b>Toucher une pochette</b> ouvre l'aperçu ; <b>▶ sur la pochette</b> joue tout de suite (comme aujourd'hui) et montre la pastille.</li>
+      <li>Dans l'aperçu : <b>▶</b> joue depuis la première piste, <b>une piste</b> joue depuis elle, le casque met l'album dans Listen Next, la sortie choisit où ça jouera.</li>
+      <li><b>Tirer la poignée vers le bas</b> (ou la toucher) referme sur la grille ; <b>toucher la pochette</b> en lecture bascule entre la liste et la grande pochette.</li>
+      <li>Au pied : Paroles (en lecture seulement), Guide (si l'album en a), Pistes, Sortie. <b>(i)</b> et <b>⋯ › Album card</b> ouvrent la fiche complète telle qu'elle est.</li>
+      <li>Scénario 3 : <b>la pastille de l'album qui joue</b> vit au pied de l'aperçu ; le son continue, ▶ la remplace.</li>
+    </ul>
+    <h2>Les trois états d'un album</h2>
+    <ul>
+      <li><b>Aperçu</b> : pochette 176 px, ▶ or, « Plays on this iPhone · 48 min » ; les pistes en gris.</li>
+      <li><b>En lecture</b> : la pochette ne bouge pas, le ▶ s'efface et laisse la position et ⏮ ⏯ ⏭ à la même place ; la piste qui joue est en or dans la liste.</li>
+      <li><b>Grande pochette</b> : la vue « cover » d'aujourd'hui, un toucher sur la pochette y mène et en revient.</li>
+    </ul>
+  </div>
+</div>
+<script>
+const C = '../2026-10-18-paroles/';
+const ALBUMS = [
+  { id: 1, title: '21', artist: 'Adele', year: 2011, format: 'CD', country: 'UK', label: 'XL', img: C + 'cover-21.jpg', ripped: true, guide: true, ln: 'digital',
+    tracks: [['Rolling in the Deep', 228], ['Rumour Has It', 223], ['Turning Tables', 250], ['Don\'t You Remember', 243], ['Set Fire to the Rain', 242], ['He Won\'t Go', 277], ['Take It All', 228], ['I\'ll Be Waiting', 241], ['One and Only', 348], ['Lovesong', 316], ['Someone Like You', 285]] },
+  { id: 2, title: 'No Angel', artist: 'Dido', year: 1999, format: 'CD', country: 'UK', label: 'Arista', img: C + 'cover-205.jpg', ripped: false, guide: true, ln: null,
+    tracks: [['Here with Me', 255], ['Hunter', 236], ['Don\'t Think of Me', 273], ['My Lover\'s Gone', 263], ['All You Want', 233], ['Thank You', 218], ['Honestly OK', 277], ['Slide', 292], ['Isobel', 236], ['I\'m No Angel', 233], ['My Life', 206], ['Take My Hand', 403]] },
+  { id: 3, title: 'Franz Ferdinand', artist: 'Franz Ferdinand', year: 2004, format: 'CD', country: 'UK', label: 'Domino', img: C + 'cover-282.jpg', ripped: true, guide: false, ln: 'digital',
+    tracks: [['Jacqueline', 229], ['Tell Her Tonight', 136], ['Take Me Out', 237], ['The Dark of the Matinée', 243], ['Auf Achse', 254], ['Cheating on You', 157], ['This Fire', 254], ['Darts of Pleasure', 180], ['Michael', 201], ['Come On Home', 226], ['40\'', 203]] },
+  { id: 4, title: 'Californication', artist: 'Red Hot Chili Peppers', year: 1999, format: 'CD', country: 'US', label: 'Warner', img: C + 'cover-302.jpg', ripped: true, guide: true, ln: 'cd',
+    tracks: [['Around the World', 238], ['Parallel Universe', 270], ['Scar Tissue', 216], ['Otherside', 255], ['Get on Top', 198], ['Californication', 321], ['Easily', 231], ['Porcelain', 163], ['Emit Remmus', 240], ['I Like Dirt', 157], ['This Velvet Glove', 225], ['Savior', 292], ['Purple Stain', 253], ['Right on Time', 112], ['Road Trippin\'', 205]] },
+  { id: 5, title: 'In Rainbows', artist: 'Radiohead', year: 2007, format: 'CD', country: 'UK', label: 'XL', img: C + 'cover-336.jpg', ripped: true, guide: false, ln: null,
+    tracks: [['15 Step', 237], ['Bodysnatchers', 242], ['Nude', 255], ['Weird Fishes/Arpeggi', 318], ['All I Need', 229], ['Faust Arp', 130], ['Reckoner', 290], ['House of Cards', 328], ['Jigsaw Falling into Place', 249], ['Videotape', 279]] },
+  { id: 6, title: 'Life in Cartoon Motion', artist: 'Mika', year: 2007, format: 'CD', country: 'UK', label: 'Casablanca', img: C + 'cover-344.jpg', ripped: true, guide: false, ln: null,
+    tracks: [['Grace Kelly', 187], ['Lollipop', 182], ['My Interpretation', 215], ['Love Today', 235], ['Relax, Take It Easy', 269], ['Any Other World', 258], ['Billy Brown', 195], ['Big Girl (You Are Beautiful)', 248], ['Stuck in the Middle', 243], ['Happy Ending', 296]] },
+  { id: 7, title: 'Blue Train', artist: 'John Coltrane', year: 1957, format: 'CD', country: 'US', label: 'Blue Note', grad: 'linear-gradient(135deg,#0f2740,#2d5a8c 60%,#9fb7cf)', ripped: true, guide: true, ln: null,
+    tracks: [['Blue Train', 643], ['Moment\'s Notice', 550], ['Locomotion', 433], ['I\'m Old Fashioned', 467], ['Lazy Bird', 423]] },
+  { id: 8, title: 'Kind of Blue', artist: 'Miles Davis', year: 1959, format: 'CD', country: 'US', label: 'Columbia', grad: 'linear-gradient(160deg,#1a1f2b,#3b4a6b 55%,#6f7f9f)', ripped: false, guide: false, ln: null,
+    tracks: [['So What', 562], ['Freddie Freeloader', 589], ['Blue in Green', 337], ['All Blues', 693], ['Flamenco Sketches', 566]] },
+  { id: 9, title: 'Goldberg-Variationen', artist: 'Glenn Gould', year: 1981, format: '2 CD', country: 'US', label: 'CBS', grad: 'linear-gradient(135deg,#3a2a1a,#8a6a3a 60%,#d9c08a)', ripped: true, guide: true, ln: null,
+    tracks: [['Aria', 183], ['Variatio 1', 71], ['Variatio 2', 48], ['Variatio 3', 66], ['Variatio 4', 55], ['Variatio 5', 38], ['Variatio 6', 42], ['Variatio 7', 78]] },
+];
+const GUIDE = {
+  1: ['Written at twenty-one after a break-up, recorded in London and Malibu with Rick Rubin and Paul Epworth: a soul record with a pop frame, the voice always in front of the band.', 'Rolling in the Deep sets the pulse with a kick drum and a stamped floor; Someone Like You, last, is a piano and the voice alone, and the one take kept was the second.', 'Listen for the strings that creep into Turning Tables and never take over.'],
+  2: ['A bedroom record that sold twelve million: programmed beats under a folk voice, the songs short and plain. Here with Me opens it with the loop that Roswell took; Thank You, sampled by Eminem the year after, is the one everybody knows.', 'The order matters: the first half is the night, the second the morning after.'],
+  4: ['Frusciante back after six years, thinner and quieter: the guitar parts are small and the songs carry them. Scar Tissue is the record in one song.', 'Hear the bass on Otherside, and the long fade of the title track.'],
+  7: ['Coltrane\'s only Blue Note date as a leader, cut in a single afternoon in September 1957, and the first record where his own voice is whole: the sheets of sound are here, but held by a sextet that swings.', 'Listen for Lee Morgan, nineteen, who answers every one of Coltrane\'s long lines with a short, bright one on the title track; and for Curtis Fuller\'s trombone on Moment\'s Notice, the one chorus that breathes.'],
+  9: ['Gould\'s second Goldberg, recorded the year before his death, is slower, graver, and sung under his breath throughout. The Aria alone takes three minutes where the 1955 one took under two.', 'Follow the bass line of the Aria through the variations: every third one is a canon, each a step wider than the last.'],
+};
+const LYRICS = ['The tram goes by beneath my window', 'Another evening, the same old song', 'I count the lights along the river', 'And wonder where the day has gone', 'Oh, hold the line', 'Hold the line a little longer', 'The night is young and so are we', 'Until the morning sets us free'];
+
+const $ = id => document.getElementById(id);
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const total = a => a.tracks.reduce((n, t) => n + t[1], 0);
+const minutes = a => { const m = Math.round(total(a) / 60); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`; };
+const art = a => a.img ? `<img src="${a.img}" alt="">` : `<span class="grad" style="background:${a.grad}"></span>`;
+const byId = id => ALBUMS.find(a => a.id === id);
+
+// ---------- L'état : la page, l'aperçu, ce qui joue. ----------
+const S = {
+  screen: 'grid',            // grid | sheet | card
+  album: null,               // l'album de la feuille
+  view: 'tracks',            // tracks | guide | lyrics | cover
+  playing: null,             // { albumId, index, at, paused }
+  output: 'this',            // this | salon
+  listenNext: Object.fromEntries(ALBUMS.filter(a => a.ln).map(a => [a.id, a.ln])),
+  scenario: 'grid',
+};
+const ICON_PLAY = '<path d="M8 5v14l11-7z"/>', ICON_PAUSE = '<path d="M7 5h4v14H7zm6 0h4v14h-4z"/>';
+const SVG_PLAY = `<svg viewBox="0 0 24 24" fill="currentColor">${ICON_PLAY}</svg>`;
+const SVG_PAUSE = `<svg viewBox="0 0 24 24" fill="currentColor">${ICON_PAUSE}</svg>`;
+const SVG_HEAD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="7" rx="1.5" fill="currentColor"/><rect x="17" y="13" width="4" height="7" rx="1.5" fill="currentColor"/></svg>';
+const SVG_NEXT = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>';
+const SVG_DISC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>';
+
+// ---------- La grille et Listen Next. ----------
+function renderGrid() {
+  $('lnRow').innerHTML = ALBUMS.filter(a => S.listenNext[a.id] === 'digital').map(a => `
+    <div class="cover" data-open="${a.id}">${art(a)}</div>`).join('');
+  $('grid').innerHTML = ALBUMS.map(a => {
+    const ln = S.listenNext[a.id];
+    return `<div class="tile">
+      <div class="cover cover-host" data-open="${a.id}">${art(a)}
+        ${!a.ripped ? '<span class="ctag silver">CD only</span>' : ''}
+        ${a.ripped ? `<button class="cbtn play" data-play="${a.id}" aria-label="Play ${a.title}">${S.playing && !S.playing.paused && S.playing.albumId === a.id ? SVG_PAUSE : SVG_PLAY}</button>` : ''}
+        <button class="cbtn next ${ln ? 'on' : ''} ${ln === 'cd' ? 'cd' : ''}" data-next="${a.id}" aria-label="Listen Next">${SVG_HEAD}</button>
+      </div>
+      <h6>${a.title}</h6><p>${a.artist}</p>
+    </div>`;
+  }).join('');
+}
+$('page').addEventListener('click', e => {
+  const play = e.target.closest('[data-play]'), next = e.target.closest('[data-next]'), open = e.target.closest('[data-open]');
+  if (play) { e.stopPropagation(); const id = Number(play.dataset.play); if (S.playing?.albumId === id) toggle(); else startPlaying(id, 0); return; }
+  if (next) { e.stopPropagation(); toggleListenNext(Number(next.dataset.next), 'digital'); return; }
+  if (open) openSheet(Number(open.dataset.open));
+});
+
+// ---------- La pastille (feuille fermée). ----------
+function renderPill() {
+  const p = S.playing, pill = $('pill');
+  if (!p || S.screen !== 'grid') { pill.classList.add('gone'); return; }
+  const a = byId(p.albumId), t = a.tracks[p.index];
+  pill.classList.remove('gone');
+  pill.innerHTML = `<div class="thumb">${art(a)}</div><div class="w"><span class="t">${t[0]}</span><span class="f">${S.output === 'salon' ? 'Salon · ' : ''}${a.artist} · ${a.title}</span></div>
+    <button class="pbtn" data-tog aria-label="${p.paused ? 'Play' : 'Pause'}">${p.paused ? SVG_PLAY : SVG_PAUSE}</button>
+    <button class="pbtn small" data-nxt aria-label="Next">${SVG_NEXT}</button>
+    <span class="prog"><i style="width:${(p.at / t[1]) * 100}%"></i></span>`;
+}
+$('pill').addEventListener('click', e => {
+  if (e.target.closest('[data-tog]')) { toggle(); return; }
+  if (e.target.closest('[data-nxt]')) { skip(1); return; }
+  S.view = 'cover'; openSheet(S.playing.albumId);
+});
+
+// ---------- La lecture simulée. ----------
+function startPlaying(albumId, index) {
+  const a = byId(albumId); if (!a.ripped) return;
+  S.playing = { albumId, index, at: 0, paused: false };
+  if (S.album === albumId && S.view !== 'cover') S.view = S.view === 'guide' ? 'guide' : 'tracks';
+  render();
+}
+function toggle() { if (S.playing) { S.playing.paused = !S.playing.paused; render(); } }
+function skip(d) {
+  const p = S.playing; if (!p) return; const a = byId(p.albumId);
+  const i = p.index + d; if (i < 0 || i >= a.tracks.length) { S.playing = null; if (S.view === 'lyrics' || S.view === 'cover') S.view = 'tracks'; render(); return; }
+  p.index = i; p.at = 0; render();
+}
+setInterval(() => {
+  const p = S.playing; if (!p || p.paused) return;
+  p.at += 0.25 * 8; // le temps passe huit fois plus vite, pour voir la barre bouger
+  const t = byId(p.albumId).tracks[p.index];
+  if (p.at >= t[1]) { skip(1); return; }
+  tick();
+}, 250);
+function tick() {
+  const p = S.playing; if (!p) return;
+  const t = byId(p.albumId).tracks[p.index], share = Math.min(100, (p.at / t[1]) * 100);
+  $('fill').style.width = share + '%'; $('tNow').textContent = fmt(p.at); $('tLeft').textContent = '-' + fmt(Math.max(0, t[1] - p.at));
+  if (S.screen === 'grid') { const i = $('pill').querySelector('.prog i'); if (i) i.style.width = share + '%'; }
+  if (S.screen === 'sheet' && S.album !== p.albumId) { const i = $('nowbar').querySelector('.prog i'); if (i) i.style.width = share + '%'; }
+  if (S.view === 'lyrics') { const k = Math.floor((p.at / t[1]) * LYRICS.length); [...$('zLyrics').querySelectorAll('li')].forEach((li, i) => li.className = i === k ? 'now' : i < k ? 'past' : ''); }
+}
+
+// ---------- La feuille. ----------
+function openSheet(id) {
+  S.album = id; S.screen = 'sheet';
+  if (!(S.playing && S.playing.albumId === id)) S.view = 'tracks';
+  render();
+}
+function closeSheet() { S.screen = 'grid'; render(); }
+function renderSheet() {
+  const sheet = $('sheet'), a = S.album != null ? byId(S.album) : null;
+  sheet.classList.toggle('open', S.screen === 'sheet' || S.screen === 'card');
+  if (!a) return;
+  const mine = S.playing && S.playing.albumId === a.id;         // cet album joue
+  const other = S.playing && S.playing.albumId !== a.id;        // un autre album joue
+  if (!a.guide && S.view === 'guide') S.view = 'tracks';
+  if (!mine && (S.view === 'lyrics' || S.view === 'cover')) S.view = 'tracks';
+  sheet.className = `sheet ${sheet.classList.contains('open') ? 'open' : ''} v-${S.view} ${mine ? 'playing' : ''} ${mine && S.playing.paused ? 'paused' : ''}`;
+  $('bd').innerHTML = art(a); $('hero').innerHTML = art(a);
+  // Les mots : l'album dans l'aperçu et la liste ; la piste dans la grande pochette.
+  if (S.view === 'cover' && mine) {
+    $('wArtist').textContent = `${a.artist} · ${a.title}`; $('wTitle').textContent = a.tracks[S.playing.index][0];
+    $('wMurmur').textContent = `Track ${S.playing.index + 1} of ${a.tracks.length}`;
+  } else {
+    $('wArtist').textContent = a.artist; $('wTitle').textContent = a.title;
+    const shape = `${a.format} · ${a.tracks.length} tracks · ${minutes(a)} · ${a.year}`;
+    $('wMurmur').innerHTML = a.ripped ? shape : `<span class="cd">Not ripped</span> · ${shape}`;
+  }
+  // La bande : ▶ or et où ça jouera ; ou la position et ⏮ ⏯ ⏭.
+  $('bigPlay').disabled = !a.ripped;
+  const ln = S.listenNext[a.id];
+  $('idleNext').className = `round ${ln ? 'on' : ''} ${ln === 'cd' ? 'cd' : ''}`;
+  $('idleOut').className = `round ${S.output === 'salon' ? 'on' : ''}`;
+  $('where').className = `where ${a.ripped ? '' : 'silver'}`;
+  $('where').innerHTML = a.ripped
+    ? `${S.output === 'salon' ? 'Plays in the Salon' : 'Plays on this iPhone'} · ${minutes(a)}`
+    : `${SVG_DISC} On CD only — put it on, or rip it`;
+  $('togIcon').innerHTML = mine && S.playing.paused ? ICON_PLAY : ICON_PAUSE;
+  $('prev').disabled = !mine || S.playing.index === 0; $('next').disabled = !mine || S.playing.index >= a.tracks.length - 1;
+  // La zone : pistes / guide / paroles.
+  $('zTracks').hidden = S.view !== 'tracks'; $('zGuide').hidden = S.view !== 'guide'; $('zLyrics').hidden = S.view !== 'lyrics';
+  const discs = a.format.startsWith('2') ? [a.tracks.slice(0, 4), a.tracks.slice(4)] : [a.tracks];
+  let n = 0;
+  $('zTracks').innerHTML = discs.map((d, di) => (discs.length > 1 ? `<div class="disc">Disc ${di + 1}</div>` : '') + d.map(t => {
+    const i = n++; const now = mine && S.playing.index === i, past = mine && S.playing.index > i;
+    return `<button class="track ${now ? 'now' : ''} ${past ? 'past' : ''} ${a.ripped ? '' : 'mute'}" data-track="${i}">
+      <span class="no">${now ? '<span class="bars"><i></i><i></i><i></i></span>' : i + 1}</span><span class="tt">${t[0]}</span><span class="tm">${fmt(t[1])}</span></button>`;
+  }).join('')).join('');
+  $('zGuide').innerHTML = a.guide ? `<p class="read">Listening guide · ${GUIDE[a.id].join(' ').split(' ').length} words, about a minute</p>` + GUIDE[a.id].map(p => `<p>${p}</p>`).join('') : '';
+  $('zLyrics').innerHTML = mine ? `<ol>${LYRICS.map(l => `<li>${l}</li>`).join('')}</ol>` : '<p class="note-empty">Play a track to read its words.</p>';
+  // Un autre album joue : sa pastille au pied de l'aperçu.
+  $('nowbar').hidden = !other;
+  if (other) {
+    const b = byId(S.playing.albumId), t = b.tracks[S.playing.index];
+    $('nowbar').innerHTML = `<div class="thumb">${art(b)}</div><div class="w"><div class="t">${t[0]}</div><div class="f">Playing · ${b.artist} · ${b.title}</div></div>
+      <button class="pbtn" data-tog aria-label="${S.playing.paused ? 'Play' : 'Pause'}">${S.playing.paused ? SVG_PLAY : SVG_PAUSE}</button><span class="prog"><i style="width:${(S.playing.at / t[1]) * 100}%"></i></span>`;
+  }
+  // Le pied.
+  $('fLyrics').className = S.view === 'lyrics' ? 'on' : ''; $('fLyrics').disabled = !mine;
+  $('fGuide').className = S.view === 'guide' ? 'on' : ''; $('fGuide').disabled = !a.guide;
+  $('fTracks').className = S.view === 'tracks' ? 'on' : '';
+  $('awayDot').hidden = S.output !== 'salon';
+  tick();
+}
+$('handle').addEventListener('click', closeSheet);
+$('hero').addEventListener('click', () => {
+  const mine = S.playing && S.playing.albumId === S.album; if (!mine) return;
+  S.view = S.view === 'cover' ? 'tracks' : 'cover'; render();
+});
+$('bigPlay').addEventListener('click', () => startPlaying(S.album, 0));
+$('zTracks').addEventListener('click', e => {
+  const b = e.target.closest('[data-track]'); if (!b) return; const a = byId(S.album); if (!a.ripped) return;
+  const i = Number(b.dataset.track);
+  if (S.playing && S.playing.albumId === a.id && S.playing.index === i) { toggle(); return; }
+  startPlaying(a.id, i);
+});
+$('tog').addEventListener('click', toggle); $('prev').addEventListener('click', () => skip(-1)); $('next').addEventListener('click', () => skip(1));
+$('seekLine').addEventListener('click', e => { const p = S.playing; if (!p) return; const r = e.currentTarget.getBoundingClientRect(); p.at = ((e.clientX - r.left) / r.width) * byId(p.albumId).tracks[p.index][1]; tick(); });
+$('nowbar').addEventListener('click', e => { if (e.target.closest('[data-tog]')) { toggle(); return; } S.view = 'cover'; openSheet(S.playing.albumId); });
+const setView = v => { S.view = S.view === v ? 'tracks' : v; render(); };
+$('fLyrics').addEventListener('click', () => setView('lyrics'));
+$('fGuide').addEventListener('click', () => setView('guide'));
+$('fTracks').addEventListener('click', () => { if (S.view !== 'tracks') { S.view = 'tracks'; render(); } });
+$('idleNext').addEventListener('click', () => toggleListenNext(S.album, 'digital'));
+function toggleListenNext(id, list) {
+  const a = byId(id); const was = S.listenNext[id];
+  if (was) { delete S.listenNext[id]; toast(`${a.title} taken out of Listen Next.`, 'Undo'); }
+  else { S.listenNext[id] = a.ripped ? list : 'cd'; toast(`${a.title} is in Listen Next${a.ripped ? '' : ', CD list'}.`); }
+  render();
+}
+
+// ---------- Le glissé vers le bas, de la poignée ou de la pochette, referme la feuille. ----------
+(() => {
+  const sheet = $('sheet'), inner = sheet.querySelector('.inner'); let start = null, dy = 0;
+  inner.addEventListener('pointerdown', e => { if (e.target.closest('.zone, .foot, .band, .nowbar, .round')) return; start = e.clientY; dy = 0; });
+  window.addEventListener('pointermove', e => { if (start == null) return; dy = Math.max(0, e.clientY - start); if (dy > 8) { sheet.classList.add('drag'); sheet.style.transform = `translateY(${dy}px)`; } });
+  const end = () => { if (start == null) return; sheet.classList.remove('drag'); sheet.style.transform = ''; if (dy > 90) closeSheet(); start = null; };
+  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+})();
+
+// ---------- Les menus : ⋯ et la sortie. ----------
+function openMenu(_anchor, html, top) {
+  closeMenu();
+  $('menuHost').innerHTML = `<div class="menu-veil" id="veil"></div><div class="menu" style="top:${top}px">${html}</div>`;
+  $('veil').addEventListener('click', closeMenu);
+}
+function closeMenu() { $('menuHost').innerHTML = ''; }
+$('moreBtn').addEventListener('click', () => {
+  const a = byId(S.album), ln = S.listenNext[a.id], mine = S.playing && S.playing.albumId === a.id;
+  openMenu($('moreBtn'), `
+    <div class="sec">${a.title}</div>
+    <button data-m="card">${SVG_DISC}Album card<span class="hint">meta, notes, edit</span></button>
+    <button data-m="amperfy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>Open in Amperfy</button>
+    <hr>
+    <div class="sec">Listen Next</div>
+    <button data-m="ln-digital" class="${ln === 'digital' ? 'chosen' : ''}">${SVG_HEAD}Digital${ln === 'digital' ? '<span class="hint">✓</span>' : ''}</button>
+    <button data-m="ln-cd" class="${ln === 'cd' ? 'chosen' : ''}">${SVG_DISC}CD${ln === 'cd' ? '<span class="hint">✓</span>' : ''}</button>
+    <button data-m="mixtape"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2.5"/><circle cx="16" cy="12" r="2.5"/></svg>Into a mixtape…</button>
+    ${mine ? '<hr><button data-m="stop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>Stop</button>' : ''}`, $('moreBtn').getBoundingClientRect().bottom - $('sheet').getBoundingClientRect().top + 6);
+  $('menuHost').addEventListener('click', e => {
+    const m = e.target.closest('[data-m]')?.dataset.m; if (!m) return; closeMenu();
+    if (m === 'card') openCard();
+    else if (m === 'ln-digital') { if (ln === 'digital') toggleListenNext(a.id); else { S.listenNext[a.id] = 'digital'; toast(`${a.title} is in Listen Next.`); render(); } }
+    else if (m === 'ln-cd') { if (ln === 'cd') toggleListenNext(a.id); else { S.listenNext[a.id] = 'cd'; toast(`${a.title} is in Listen Next, CD list.`); render(); } }
+    else if (m === 'stop') { S.playing = null; S.view = 'tracks'; render(); }
+    else toast(`${m === 'amperfy' ? 'Amperfy would open here.' : 'The mixtapes would be listed here.'}`);
+  }, { once: true });
+});
+const outputMenu = () => {
+  openMenu(null, `<div class="sec">Output</div>
+    <button data-o="this" class="${S.output === 'this' ? 'chosen' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>This iPhone${S.output === 'this' ? '<span class="hint">✓</span>' : ''}</button>
+    <button data-o="salon" class="${S.output === 'salon' ? 'chosen' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="14" r="3.5"/></svg>Salon<span class="hint">${S.output === 'salon' ? '✓' : 'Onkyo'}</span></button>`, S.screen === 'sheet' && S.view !== 'cover' ? 420 : 460);
+  $('menuHost').addEventListener('click', e => { const o = e.target.closest('[data-o]')?.dataset.o; if (!o) return; S.output = o; closeMenu(); render(); }, { once: true });
+};
+$('idleOut').addEventListener('click', outputMenu); $('fOut').addEventListener('click', outputMenu);
+
+// ---------- La fiche complète. ----------
+function openCard() { S.screen = 'card'; render(); }
+$('infoBtn').addEventListener('click', openCard);
+$('cardBack').addEventListener('click', () => { S.screen = 'sheet'; render(); });
+function renderCard() {
+  const a = S.album != null ? byId(S.album) : null; $('card').classList.toggle('open', S.screen === 'card'); if (!a) return;
+  $('cTitle').textContent = a.title;
+  $('cBody').innerHTML = `<div class="head"><div class="cover">${art(a)}</div><div class="who"><div class="artist">${a.artist}</div><div class="shape">${a.format} · ${a.tracks.length} tracks · ${minutes(a)} · ${a.year} · ${a.country} · ${a.label}</div></div></div>
+    <div class="line">${a.ripped ? `<span class="lossless">Lossless</span> · ${a.tracks.length} of ${a.tracks.length} tracks · FLAC` : 'Not ripped yet.'}</div>
+    <div class="line">Jazz · Hard bop · Modal</div>
+    <div class="line"><span class="star">★★★★☆</span> · 4.6 on MusicBrainz, 212 votes</div>
+    <div class="line">MusicBrainz · Discogs · Wikipedia</div>
+    <div class="fold"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4z"/></svg>Edition, codes and more</div>
+    ${a.guide ? `<h4>Listening guide</h4><div class="text">${GUIDE[a.id].map(p => `<p>${p}</p>`).join('')}</div>` : ''}
+    <h4>Listening notes</h4><div class="quiet">Write a listening note… · Read on Wikipedia…</div>
+    <h4>Tracks</h4>${a.tracks.map((t, i) => `<div class="line"><span style="display:inline-block;width:22px;color:var(--dv-text-faint)">${i + 1}</span>${t[0]} <span style="color:var(--dv-text-faint)">${fmt(t[1])}</span></div>`).join('')}`;
+}
+
+// ---------- Le toast. ----------
+let tt; function toast(m, action) { $('toast').innerHTML = `<b>✓</b>${m}${action ? `<span class="undo">${action}</span>` : ''}`; $('toast').classList.add('show'); clearTimeout(tt); tt = setTimeout(() => $('toast').classList.remove('show'), 3500); }
+
+// ---------- Le rendu et les scénarios. ----------
+function render() {
+  renderGrid(); renderPill(); renderSheet(); renderCard();
+  const p = S.playing;
+  $('stateLine').textContent = `screen=${S.screen} · album=${S.album ? byId(S.album).title : '—'} · view=${S.view} · playing=${p ? `${byId(p.albumId).title} #${p.index + 1}${p.paused ? ' (paused)' : ''}` : 'nothing'} · output=${S.output}`;
+}
+const SCENARIOS = {
+  grid() { S.playing = null; S.screen = 'grid'; S.album = null; S.view = 'tracks'; },
+  preview() { S.playing = null; S.view = 'tracks'; S.screen = 'sheet'; S.album = 1; },
+  other() { S.playing = { albumId: 3, index: 2, at: 74, paused: false }; S.view = 'tracks'; S.screen = 'sheet'; S.album = 1; },
+  playing() { S.playing = { albumId: 1, index: 0, at: 48, paused: false }; S.view = 'tracks'; S.screen = 'sheet'; S.album = 1; },
+  unripped() { S.playing = null; S.view = 'tracks'; S.screen = 'sheet'; S.album = 2; },
+};
+$('scen').addEventListener('click', e => {
+  const s = e.target.dataset?.s; if (!s) return; closeMenu(); S.output = 'this'; SCENARIOS[s](); S.scenario = s;
+  [...$('scen').children].forEach(b => b.classList.toggle('on', b.dataset.s === s)); render();
+});
+render();
+</script>
+</body>
+</html>

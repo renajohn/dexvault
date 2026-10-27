@@ -4,6 +4,7 @@ import {
   BsBoxArrowUpRight, BsChatQuote, BsChatQuoteFill, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
   BsSkipBackwardFill, BsSkipForwardFill, BsSpeaker, BsThreeDots, BsX,
 } from 'react-icons/bs';
+import { setFullPlayer, useFullPlayer } from '../services/phoneDoor';
 import musicService, { type TrackLyrics } from '../services/musicService';
 import { useOutputs } from '../services/outputs';
 import { localOutputName } from '../services/player';
@@ -208,7 +209,9 @@ type View = 'cover' | 'lyrics' | 'guide' | 'tracks';
  */
 const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const { cover, playing, position, length, hasNext, controls, favourite, away = false, taken = null } = props;
-  const [full, setFull] = useState(false);
+  // Shared: the disc at the foot of a music window opens it too (services/phoneDoor).
+  const full = useFullPlayer();
+  const setFull = setFullPlayer;
   const [view, setView] = useState<View>('cover');
   // A new mixtape for the track, its name asked over the full screen.
   const [naming, setNaming] = useState<{ songId: string; title: string } | null>(null);

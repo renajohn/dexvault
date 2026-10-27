@@ -5,6 +5,7 @@ import { base64ToFile } from '../utils/downscaleImage';
 import MusicForm from './MusicForm';
 import MusicThumbnail from './MusicThumbnail';
 import MusicDetailCard from './MusicDetailCard';
+import AlbumSheet from './AlbumSheet';
 import AddMusicDialog from './AddMusicDialog';
 import AlphabeticalIndex from './AlphabeticalIndex';
 import { NextBanner, NextBannerPending, NextBannerSlot, CollectionHeader, EmptyState } from './shared';
@@ -43,6 +44,7 @@ import Notice from './shared/Notice';
 import Spinner, { Loading } from './shared/Spinner';
 import { asksMixtapes, asksNavidrome } from '../utils/musicSearchWords';
 import { isKept, useKeptState } from '../utils/kept';
+import { useMedia } from '../utils/useNarrow';
 import Progressive from './shared/Progressive';
 
 interface MusicSearchProps {
@@ -154,6 +156,9 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   const [pendingCover, setPendingCover] = useState<{ base64: string; mimeType: string } | null>(null);
   const [pendingBack, setPendingBack] = useState<{ base64: string; mimeType: string } | null>(null);
   const [selectedCdDetails, setSelectedCdDetails] = useState<any>(null);
+  // On a phone, the album a cover opens: its sheet (the player at rest), its card a tap behind (i).
+  const [sheetAlbum, setSheetAlbum] = useState<any>(null);
+  const phone = useMedia('(max-width: 767px)');
   const [, setLoadingDetails] = useState(false);
   const [cdDetailsBeforeEdit, setCdDetailsBeforeEdit] = useState<any>(null);
   const previousSearchTextRef = useRef('');
@@ -1015,6 +1020,12 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     try {
       setLoadingDetails(true);
       const details = await musicService.getAlbumById(cdId);
+      // On a phone a cover opens the album's sheet, not its card; a card open (Also on…) gives way to it.
+      if (phone && !isMixtape(details as { titleStatus?: string })) {
+        setSelectedCdDetails(null);
+        setSheetAlbum(details);
+        return;
+      }
       setSelectedCdDetails(details);
     } catch (err) {
       if (onShowAlert) {
@@ -1608,6 +1619,18 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
           onBought={() => setBuying(selectedCdDetails)}
           onCoverChange={(side, coverPath) => setCover(selectedCdDetails.id, side, coverPath)}
           onOpenAlbum={albumId => handleCdClick(albumId)}
+        />
+      )}
+
+      {sheetAlbum && (
+        <AlbumSheet
+          key={sheetAlbum.id}
+          album={sheetAlbum}
+          onClose={() => setSheetAlbum(null)}
+          onOpenCard={() => setSelectedCdDetails(sheetAlbum)}
+          isInListenNext={listenNextAlbums.some(album => album.id === sheetAlbum.id)}
+          listenNextMedium={listenNextMediumOf(sheetAlbum.id)}
+          onListenNextChange={refreshListenNextAlbums}
         />
       )}
 

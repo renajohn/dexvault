@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DexVault — piste E : ce qui joue, par-dessus la fiche (prototype iPhone)</title>
+<style>
+  :root {
+    --dv-gold: #fbbf24; --dv-gold-hover: #fcd34d; --dv-gold-ink: #111;
+    --dv-gold-tint: rgba(251,191,36,.12); --dv-gold-tint-edge: rgba(251,191,36,.45);
+    --dv-danger: #f87171; --dv-danger-tint: rgba(248,113,113,.12);
+    --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-page: #1a1a1a; --dv-glass: rgba(255,255,255,.06); --dv-glass-hover: rgba(255,255,255,.11);
+    --dv-edge: rgba(255,255,255,.12); --dv-edge-hover: rgba(255,255,255,.24); --dv-veil: rgba(255,255,255,.08);
+    --dv-surface: rgba(24,24,24,.86); --dv-surface-edge: rgba(255,255,255,.1);
+    --dv-surface-shadow: 0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+    --dv-radius-sm: 7px; --dv-radius-md: 9px; --dv-radius-lg: 12px;
+    --dv-height-sm: 28px; --dv-height-md: 36px;
+    --safe-top: 54px; --safe-foot: 34px;
+    --head-h: 98px;   /* barre d'état 54 + tête de la fiche 44 */
+    --foot-h: 86px;   /* 10 + bouton 36 + 6 + indicateur d'accueil 34 */
+    --band-h: 28px;
+    --cover: 112px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button { font: inherit; color: inherit; }
+  body { margin: 0; background: #0e0e0e; color: var(--dv-text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 393px 1fr; gap: 36px; align-items: start; }
+  .note { color: var(--dv-text-muted); position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; padding-right: 6px; }
+  .note h1 { color: var(--dv-text); font-size: 20px; margin: 0 0 6px; }
+  .note h2 { color: var(--dv-text); font-size: 15px; margin: 18px 0 6px; }
+  .note p { margin: 6px 0; }
+  .note ul { padding-left: 18px; margin: 6px 0; }
+  .note li { margin: 3px 0; }
+  .note b { color: var(--dv-text); }
+  .note .lbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dv-text-faint); margin: 12px 0 2px; }
+  .note .scen { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .note .scen button { all: unset; cursor: pointer; padding: 7px 12px; border-radius: var(--dv-radius-md); font-weight: 600; font-size: 13px; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); color: var(--dv-text-muted); }
+  .note .scen button.on { color: var(--dv-gold); background: var(--dv-gold-tint); box-shadow: inset 0 0 0 1px var(--dv-gold-tint-edge); }
+  .note .scen button:hover:not(.on) { background: var(--dv-glass-hover); color: var(--dv-text); }
+  .note .vnote { border-left: 2px solid var(--dv-gold-tint-edge); padding: 2px 0 2px 12px; margin: 10px 0; }
+  .note table { border-collapse: collapse; width: 100%; font-size: 12.5px; margin: 8px 0; }
+  .note th, .note td { text-align: left; padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.07); vertical-align: top; }
+  .note th { color: var(--dv-text); font-weight: 600; }
+  .note .reco { color: var(--dv-gold); font-weight: 600; }
+
+  /* L'iPhone : 393 × 852, la barre d'état, la Dynamic Island, l'indicateur d'accueil. */
+  .phone { position: relative; width: 393px; height: 852px; border-radius: 54px; overflow: hidden; background: #111; box-shadow: 0 0 0 10px #232323, 0 0 0 11px #3a3a3a, 0 30px 80px rgba(0,0,0,.6); user-select: none; -webkit-user-select: none; }
+  .status { position: absolute; inset: 0 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; font-weight: 600; font-size: 16px; z-index: 60; pointer-events: none; }
+  .island { position: absolute; left: 50%; top: 11px; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 61; }
+  .home { position: absolute; left: 50%; bottom: 8px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.7); z-index: 61; pointer-events: none; }
+  /* La zone du geste « accueil » d'iOS : on la montre, pour voir ce qui la frôle. */
+  .home-zone { position: absolute; left: 0; right: 0; bottom: 0; height: var(--safe-foot); z-index: 59; pointer-events: none; background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(248,113,113,.08) 6px 12px); opacity: 0; transition: opacity .2s; }
+  .phone.show-zone .home-zone { opacity: 1; }
+
+  /* La fiche : la Dialog panel, sur TOUTE la hauteur de l'écran. */
+  .card { position: absolute; inset: 0; background: var(--dv-page); display: flex; flex-direction: column; z-index: 5; }
+  .dhead { flex: none; height: var(--head-h); padding: var(--safe-top) 8px 0 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.07); }
+  .dhead .ico { color: var(--dv-text-faint); display: grid; place-items: center; }
+  .dhead .ico svg { width: 16px; height: 16px; }
+  .dhead .title { flex: 1; min-width: 0; font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dhead .shelf { font: 600 11px ui-monospace, Menlo, monospace; letter-spacing: .04em; color: var(--dv-gold); padding: 2px 6px; border-radius: 4px; background: var(--dv-gold-tint); box-shadow: inset 0 0 0 1px var(--dv-gold-tint-edge); }
+  .iconbtn { all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: var(--dv-radius-md); display: grid; place-items: center; color: var(--dv-text-muted); flex: none; }
+  .iconbtn:hover { background: var(--dv-veil); color: var(--dv-text); }
+  .iconbtn svg { width: 18px; height: 18px; }
+  .iconbtn.boxed { background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); color: var(--dv-text); width: 40px; height: var(--dv-height-md); }
+
+  .body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .body::-webkit-scrollbar { display: none; }
+  /* Variante 1 : la bulle posée en bas, les dernières pistes passent au-dessus d'elle. */
+  .card.v1.door .body { padding-bottom: 84px; }
+
+  .head { height: calc(var(--cover) + 28px); padding: 14px 16px; display: grid; grid-template-columns: var(--cover) minmax(0, 1fr); gap: 14px; align-items: start; }
+  .cover { all: unset; position: relative; width: var(--cover); height: var(--cover); border-radius: 6px; background: #333 center/cover; box-shadow: 0 2px 10px rgba(0,0,0,.5); cursor: pointer; }
+  .cover .eq { position: absolute; right: 6px; bottom: 6px; }
+  .who { height: var(--cover); display: flex; flex-direction: column; justify-content: space-between; min-width: 0; overflow: hidden; }
+  .who .artist { display: block; font-weight: 700; font-size: 17px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who .line { color: var(--dv-text-muted); font-size: 12.5px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who .line .lossless { color: var(--dv-text); }
+  .stars { display: flex; align-items: center; gap: 2px; height: 22px; color: var(--dv-gold); font-size: 15px; letter-spacing: 1px; }
+  .stars .off { color: rgba(255,255,255,.22); }
+  .stars .community { color: var(--dv-text-faint); font-size: 12px; letter-spacing: 0; margin-left: 8px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: var(--dv-height-sm); padding: 0 11px; border-radius: 999px; border: 1px solid var(--dv-edge); background: var(--dv-glass); color: var(--dv-text-muted); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+  .chip .n { color: var(--dv-text-faint); }
+
+  .tracks { border-top: 1px solid rgba(255,255,255,.07); padding: 6px 4px 12px; }
+  .track { display: flex; align-items: center; padding: 9px 12px; border-radius: 6px; min-height: 44px; cursor: pointer; }
+  .track:hover { background: var(--dv-veil); }
+  .track.current { background: rgba(255,255,255,.05); }
+  .track .no { width: 30px; flex: none; color: #777; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .track.current .no { color: var(--dv-gold); }
+  .track .t { flex: 1; min-width: 0; font-size: 14.5px; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track.current .t { color: #fff; font-weight: 600; }
+  .track .dur { color: #999; font-size: 13px; font-variant-numeric: tabular-nums; flex: none; margin-left: 10px; }
+
+  /* Les barres d'un égaliseur : or quand ça joue, à plat en pause. */
+  .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+  .eq i { width: 3px; height: 4px; background: var(--dv-gold); border-radius: 1px; animation: bar .9s ease-in-out infinite; }
+  .eq i:nth-child(2) { animation-delay: .25s; } .eq i:nth-child(3) { animation-delay: .5s; }
+  .phone.paused .eq i { animation-play-state: paused; height: 4px !important; background: #8a8f98; }
+  @keyframes bar { 0%, 100% { height: 4px; } 50% { height: 12px; } }
+  .cover .eq { padding: 4px 5px; border-radius: 5px; background: rgba(0,0,0,.55); backdrop-filter: blur(6px); height: 20px; box-sizing: border-box; }
+
+  /* Le pied : Play en or, Listen Next, ⋯. */
+  .foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 12px calc(var(--safe-foot) + 6px); border-top: 1px solid rgba(255,255,255,.07); background: var(--dv-page); position: relative; z-index: 10; }
+  .btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: var(--dv-height-md); padding: 0 14px; border-radius: var(--dv-radius-md); font-weight: 600; font-size: 14px; white-space: nowrap; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); color: var(--dv-text); }
+  .btn:hover { background: var(--dv-glass-hover); }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+  .btn.primary { background: var(--dv-gold); color: var(--dv-gold-ink); box-shadow: none; flex: 1; }
+  .btn.primary:hover { background: var(--dv-gold-hover); }
+
+  /* ── Variante 1 : la bulle flottante ─────────────────────────────────── */
+  .bubble { position: absolute; width: 60px; height: 60px; z-index: 30; cursor: grab; touch-action: none; transition: left .28s cubic-bezier(.22,.8,.3,1), top .28s cubic-bezier(.22,.8,.3,1); }
+  .bubble.dragging { transition: none; cursor: grabbing; }
+  .bubble .disc { position: absolute; inset: 5px; border-radius: 50%; background: #333 center/cover; box-shadow: 0 8px 22px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.12); }
+  .bubble svg.ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .bubble svg.ring circle { fill: none; stroke-width: 3; }
+  .bubble svg.ring .bg { stroke: rgba(24,24,24,.9); stroke-width: 5; }
+  .bubble svg.ring .fg { stroke: var(--dv-gold); stroke-linecap: round; transition: stroke-dashoffset .9s linear; }
+  .phone.paused .bubble svg.ring .fg, .phone.paused .hdoor svg.ring .fg { stroke: #8a8f98; }
+  .bubble .eq { position: absolute; right: -2px; bottom: -2px; height: 20px; padding: 4px 5px; border-radius: 10px; background: var(--dv-surface); box-shadow: inset 0 0 0 1px var(--dv-surface-edge); backdrop-filter: blur(10px); }
+  /* Rangée contre un bord : il n'en reste qu'une languette, touchée elle revient. */
+  .bubble.stashed .disc, .bubble.stashed .eq, .bubble.stashed svg.ring { opacity: .0; }
+  .bubble .tab { display: none; position: absolute; top: 12px; width: 18px; height: 36px; border-radius: 9px; background: var(--dv-surface); box-shadow: var(--dv-surface-shadow), inset 0 0 0 1px var(--dv-surface-edge); backdrop-filter: blur(12px); place-items: center; color: var(--dv-gold); font-size: 12px; }
+  .bubble.stashed .tab { display: grid; }
+  .bubble.stashed.left .tab { right: 0; } .bubble.stashed.right .tab { left: 0; }
+  /* Les quatre places où elle peut se poser, montrées pendant qu'on la tient. */
+  .spot { position: absolute; width: 60px; height: 60px; border-radius: 50%; border: 1.5px dashed rgba(255,255,255,.25); z-index: 29; pointer-events: none; opacity: 0; transition: opacity .15s; }
+  .phone.dragging .spot { opacity: 1; }
+
+  /* ── Variante 2 : la tête prêtée ──────────────────────────────────────── */
+  .hdoor { all: unset; cursor: pointer; position: relative; width: 34px; height: 34px; flex: none; display: grid; place-items: center; }
+  .hdoor .disc { width: 26px; height: 26px; border-radius: 50%; background: #333 center/cover; animation: spin 8s linear infinite; }
+  .phone.paused .hdoor .disc { animation-play-state: paused; }
+  .hdoor svg.ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .hdoor svg.ring circle { fill: none; stroke-width: 2; }
+  .hdoor svg.ring .bg { stroke: rgba(255,255,255,.12); }
+  .hdoor svg.ring .fg { stroke: var(--dv-gold); stroke-linecap: round; transition: stroke-dashoffset .9s linear; }
+  .hdoor .dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: #111; box-shadow: 0 0 0 1.5px rgba(255,255,255,.3); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Variante 3 : la bande fine, sous le pied ─────────────────────────── */
+  .band { flex: none; position: relative; height: var(--band-h); display: flex; align-items: center; gap: 8px; padding: 0 6px 0 14px; background: var(--dv-surface); border-top: 1px solid var(--dv-surface-edge); z-index: 11; touch-action: none; cursor: pointer; }
+  .band .prog { position: absolute; left: 0; top: -1px; height: 2px; background: var(--dv-gold); transition: width .9s linear; }
+  .phone.paused .band .prog { background: #8a8f98; }
+  .band .th { width: 20px; height: 20px; border-radius: 50%; background: #333 center/cover; flex: none; }
+  .band .marquee { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 12.5px; mask-image: linear-gradient(90deg, #000 85%, transparent); -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); }
+  .band .marquee span { display: inline-block; padding-right: 40px; animation: marquee 12s linear infinite; }
+  .phone.paused .band .marquee span { animation-play-state: paused; }
+  .band .marquee b { font-weight: 600; } .band .marquee em { font-style: normal; color: var(--dv-text-muted); }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .band .tg { all: unset; cursor: pointer; width: 28px; height: 28px; display: grid; place-items: center; flex: none; }
+  .band .tg svg { width: 16px; height: 16px; }
+  .band .up { color: var(--dv-text-faint); font-size: 10px; flex: none; }
+  /* Avec la bande, le pied perd sa marge du bas : c'est la bande qui pose sur l'indicateur. */
+  .card.v3.door .foot { padding-bottom: 8px; }
+  .card.v3.door .band { height: calc(var(--band-h) + var(--safe-foot)); padding-bottom: var(--safe-foot); }
+
+  /* ── Variante 4 : le disque dans le pied ──────────────────────────────── */
+  .fdoor { all: unset; cursor: pointer; position: relative; width: 40px; height: 40px; flex: none; display: grid; place-items: center; touch-action: none; }
+  .fdoor .disc { width: 32px; height: 32px; border-radius: 50%; background: #333 center/cover; }
+  .fdoor svg.ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .fdoor svg.ring circle { fill: none; stroke-width: 2.5; }
+  .fdoor svg.ring .bg { stroke: rgba(255,255,255,.12); }
+  .fdoor svg.ring .fg { stroke: var(--dv-gold); stroke-linecap: round; transition: stroke-dashoffset .9s linear; }
+  .phone.paused .fdoor svg.ring .fg { stroke: #8a8f98; }
+  .fdoor .eq { position: absolute; right: -4px; bottom: -3px; height: 16px; padding: 3px 4px; border-radius: 8px; background: var(--dv-surface); box-shadow: inset 0 0 0 1px var(--dv-surface-edge); }
+  .fdoor .eq i { width: 2px; }
+  .fdoor .sep { width: 1px; height: 24px; background: rgba(255,255,255,.1); margin-left: 4px; }
+  .foot .vsep { width: 1px; height: 24px; background: rgba(255,255,255,.1); flex: none; }
+
+  /* ── Le lecteur plein écran (PhonePlayer), par-dessus la fiche ────────── */
+  .np { position: absolute; inset: 0; z-index: 40; background: var(--dv-page); transform: translateY(100%); transition: transform .32s cubic-bezier(.32,.72,0,1); overflow: hidden; }
+  .np.open { transform: none; }
+  .np .bd { position: absolute; inset: -40px; background: #333 center/cover; filter: blur(40px) brightness(.45) saturate(1.2); }
+  .np .in { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; padding: calc(var(--safe-top) + 4px) 24px calc(var(--safe-foot) + 10px); }
+  .np .handle { all: unset; cursor: pointer; width: 60px; height: 22px; display: grid; place-items: center; }
+  .np .handle span { width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); }
+  .np .big { width: 300px; height: 300px; border-radius: 10px; margin-top: 26px; background: #333 center/cover; box-shadow: 0 20px 50px rgba(0,0,0,.55); transition: transform .3s; }
+  .phone.paused .np .big { transform: scale(.88); }
+  .np .ttl { align-self: stretch; display: flex; align-items: center; gap: 8px; margin-top: 30px; }
+  .np .ttl .w { flex: 1; min-width: 0; }
+  .np .ttl .w b { display: block; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .np .ttl .w span { color: var(--dv-text-muted); font-size: 14px; }
+  .np .scrub { align-self: stretch; margin-top: 22px; }
+  .np .scrub .bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.18); overflow: hidden; }
+  .np .scrub .bar i { display: block; height: 100%; background: #fff; transition: width .9s linear; }
+  .np .scrub .tm { display: flex; justify-content: space-between; color: var(--dv-text-muted); font-size: 11.5px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .np .tr { display: flex; align-items: center; gap: 36px; margin-top: 18px; }
+  .np .tr button { all: unset; cursor: pointer; display: grid; place-items: center; }
+  .np .tr button svg { width: 30px; height: 30px; }
+  .np .tr .pp svg { width: 46px; height: 46px; }
+  .np .tools { margin-top: auto; align-self: stretch; display: flex; justify-content: space-around; color: var(--dv-text-muted); }
+  .np .tools span { width: 40px; height: 36px; display: grid; place-items: center; font-size: 12px; }
+  .np .tools svg { width: 20px; height: 20px; }
+
+  /* Un Menu : le verre des menus. */
+  .menu { position: absolute; width: 250px; padding: 6px; border-radius: 12px; background: var(--dv-surface); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); box-shadow: var(--dv-surface-shadow), inset 0 0 0 1px var(--dv-surface-edge); z-index: 50; animation: up .18s ease-out; }
+  .menu .item { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 7px 10px; border-radius: 8px; font-size: 14px; color: var(--dv-text); box-sizing: border-box; }
+  .menu .item:hover { background: var(--dv-veil); }
+  .menu .item svg { width: 15px; height: 15px; color: var(--dv-text-muted); flex: none; }
+  .menu .section { padding: 8px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dv-text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .menu .sep { height: 1px; margin: 5px 6px; background: var(--dv-surface-edge); }
+  .scrim { position: absolute; inset: 0; z-index: 49; }
+
+  .toast { position: absolute; left: 16px; right: 16px; bottom: calc(var(--foot-h) + 14px); padding: 11px 14px; border-radius: 14px; background: var(--dv-surface); backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge), var(--dv-surface-shadow); z-index: 55; font-size: 13.5px; animation: up .2s ease-out; }
+  .toast b { color: var(--dv-gold); font-weight: 600; }
+  @keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone" id="phone">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span style="font-size:13px">●●● ▮</span></div>
+
+    <!-- La fiche, sur toute la page : aucune pastille ne mord sur son pied. -->
+    <div class="card" id="card">
+      <div class="dhead">
+        <span class="ico"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 14A6 6 0 1 1 8 2a6 6 0 0 1 0 12m0 1A7 7 0 1 0 8 1a7 7 0 0 0 0 14"/><path d="M8 9a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg></span>
+        <span class="title" id="hTitle">21</span>
+        <span class="shelf" id="hShelf">B-4</span>
+        <!-- Variante 2 : ce qui joue, prêté par la tête, entre l'étagère et ✕. -->
+        <button class="hdoor" id="hdoor" title="Now playing" aria-label="Now playing" hidden>
+          <svg class="ring" viewBox="0 0 34 34"><circle class="bg" cx="17" cy="17" r="15.5"/><circle class="fg" cx="17" cy="17" r="15.5" id="hRing"/></svg>
+          <span class="disc" id="hDisc"></span><span class="dot"></span>
+        </button>
+        <button class="iconbtn" id="close" aria-label="Close"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 3.9 8 7.3l3.4-3.4.7.7L8.7 8l3.4 3.4-.7.7L8 8.7l-3.4 3.4-.7-.7L7.3 8 3.9 4.6z"/></svg></button>
+      </div>
+
+      <div class="body" id="body">
+        <div class="head">
+          <button class="cover" id="cover" aria-label="Cover"><span class="eq" id="coverEq" hidden><i></i><i></i><i></i></span></button>
+          <div class="who">
+            <div>
+              <span class="artist" id="hArtist">Adele</span>
+              <div class="line" id="hShape">CD · 11 tracks · 48:01 · 2011 · XE · XL</div>
+              <div class="line"><span class="lossless">Lossless</span> · 11 of 11 tracks · FLAC</div>
+              <div class="line" id="hGenres">Pop · Soul</div>
+            </div>
+            <div class="stars">★★★★<span class="off">★</span><span class="community">★ 4.1 / 5 · 312 votes</span></div>
+          </div>
+        </div>
+        <div class="chips"><span class="chip">Guide</span><span class="chip">Notes <span class="n">2</span></span><span class="chip">Wikipedia</span><span class="chip">Also on <span class="n">2</span></span><span class="chip">Links</span><span class="chip">Edition &amp; codes</span></div>
+        <div class="tracks" id="tracks"></div>
+      </div>
+
+      <div class="foot" id="foot">
+        <!-- Variante 4 : le disque de ce qui joue, à gauche du pied. -->
+        <button class="fdoor" id="fdoor" title="Now playing" aria-label="Now playing" hidden>
+          <svg class="ring" viewBox="0 0 40 40"><circle class="bg" cx="20" cy="20" r="18.5"/><circle class="fg" cx="20" cy="20" r="18.5" id="fRing"/></svg>
+          <span class="disc" id="fDisc"></span>
+          <span class="eq"><i></i><i></i><i></i></span>
+        </button>
+        <span class="vsep" id="fSep" hidden></span>
+        <button class="btn primary" id="play"><svg viewBox="0 0 16 16" fill="currentColor" id="playIcon"></svg><span id="playWord">Play</span></button>
+        <button class="btn" id="next" aria-label="Listen Next"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 0 0-5 5v1.5A1.5 1.5 0 0 1 4.5 8H5v5H4.5A2.5 2.5 0 0 1 2 10.5V8a6 6 0 0 1 12 0v2.5a2.5 2.5 0 0 1-2.5 2.5H11V8h.5A1.5 1.5 0 0 1 13 9.5V8a5 5 0 0 0-5-5"/></svg><span id="nextWord">Listen Next</span></button>
+        <button class="iconbtn boxed" aria-label="More"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg></button>
+      </div>
+
+      <!-- Variante 3 : la bande fine, sous le pied, posée sur l'indicateur d'accueil. -->
+      <div class="band" id="band" hidden>
+        <span class="prog" id="bProg"></span>
+        <span class="th" id="bTh"></span>
+        <span class="marquee"><span id="bWords"></span></span>
+        <span class="up">⌃</span>
+        <button class="tg" id="bToggle" aria-label="Pause"><svg viewBox="0 0 16 16" fill="currentColor" id="bIcon"></svg></button>
+      </div>
+    </div>
+
+    <!-- Variante 1 : la bulle, et les quatre places où elle se pose. -->
+    <span class="spot" id="spot-tl"></span><span class="spot" id="spot-tr"></span><span class="spot" id="spot-bl"></span><span class="spot" id="spot-br"></span>
+    <div class="bubble" id="bubble" hidden title="Now playing">
+      <svg class="ring" viewBox="0 0 60 60"><circle class="bg" cx="30" cy="30" r="27.5"/><circle class="fg" cx="30" cy="30" r="27.5" id="bRing"/></svg>
+      <span class="disc" id="bDisc"></span>
+      <span class="eq"><i></i><i></i><i></i></span>
+      <span class="tab">‹</span>
+    </div>
+
+    <!-- Le lecteur plein écran. -->
+    <div class="np" id="np" aria-hidden="true">
+      <div class="bd" id="npBd"></div>
+      <div class="in">
+        <button class="handle" id="npHandle" aria-label="Back"><span></span></button>
+        <div class="big" id="npBig"></div>
+        <div class="ttl">
+          <div class="w"><b id="npTrack">Take Me Out</b><span id="npSub">Franz Ferdinand · The Domino Years</span></div>
+          <button class="iconbtn" id="npMore" aria-label="More"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg></button>
+        </div>
+        <div class="scrub"><div class="bar"><i id="npBar"></i></div><div class="tm"><span id="npPos">1:12</span><span id="npLen">-2:45</span></div></div>
+        <div class="tr">
+          <button aria-label="Previous"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h1.5v10H3zm2 5 7.5-5v10z"/></svg></button>
+          <button class="pp" id="npToggle" aria-label="Pause"><svg viewBox="0 0 16 16" fill="currentColor" id="npIcon"></svg></button>
+          <button aria-label="Next"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 3H13v10h-1.5zM11 8 3.5 13V3z"/></svg></button>
+        </div>
+        <div class="tools">
+          <span title="Lyrics"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v8H6l-3 3v-3H2z"/></svg></span>
+          <span title="Guide"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3.5C3.5 2.6 5.5 2.6 7.5 3.6v9.2C5.5 11.8 3.5 11.8 2 12.7zm6.5.1c2-1 4-1 5.5-.1v9.2c-1.5-.9-3.5-.9-5.5.1z"/></svg></span>
+          <span title="Tracks"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h9v1.5H2zm0 3.5h9V8H2zm0 3.5h6v1.5H2zm10-1.5V3h1.5v8.5a2 2 0 1 1-1.5-1.9z"/></svg></span>
+          <span title="Output"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 1h8v14H4zm4 3a1 1 0 1 0 0 2 1 1 0 0 0 0-2m0 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5"/></svg></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="scrim" id="scrim" hidden></div>
+    <div class="menu" id="menu" hidden style="right:14px; top:500px"></div>
+    <div class="toast" id="toast" hidden></div>
+    <div class="home-zone"></div>
+    <div class="home"></div>
+  </div>
+
+  <div class="note">
+    <h1>Piste E — ce qui joue, par-dessus la fiche</h1>
+    <p>La fiche (l'aperçu B ou la fiche A) prend <b>toute la page</b> : la pastille du lecteur, 64 px plus ses marges, n'est plus posée sous elle. Ce qui joue reste visible sous une forme plus petite, et <b>un toucher</b> ramène le lecteur plein écran ; dans le lecteur, ⋯ › <b>Open &lt;album&gt;</b> ou la poignée ramène à la fiche.</p>
+
+    <div class="lbl">Variante</div>
+    <div class="scen" id="scV">
+      <button data-v="1" class="on">1 · Bulle flottante</button>
+      <button data-v="2">2 · Titre prêté</button>
+      <button data-v="3">3 · Bande fine</button>
+      <button data-v="4">4 · Disque au pied</button>
+    </div>
+    <div class="lbl">Ce qui joue</div>
+    <div class="scen" id="scP">
+      <button data-p="other" class="on">Another album</button>
+      <button data-p="same">This album</button>
+      <button data-p="paused">Another, paused</button>
+      <button data-p="none">Nothing</button>
+    </div>
+    <div class="lbl">Montrer</div>
+    <div class="scen" id="scX">
+      <button data-x="zone">Zone du geste d'accueil</button>
+      <button data-x="full">Lecteur plein écran</button>
+    </div>
+    <p style="font-size:13px">Dans le cadre : touchez la porte de la variante (bulle, disque de la tête, bande, disque du pied) pour ouvrir le lecteur ; la poignée le referme sur la fiche ; son ⋯ › <b>Open The Domino Years</b> met cet album dans la fiche. ▶ Play dans la fiche fait de cet album ce qui joue. La bulle se tire d'un doigt vers un des quatre coins, ou contre un bord pour la ranger.</p>
+
+    <div id="vn"></div>
+
+    <h2>Comparaison</h2>
+    <table>
+      <tr><th></th><th>1 Bulle</th><th>2 Titre</th><th>3 Bande</th><th>4 Pied</th></tr>
+      <tr><td>Couvre la fiche</td><td>oui, 60 px</td><td>non</td><td>non</td><td>non</td></tr>
+      <tr><td>Hauteur prise</td><td>0</td><td>0</td><td>+28 px</td><td>0</td></tr>
+      <tr><td>Sous le pouce</td><td>oui</td><td>non (en haut)</td><td>oui</td><td>oui</td></tr>
+      <tr><td>Se voit</td><td>très</td><td>peu</td><td>assez</td><td>assez</td></tr>
+      <tr><td>Geste d'accueil iOS</td><td>loin</td><td>loin</td><td><b>frôlé</b></td><td>loin</td></tr>
+      <tr><td>À apprendre</td><td>tirer, ranger</td><td>rien</td><td>glisser ⌃</td><td>rien</td></tr>
+      <tr><td>Coût de code</td><td>élevé</td><td>faible</td><td>moyen</td><td>faible</td></tr>
+    </table>
+    <p class="reco">Recommandation : 4, le disque au pied, avec l'anneau et l'égaliseur de la bulle. La bulle (1) reste l'option si on la veut voir de loin.</p>
+  </div>
+</div>
+
+<script>
+const IC = {
+  play: '<path d="M5 3.5v9l8-4.5z"/>',
+  pause: '<path d="M4.5 3h2.5v10H4.5zm4.5 0h2.5v10H9z"/>',
+  disc: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 14A6 6 0 1 1 8 2a6 6 0 0 1 0 12m0 1A7 7 0 1 0 8 1a7 7 0 0 0 0 14"/><path d="M8 9a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg>',
+  stop: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 4h8v8H4z"/></svg>',
+  amperfy: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9 2h5v5h-1V3.7L7.4 9.3l-.7-.7L12.3 3H9zM3 4h4v1H4v7h7V9h1v4H3z"/></svg>',
+  back: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M10 3 5 8l5 5 .7-.7L6.4 8l4.3-4.3z"/></svg>',
+};
+const ALBUMS = {
+  adele: { title: '21', artist: 'Adele', shelf: 'B-4', cover: '../2026-10-18-paroles/cover-21.jpg', shape: 'CD · 11 tracks · 48:01 · 2011 · XE · XL', genres: 'Pop · Soul',
+    tracks: [['Rolling in the Deep', '3:48'], ['Rumour Has It', '3:43'], ['Turning Tables', '4:10'], ['Don\'t You Remember', '4:03'], ['Set Fire to the Rain', '4:02'], ['He Won\'t Go', '4:37'], ['Take It All', '3:48'], ['I\'ll Be Waiting', '4:01'], ['One and Only', '5:48'], ['Lovesong', '5:16'], ['Someone like You', '4:45']] },
+  franz: { title: 'The Domino Years', artist: 'Franz Ferdinand', shelf: 'C-2', cover: '../2026-10-18-paroles/cover-282.jpg', shape: 'CD box · 3 discs · 36 tracks · 2:04:12 · 2014 · UK · Domino', genres: 'Indie rock · Post-punk revival',
+    tracks: [['Jacqueline', '3:49'], ['Tell Her Tonight', '2:17'], ['Take Me Out', '3:57'], ['The Dark of the Matinée', '4:03'], ['Auf Achse', '4:20'], ['Cheating on You', '2:36'], ['This Fire', '4:14'], ['Darts of Pleasure', '2:59'], ['Michael', '3:21'], ['Come On Home', '3:46'], ['40\'', '3:24']] },
+};
+
+const VNOTES = {
+  1: `<div class="vnote"><b>1 · La bulle flottante.</b> Un disque de 60 px, la pochette de ce qui joue, cerclé d'un anneau de progression or, un égaliseur dans son coin. Elle se pose <b>au-dessus du pied, contre le bord droit</b> (12 px du bord, 12 px au-dessus du pied) : jamais sur ▶ Play, Listen Next ou ⋯, jamais sur ✕ (la tête est à 98 px). Les quatre places : en bas à droite (par défaut), en bas à gauche, en haut à droite et à gauche sous la tête ; tirée contre un bord elle se range en languette. Le corps de la fiche gagne 84 px en bas pour que la dernière piste passe au-dessus d'elle.<br>
+  <b>Défaut</b> : posée sur la liste, elle couvre la durée (à droite) ou le numéro (à gauche) des pistes qui passent dessous ; un doigt qui fait défiler peut la toucher. C'est la seule variante qu'il faut tirer, ranger, et retrouver.</div>`,
+  2: `<div class="vnote"><b>2 · Le titre de la fiche prêté.</b> La tête porte, entre l'étagère et ✕, un disque de 26 px qui tourne lentement, cerclé de la progression. La fiche prend toute la hauteur, rien ne flotte. Les ‹ › (album précédent, suivant) quittent la tête sur l'iPhone pour lui faire place.<br>
+  <b>Défaut</b> : en haut de l'écran, loin du pouce, à côté de ✕ (un toucher manqué ferme la fiche) ; 26 px se voient peu, surtout en pause. Le disque qui tourne est le seul mouvement de la tête : il attire l'œil, mais aussi trop si on lit.</div>`,
+  3: `<div class="vnote"><b>3 · La bande fine.</b> 28 px sous le pied : pochette 20 px, le titre qui défile, ⏯, un filet or de progression sur son bord haut. Touchée ou glissée vers le haut, elle ouvre le lecteur.<br>
+  <b>Défaut</b> : elle se pose juste sur l'indicateur d'accueil (zone hachurée, « Zone du geste d'accueil ») : un glissé vers le haut qui part trop bas ramène à l'écran d'accueil d'iOS au lieu d'ouvrir le lecteur. Elle prend 28 px à la fiche, et c'est la pastille d'aujourd'hui en plus mince : le problème est déplacé, pas réglé. Un titre qui défile se lit mal et bouge sans cesse.</div>`,
+  4: `<div class="vnote"><b>4 · Le disque au pied.</b> Le pied existe déjà et a de la place depuis qu'il ne porte plus que trois boutons : le disque de ce qui joue (32 px dans un anneau de 40) s'y pose à gauche, avant ▶ Play, séparé par un filet. Touché ou glissé vers le haut, il ouvre le lecteur. Aucune hauteur prise, rien ne couvre la liste, rien à tirer.<br>
+  <b>Défaut</b> : il prend environ 50 px de largeur au pied ; à 375 px de large, « Listen Next » doit perdre son mot (casque seul) pour que rien ne dépasse. Deux disques côte à côte (celui qui joue, ▶ Play de la fiche) peuvent faire croire que ▶ Play reprend ce qui joue : d'où le filet, et l'anneau.</div>`,
+};
+
+const $ = id => document.getElementById(id);
+const S = { v: 1, play: 'other', paused: false, cardAlbum: 'adele', playingAlbum: 'franz', full: false, corner: 'br', stash: null, prog: .30, menu: false };
+const RING = { b: 2 * Math.PI * 27.5, h: 2 * Math.PI * 15.5, f: 2 * Math.PI * 18.5 };
+let toastTimer;
+
+function nothing() { return S.play === 'none'; }
+function same() { return !nothing() && S.playingAlbum === S.cardAlbum; }
+function cardAl() { return ALBUMS[S.cardAlbum]; }
+function playAl() { return ALBUMS[S.playingAlbum]; }
+function trackIdx() { return S.playingAlbum === 'franz' ? 2 : 0; }
+
+function corners() {
+  const W = 393, H = 852, s = 60, m = 12;
+  return {
+    tl: { x: m, y: 98 + m }, tr: { x: W - s - m, y: 98 + m },
+    bl: { x: m, y: H - 86 - s - m }, br: { x: W - s - m, y: H - 86 - s - m },
+  };
+}
+
+function render() {
+  const ca = cardAl(), pa = playAl(), ph = $('phone');
+  ph.classList.toggle('paused', S.paused);
+  $('hTitle').textContent = ca.title; $('hShelf').textContent = ca.shelf; $('hArtist').textContent = ca.artist;
+  $('hShape').textContent = ca.shape; $('hGenres').textContent = ca.genres;
+  $('cover').style.backgroundImage = `url(${ca.cover})`;
+  $('tracks').innerHTML = ca.tracks.map((t, i) => {
+    const cur = same() && i === trackIdx();
+    return `<div class="track${cur ? ' current' : ''}" data-i="${i}"><span class="no">${cur ? '<span class="eq"><i></i><i></i><i></i></span>' : i + 1}</span><span class="t">${t[0]}</span><span class="dur">${t[1]}</span></div>`;
+  }).join('');
+
+  // La fiche : son album joue → ❚❚ Pause / ▶ Resume, l'égaliseur sur sa pochette, qui ouvre le lecteur.
+  $('coverEq').hidden = !same();
+  $('cover').title = same() ? 'Now playing: open the player' : 'Cover';
+  $('playIcon').innerHTML = same() && !S.paused ? IC.pause : IC.play;
+  $('playWord').textContent = same() ? (S.paused ? 'Resume' : 'Pause') : 'Play';
+  $('nextWord').hidden = S.v === 4 && !nothing() && !same();
+
+  // Les portes : seulement quand quelque chose joue ; pour 1, 3, 4, pas quand c'est l'album de la fiche.
+  const card = $('card');
+  const showDoor = !nothing() && (S.v === 2 || !same());
+  card.className = `card v${S.v}${showDoor ? ' door' : ''}`;
+  $('bubble').hidden = !(S.v === 1 && showDoor);
+  $('hdoor').hidden = !(S.v === 2 && showDoor);
+  $('band').hidden = !(S.v === 3 && showDoor);
+  $('fdoor').hidden = $('fSep').hidden = !(S.v === 4 && showDoor);
+  ['bDisc', 'hDisc', 'fDisc', 'bTh'].forEach(id => $(id).style.backgroundImage = `url(${pa.cover})`);
+  const track = pa.tracks[trackIdx()][0];
+  $('bWords').innerHTML = `<b>${track}</b> <em>· ${pa.artist} · ${pa.title}</em>`.repeat(1) + `&nbsp;&nbsp;&nbsp;&nbsp;<b>${track}</b> <em>· ${pa.artist} · ${pa.title}</em>`;
+  $('bIcon').innerHTML = S.paused ? IC.play : IC.pause;
+  $('bToggle').setAttribute('aria-label', S.paused ? 'Play' : 'Pause');
+  ['hdoor', 'fdoor', 'bubble'].forEach(id => $(id).title = `${track} · ${pa.artist}`);
+  placeBubble();
+  progress();
+
+  // Le lecteur plein écran.
+  $('np').classList.toggle('open', S.full && !nothing());
+  $('np').setAttribute('aria-hidden', String(!S.full));
+  $('npBd').style.backgroundImage = $('npBig').style.backgroundImage = `url(${pa.cover})`;
+  $('npTrack').textContent = track; $('npSub').textContent = `${pa.artist} · ${pa.title}`;
+  $('npIcon').innerHTML = S.paused ? IC.play : IC.pause;
+
+  $('vn').innerHTML = VNOTES[S.v];
+  document.querySelectorAll('#scV button').forEach(b => b.classList.toggle('on', +b.dataset.v === S.v));
+  const pKey = nothing() ? 'none' : same() ? 'same' : S.paused ? 'paused' : 'other';
+  document.querySelectorAll('#scP button').forEach(b => b.classList.toggle('on', b.dataset.p === pKey));
+  document.querySelector('#scX [data-x="full"]').classList.toggle('on', S.full);
+  document.querySelector('#scX [data-x="zone"]').classList.toggle('on', ph.classList.contains('show-zone'));
+}
+
+function progress() {
+  const p = S.prog;
+  $('bRing').style.strokeDasharray = RING.b; $('bRing').style.strokeDashoffset = RING.b * (1 - p);
+  $('hRing').style.strokeDasharray = RING.h; $('hRing').style.strokeDashoffset = RING.h * (1 - p);
+  $('fRing').style.strokeDasharray = RING.f; $('fRing').style.strokeDashoffset = RING.f * (1 - p);
+  $('bProg').style.width = `${p * 100}%`;
+  $('npBar').style.width = `${p * 100}%`;
+  const len = 237, pos = Math.round(p * len);
+  const t = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  $('npPos').textContent = t(pos); $('npLen').textContent = `-${t(len - pos)}`;
+}
+setInterval(() => { if (!S.paused && !nothing()) { S.prog = (S.prog + .01) % 1; progress(); } }, 1000);
+
+function placeBubble() {
+  const b = $('bubble'), c = corners();
+  Object.entries(c).forEach(([k, p]) => { const s = $(`spot-${k}`); s.style.left = `${p.x}px`; s.style.top = `${p.y}px`; });
+  b.classList.toggle('stashed', Boolean(S.stash));
+  b.classList.toggle('left', S.stash === 'left'); b.classList.toggle('right', S.stash === 'right');
+  if (S.stash) {
+    const p = c[S.corner];
+    b.style.left = `${S.stash === 'left' ? -42 : 393 - 18}px`; b.style.top = `${p.y}px`;
+  } else {
+    const p = c[S.corner]; b.style.left = `${p.x}px`; b.style.top = `${p.y}px`;
+  }
+}
+
+// La bulle : un toucher ouvre le lecteur ; tirée, elle va au coin le plus proche, ou se range contre un bord.
+(() => {
+  const b = $('bubble'); let start = null, moved = false, off = null;
+  b.addEventListener('pointerdown', e => {
+    b.setPointerCapture(e.pointerId);
+    const r = b.getBoundingClientRect(), pr = $('phone').getBoundingClientRect();
+    start = { x: e.clientX, y: e.clientY }; off = { x: e.clientX - r.left, y: e.clientY - r.top, px: pr.left, py: pr.top }; moved = false;
+  });
+  b.addEventListener('pointermove', e => {
+    if (!start) return;
+    if (!moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return;
+    moved = true; b.classList.add('dragging'); $('phone').classList.add('dragging');
+    b.style.left = `${e.clientX - off.px - off.x}px`; b.style.top = `${e.clientY - off.py - off.y}px`;
+  });
+  b.addEventListener('pointerup', e => {
+    if (!start) return;
+    b.classList.remove('dragging'); $('phone').classList.remove('dragging');
+    const pr = $('phone').getBoundingClientRect();
+    const x = e.clientX - pr.left, y = e.clientY - pr.top;
+    start = null;
+    if (!moved) {
+      if (S.stash) { S.stash = null; placeBubble(); return; }
+      openFull(); return;
+    }
+    const top = y < 852 / 2, left = x < 393 / 2;
+    S.corner = (top ? 't' : 'b') + (left ? 'l' : 'r');
+    S.stash = x < 22 ? 'left' : x > 393 - 22 ? 'right' : null;
+    placeBubble();
+  });
+})();
+
+function openFull() { if (nothing()) return; S.full = true; closeMenu(); render(); }
+function closeFull() { S.full = false; closeMenu(); render(); }
+
+$('hdoor').onclick = openFull;
+$('fdoor').onclick = openFull;
+$('band').addEventListener('click', e => { if (!e.target.closest('.tg')) openFull(); });
+$('bToggle').onclick = () => { S.paused = !S.paused; render(); };
+// Glissé vers le haut, sur la bande ou le disque du pied : le lecteur.
+['band', 'fdoor'].forEach(id => {
+  let y0 = null;
+  $(id).addEventListener('pointerdown', e => { y0 = e.clientY; });
+  $(id).addEventListener('pointerup', e => { if (y0 != null && y0 - e.clientY > 24) openFull(); y0 = null; });
+});
+$('cover').onclick = () => { if (same()) openFull(); else toast('The cover, larger (as today).'); };
+$('npHandle').onclick = closeFull;
+$('npToggle').onclick = () => { S.paused = !S.paused; render(); };
+$('close').onclick = () => toast('✕ closes the card: back to the grid, the pill at the foot again.');
+
+// ▶ Play de la fiche : cet album devient ce qui joue (et ❚❚ s'il joue déjà).
+$('play').onclick = () => {
+  if (same()) { S.paused = !S.paused; render(); return; }
+  S.play = 'on'; S.playingAlbum = S.cardAlbum; S.paused = false; S.prog = .02; render();
+  toast(`<b>${cardAl().title}</b> plays. The door goes away: the card's own ❚❚ and its cover say it.`);
+};
+$('tracks').addEventListener('click', e => {
+  const tr = e.target.closest('.track'); if (!tr) return;
+  if (same() && +tr.dataset.i === trackIdx()) { openFull(); return; }
+  toast('A track touched: it plays from it (decision B).');
+});
+$('next').onclick = () => toast('Listen Next: the album goes in the queue, nothing stops.');
+
+// Le ⋯ du lecteur : Open <album>, Amperfy, Stop.
+function closeMenu() { S.menu = false; $('menu').hidden = $('scrim').hidden = true; }
+$('scrim').onclick = closeMenu;
+$('npMore').onclick = () => {
+  const pa = playAl(), m = $('menu');
+  const openLabel = same() ? `Back to ${pa.title}` : `Open ${pa.title}`;
+  m.innerHTML = `<div class="section">Playing from ${pa.title}</div>
+    <button class="item" id="miOpen">${same() ? IC.back : IC.disc}${openLabel}</button>
+    <button class="item">${IC.amperfy}Open in Amperfy</button>
+    <div class="sep"></div>
+    <button class="item" id="miStop">${IC.stop}Stop</button>`;
+  m.style.top = '470px'; m.hidden = $('scrim').hidden = false;
+  $('miOpen').onclick = () => {
+    const wasSame = same();
+    S.cardAlbum = S.playingAlbum; closeFull();
+    if (!wasSame) toast(`The card shows <b>${playAl().title}</b> now, the one playing.`);
+  };
+  $('miStop').onclick = () => { S.play = 'none'; closeFull(); toast('Stopped: nothing plays, no door shows.'); };
+};
+
+function toast(html) {
+  const t = $('toast'); t.innerHTML = html; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+}
+
+// Les scénarios.
+$('scV').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.v = +b.dataset.v; closeFull(); };
+$('scP').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.cardAlbum = 'adele'; S.full = false;
+  if (b.dataset.p === 'none') { S.play = 'none'; S.paused = false; }
+  else if (b.dataset.p === 'same') { S.play = 'on'; S.playingAlbum = 'adele'; S.paused = false; }
+  else { S.play = 'on'; S.playingAlbum = 'franz'; S.paused = b.dataset.p === 'paused'; }
+  render();
+};
+$('scX').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.x === 'zone') { $('phone').classList.toggle('show-zone'); render(); }
+  else if (S.full) closeFull(); else if (nothing()) toast('Nothing plays: there is no player to open.'); else openFull();
+};
+
+render();
+</script>
+</body>
+</html>

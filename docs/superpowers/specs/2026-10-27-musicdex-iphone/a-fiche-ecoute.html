@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DexVault — piste A : la fiche, écoute d'abord (prototype iPhone)</title>
+<style>
+  :root {
+    --dv-gold: #fbbf24; --dv-gold-hover: #fcd34d; --dv-gold-ink: #111;
+    --dv-gold-tint: rgba(251,191,36,.12); --dv-gold-tint-edge: rgba(251,191,36,.45);
+    --dv-danger: #f87171; --dv-danger-tint: rgba(248,113,113,.12);
+    --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-page: #1a1a1a; --dv-glass: rgba(255,255,255,.06); --dv-glass-hover: rgba(255,255,255,.11);
+    --dv-edge: rgba(255,255,255,.12); --dv-edge-hover: rgba(255,255,255,.24); --dv-veil: rgba(255,255,255,.08);
+    --dv-surface: rgba(24,24,24,.86); --dv-surface-edge: rgba(255,255,255,.1);
+    --dv-surface-shadow: 0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+    --dv-radius-sm: 7px; --dv-radius-md: 9px; --dv-radius-lg: 12px;
+    --dv-height-sm: 28px; --dv-height-md: 36px;
+    --safe-top: 54px; --safe-foot: 34px;
+    --cover: 112px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button { font: inherit; }
+  body { margin: 0; background: #0e0e0e; color: var(--dv-text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 393px 1fr; gap: 36px; align-items: start; }
+  .note { color: var(--dv-text-muted); position: sticky; top: 20px; }
+  .note h1 { color: var(--dv-text); font-size: 20px; margin: 0 0 6px; }
+  .note h2 { color: var(--dv-text); font-size: 15px; margin: 18px 0 6px; }
+  .note p { margin: 6px 0; }
+  .note ul { padding-left: 18px; margin: 6px 0; }
+  .note li { margin: 3px 0; }
+  .note b { color: var(--dv-text); }
+  .note .pro { color: #d8c88a; } .note .con { color: #f0b37e; }
+  .note .scen { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .note .scen button { all: unset; cursor: pointer; padding: 7px 12px; border-radius: var(--dv-radius-md); font-weight: 600; font-size: 13px; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); color: var(--dv-text-muted); }
+  .note .scen button.on { color: var(--dv-gold); background: var(--dv-gold-tint); box-shadow: inset 0 0 0 1px var(--dv-gold-tint-edge); }
+  .note .scen button:hover:not(.on) { background: var(--dv-glass-hover); color: var(--dv-text); }
+  .note kbd { font: 12px ui-monospace, Menlo, monospace; color: var(--dv-text); background: var(--dv-glass); padding: 1px 5px; border-radius: 4px; }
+
+  /* L'iPhone : 393 × 852, la barre d'état, la Dynamic Island, l'indicateur d'accueil. */
+  .phone { position: relative; width: 393px; height: 852px; border-radius: 54px; overflow: hidden; background: #111; box-shadow: 0 0 0 10px #232323, 0 0 0 11px #3a3a3a, 0 30px 80px rgba(0,0,0,.6); }
+  .status { position: absolute; inset: 0 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; font-weight: 600; font-size: 16px; z-index: 30; pointer-events: none; }
+  .island { position: absolute; left: 50%; top: 11px; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 31; }
+  .home { position: absolute; left: 50%; bottom: 8px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.7); z-index: 31; }
+
+  /* Derrière la fiche : la grille de MusicDex, floutée par la Dialog. */
+  .grid { position: absolute; inset: 0; background: var(--dv-page); padding: calc(var(--safe-top) + 8px) 12px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-content: start; filter: blur(2px) brightness(.55); }
+  .grid i { display: block; aspect-ratio: 1; border-radius: 6px; background: linear-gradient(135deg, #3a3a3a, #222); }
+  .grid i.a { background: url(../2026-10-18-paroles/cover-21.jpg) center/cover; }
+  .grid i.b { background: url(../2026-10-18-paroles/cover-282.jpg) center/cover; }
+  .grid i.c { background: url(../2026-10-18-paroles/cover-25.jpg) center/cover; }
+  .grid i.d { background: url(../2026-10-18-paroles/cover-336.jpg) center/cover; }
+
+  /* La fiche : une Dialog variant="panel", qui prend tout l'écran sur un téléphone. */
+  .card { position: absolute; inset: 0; background: var(--dv-page); display: flex; flex-direction: column; z-index: 5; }
+  .card.away { transform: translateX(100%); opacity: 0; transition: transform .3s ease, opacity .3s ease; }
+
+  .dhead { flex: none; height: calc(var(--safe-top) + 44px); padding: var(--safe-top) 8px 0 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.07); }
+  .dhead .ico { color: var(--dv-text-faint); display: grid; place-items: center; }
+  .dhead .ico svg { width: 16px; height: 16px; }
+  .dhead .title { flex: 1; min-width: 0; font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dhead .shelf { font: 600 11px ui-monospace, Menlo, monospace; letter-spacing: .04em; color: var(--dv-gold); padding: 2px 6px; border-radius: 4px; background: var(--dv-gold-tint); box-shadow: inset 0 0 0 1px var(--dv-gold-tint-edge); }
+  .iconbtn { all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: var(--dv-radius-md); display: grid; place-items: center; color: var(--dv-text-muted); }
+  .iconbtn:hover { background: var(--dv-veil); color: var(--dv-text); }
+  .iconbtn svg { width: 18px; height: 18px; }
+  .iconbtn.boxed { background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); color: var(--dv-text); width: 40px; height: var(--dv-height-md); }
+  .iconbtn.boxed:hover { background: var(--dv-glass-hover); }
+  .steps { display: flex; }
+  .steps .iconbtn { width: 28px; }
+
+  .body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .body::-webkit-scrollbar { display: none; }
+  /* La pastille posée, les dernières pistes passent encore au-dessus d'elle. */
+  .body.with-pill { padding-bottom: 70px; }
+
+  /* L'en-tête : une zone à HAUTEUR FIXE. La pochette à gauche, à taille fixe ; à droite un bloc
+     de la hauteur de la pochette, qui coupe ce qui déborde. La méta ne déplace rien. */
+  .head { height: calc(var(--cover) + 28px); padding: 14px 16px; display: grid; grid-template-columns: var(--cover) minmax(0, 1fr); gap: 14px; align-items: start; }
+  .cover { width: var(--cover); height: var(--cover); border-radius: 6px; background: #333 center/cover; box-shadow: 0 2px 10px rgba(0,0,0,.5); position: relative; }
+  .cover.a { background-image: url(../2026-10-18-paroles/cover-21.jpg); }
+  .cover.b { background-image: url(../2026-10-18-paroles/cover-282.jpg); }
+  .cover .back { position: absolute; right: -6px; bottom: -6px; width: 34px; height: 34px; border-radius: 4px; background: #2a2a2a linear-gradient(135deg, #4a4a4a, #222); box-shadow: 0 0 0 2px var(--dv-page), 0 2px 6px rgba(0,0,0,.4); }
+  .who { height: var(--cover); display: flex; flex-direction: column; justify-content: space-between; min-width: 0; overflow: hidden; }
+  .who .top { min-width: 0; }
+  .who .artist { all: unset; cursor: pointer; display: block; font-weight: 700; font-size: 17px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who .line { color: var(--dv-text-muted); font-size: 12.5px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who .line .lossless { color: var(--dv-text); }
+  .who .line .genre { color: var(--dv-text-muted); }
+  /* Les étoiles : une ligne réservée, toujours de la même hauteur, étoiles données ou non. */
+  .stars { display: flex; align-items: center; gap: 8px; height: 22px; }
+  .stars .s { display: inline-flex; gap: 2px; }
+  .stars .s button { all: unset; cursor: pointer; width: 17px; height: 17px; display: grid; place-items: center; color: rgba(255,255,255,.22); }
+  .stars .s button svg { width: 16px; height: 16px; }
+  .stars .s button.on { color: var(--dv-gold); }
+  .stars .community { color: var(--dv-text-faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .stars .community b { color: var(--dv-text-muted); font-weight: 500; }
+
+  /* La rangée de puces : tout ce qui n'est pas la musique, en Chips qui ouvrent une feuille. */
+  .chips { display: flex; gap: 6px; padding: 0 16px 12px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { all: unset; cursor: pointer; flex: none; display: inline-flex; align-items: center; gap: 6px; height: var(--dv-height-sm); padding: 0 11px; border-radius: 999px; border: 1px solid var(--dv-edge); background: var(--dv-glass); color: var(--dv-text-muted); font-size: 12.5px; font-weight: 500; line-height: 1; white-space: nowrap; }
+  .chip:hover { color: #fff; border-color: var(--dv-edge-hover); background: var(--dv-glass-hover); }
+  .chip svg { width: 13px; height: 13px; }
+  .chip .n { color: var(--dv-text-faint); font-variant-numeric: tabular-nums; }
+  .chip.on { color: var(--dv-gold); background: var(--dv-gold-tint); border-color: var(--dv-gold-tint-edge); }
+  .chip.muted { opacity: .55; }
+
+  /* Les pistes, aussitôt : une ligne fine au-dessus, un disque après l'autre. */
+  .tracks { border-top: 1px solid rgba(255,255,255,.07); padding: 6px 4px 12px; }
+  .disc { margin-top: 6px; }
+  .disc-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 4px; }
+  .disc-head h6 { margin: 0; flex: 1; font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--dv-text-faint); }
+  .disc-head .quiet { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; height: var(--dv-height-sm); padding: 0 8px; border-radius: var(--dv-radius-sm); color: var(--dv-text-muted); font-size: 12px; font-weight: 500; }
+  .disc-head .quiet:hover { background: var(--dv-veil); color: var(--dv-text); }
+  .disc-head .quiet.on { color: var(--dv-gold); }
+  .disc-head .quiet svg { width: 13px; height: 13px; }
+  .track { display: flex; align-items: center; gap: 0; padding: 9px 12px; border-radius: 6px; cursor: pointer; min-height: 44px; }
+  .track:hover { background: var(--dv-veil); }
+  .track.current { background: rgba(255,255,255,.05); }
+  .track .no { width: 30px; flex: none; color: #777; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 6px; }
+  .track .no .dot { width: 4px; height: 4px; border-radius: 50%; background: #777; margin-left: -10px; }
+  .track.current .no { color: var(--dv-gold); }
+  .track .t { flex: 1; min-width: 0; }
+  .track .t .title { font-size: 14.5px; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track.current .t .title { color: #fff; font-weight: 600; }
+  .track .t .credits { font-size: 12px; color: #9aa4b2; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track .lyr { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--dv-text-faint); padding: 1px 5px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--dv-edge); margin-left: 8px; flex: none; }
+  .track .heart { color: var(--dv-text-faint); margin: 0 8px; flex: none; display: grid; }
+  .track .heart svg { width: 12px; height: 12px; }
+  .track .heart.on { color: var(--dv-gold); }
+  .track .dur { color: #999; font-size: 13px; font-variant-numeric: tabular-nums; flex: none; margin-left: 10px; }
+  /* Les barres d'une piste qui joue, à la place de son numéro. */
+  .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+  .bars i { width: 3px; background: var(--dv-gold); animation: bar .9s ease-in-out infinite; }
+  .bars i:nth-child(2) { animation-delay: .25s; } .bars i:nth-child(3) { animation-delay: .5s; }
+  .card.paused .bars i { animation-play-state: paused; height: 4px !important; }
+  @keyframes bar { 0%, 100% { height: 4px; } 50% { height: 12px; } }
+  /* Sous la piste touchée : ses paroles et ses crédits en deux mots, et ♥. */
+  .track-more { display: flex; align-items: center; gap: 6px; padding: 2px 12px 8px 42px; }
+  .track-more .quiet { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; height: var(--dv-height-sm); padding: 0 9px; border-radius: var(--dv-radius-sm); color: var(--dv-text-muted); font-size: 12.5px; font-weight: 500; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .track-more .quiet:hover { background: var(--dv-glass-hover); color: var(--dv-text); }
+  .track-more .quiet svg { width: 13px; height: 13px; }
+  .track-more .plays { margin-left: auto; color: var(--dv-text-faint); font-size: 12px; }
+
+  /* La pastille du lecteur (PhonePlayer), posée au-dessus du pied quand quelque chose joue. */
+  .pill { position: absolute; left: 10px; right: 10px; bottom: calc(var(--safe-foot) + 56px + 8px); height: 54px; border-radius: 14px; background: var(--dv-surface); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); box-shadow: var(--dv-surface-shadow), inset 0 0 0 1px var(--dv-surface-edge); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 7px; z-index: 12; animation: up .25s ease-out; }
+  .pill .th { width: 40px; height: 40px; border-radius: 6px; background: #333 center/cover; flex: none; }
+  .pill .w { flex: 1; min-width: 0; }
+  .pill .w .t { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill .w .a { color: var(--dv-text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill .round { all: unset; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+  .pill .round:hover { background: var(--dv-veil); }
+  .pill .round svg { width: 22px; height: 22px; }
+  .pill .prog { position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; background: rgba(255,255,255,.12); border-radius: 1px; overflow: hidden; }
+  .pill .prog i { display: block; width: 23%; height: 100%; background: var(--dv-gold); }
+
+  /* Le pied : Play en or, Listen Next, et ⋯ pour le reste. */
+  .foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 12px calc(var(--safe-foot) + 6px); border-top: 1px solid rgba(255,255,255,.07); background: var(--dv-page); position: relative; z-index: 10; }
+  .btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: var(--dv-height-md); padding: 0 14px; border-radius: var(--dv-radius-md); font-weight: 600; font-size: 14px; white-space: nowrap; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); color: var(--dv-text); }
+  .btn:hover { background: var(--dv-glass-hover); box-shadow: inset 0 0 0 1px var(--dv-edge-hover); }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+  .btn.primary { background: var(--dv-gold); color: var(--dv-gold-ink); box-shadow: none; flex: 1; }
+  .btn.primary:hover { background: var(--dv-gold-hover); }
+  .btn.primary .where { font-weight: 500; opacity: .8; }
+  .btn.active { color: var(--dv-gold); background: var(--dv-gold-tint); box-shadow: inset 0 0 0 1px var(--dv-gold-tint-edge); }
+  .btn.active:hover { background: rgba(251,191,36,.18); }
+
+  /* Un Menu : le verre des menus, aligné à droite, qui s'ouvre vers le haut. */
+  .menu { position: absolute; right: 12px; bottom: calc(var(--safe-foot) + 56px + 4px); width: 232px; padding: 6px; border-radius: 12px; background: var(--dv-surface); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); box-shadow: var(--dv-surface-shadow), inset 0 0 0 1px var(--dv-surface-edge); z-index: 20; animation: up .18s ease-out; }
+  .menu .item { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 7px 10px; border-radius: 8px; font-size: 14px; color: var(--dv-text); }
+  .menu .item:hover { background: var(--dv-veil); }
+  .menu .item svg { width: 15px; height: 15px; color: var(--dv-text-muted); flex: none; }
+  .menu .item .hint { margin-left: auto; color: var(--dv-text-faint); font-size: 12px; }
+  .menu .item.danger { color: var(--dv-danger); } .menu .item.danger svg { color: var(--dv-danger); }
+  .menu .item.danger:hover { background: var(--dv-danger-tint); }
+  .menu .item.selected { color: var(--dv-gold); }
+  .menu .item.selected::after { content: "✓"; margin-left: auto; color: var(--dv-gold); }
+  .menu .section { padding: 8px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dv-text-faint); }
+  .menu .sep { height: 1px; margin: 5px 6px; background: var(--dv-surface-edge); }
+  .scrim { position: absolute; inset: 0; z-index: 15; background: transparent; }
+
+  /* Une feuille (sheet) : le verre des menus, montée du bas, sur les deux tiers de l'écran. */
+  .sheet-scrim { position: absolute; inset: 0; background: rgba(0,0,0,.45); z-index: 18; animation: fade .2s ease-out; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 72%; border-radius: 20px 20px 0 0; background: var(--dv-surface); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); box-shadow: 0 -10px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08); z-index: 19; display: flex; flex-direction: column; animation: up .28s cubic-bezier(.22,.8,.3,1); }
+  .sheet .handle { align-self: center; width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.3); margin: 8px 0 4px; flex: none; }
+  .sheet .shead { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px 18px; flex: none; }
+  .sheet .shead h3 { margin: 0; flex: 1; font-size: 15px; font-weight: 700; }
+  .sheet .shead .sub { color: var(--dv-text-faint); font-size: 12px; }
+  .sheet .sbody { flex: 1; min-height: 0; overflow-y: auto; padding: 0 18px calc(var(--safe-foot) + 16px); font-size: 15px; line-height: 1.55; color: #d6d6d6; scrollbar-width: none; }
+  .sheet .sbody::-webkit-scrollbar { display: none; }
+  .sheet .sbody p { margin: 0 0 12px; }
+  .sheet .sbody .muted { color: var(--dv-text-muted); font-size: 13px; }
+  .sheet .sbody .row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.06); }
+  .sheet .sbody .row:first-child { border-top: 0; }
+  .sheet .sbody .row .th { width: 44px; height: 44px; border-radius: 5px; background: #333 center/cover; flex: none; }
+  .sheet .sbody .row .w { flex: 1; min-width: 0; }
+  .sheet .sbody .row .w b { display: block; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet .sbody .row .w span { color: var(--dv-text-muted); font-size: 12.5px; }
+  .sheet .sbody .row .chev { color: var(--dv-text-faint); }
+  .sheet .sbody dl { margin: 0; display: grid; grid-template-columns: 1fr; gap: 2px; }
+  .sheet .sbody dt { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--dv-text-faint); margin-top: 10px; }
+  .sheet .sbody dd { margin: 0; font-size: 14px; }
+  .sheet .sbody code { font: 13px ui-monospace, Menlo, monospace; color: var(--dv-text-muted); }
+  .sheet .sbody .note-item { padding: 10px 0; border-top: 1px solid rgba(255,255,255,.06); }
+  .sheet .sbody .note-item:first-child { border-top: 0; }
+  .sheet .sbody .note-item .when { color: var(--dv-text-faint); font-size: 12px; margin-bottom: 2px; }
+  .sheet .sbody .note-item .stars { height: auto; margin-bottom: 4px; }
+  .sheet .sfoot { flex: none; display: flex; justify-content: flex-end; gap: 8px; padding: 8px 12px calc(var(--safe-foot) + 4px); border-top: 1px solid rgba(255,255,255,.07); }
+  .btn.quiet { background: none; box-shadow: none; color: var(--dv-text-muted); }
+  .btn.quiet:hover { background: var(--dv-veil); color: var(--dv-text); }
+  .btn.sm { height: var(--dv-height-sm); padding: 0 10px; font-size: 13px; }
+
+  .toast { position: absolute; left: 16px; right: 16px; bottom: calc(var(--safe-foot) + 70px); padding: 11px 14px; border-radius: 14px; background: var(--dv-surface); backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px var(--dv-surface-edge), var(--dv-surface-shadow); z-index: 25; font-size: 13.5px; animation: up .2s ease-out; }
+  .toast b { color: var(--dv-gold); font-weight: 600; }
+  @keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone" id="phone">
+    <div class="island"></div>
+    <div class="status"><span>9:41</span><span style="font-size:13px">●●● ▮</span></div>
+    <div class="grid" aria-hidden="true">
+      <i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><i></i><i class="a"></i><i class="c"></i><i></i><i class="b"></i><i class="d"></i><i></i><i class="a"></i><i></i><i class="c"></i><i class="b"></i><i class="d"></i><i></i><i></i>
+    </div>
+
+    <div class="card" id="card">
+      <div class="dhead">
+        <span class="ico"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 14A6 6 0 1 1 8 2a6 6 0 0 1 0 12m0 1A7 7 0 1 0 8 1a7 7 0 0 0 0 14"/><path d="M8 9a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/><path d="M8 4.5a3.5 3.5 0 0 0-3.5 3.5h1A2.5 2.5 0 0 1 8 5.5zM8 11.5A3.5 3.5 0 0 0 11.5 8h-1A2.5 2.5 0 0 1 8 10.5z"/></svg></span>
+        <span class="title" id="hTitle">21</span>
+        <span class="shelf" id="hShelf">B-4</span>
+        <span class="steps"><button class="iconbtn" aria-label="Previous album">‹</button><button class="iconbtn" aria-label="Next album">›</button></span>
+        <button class="iconbtn" id="close" aria-label="Close"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 3.9 8 7.3l3.4-3.4.7.7L8.7 8l3.4 3.4-.7.7L8 8.7l-3.4 3.4-.7-.7L7.3 8 3.9 4.6z"/></svg></button>
+      </div>
+
+      <div class="body" id="body">
+        <div class="head">
+          <div class="cover a" id="cover"><span class="back" title="Back cover"></span></div>
+          <div class="who">
+            <div class="top">
+              <button class="artist" id="hArtist">Adele</button>
+              <div class="line" id="hShape">CD · 11 tracks · 48:01 · 2011 · XE · XL</div>
+              <div class="line" id="hRip"><span class="lossless">Lossless</span> · 11 of 11 tracks · FLAC</div>
+              <div class="line" id="hGenres"><span class="genre">Pop · Soul</span></div>
+            </div>
+            <div class="stars">
+              <span class="s" id="stars" aria-label="Your stars"></span>
+              <span class="community" id="hCommunity"><b>★ 4.1</b> / 5 · 312 votes</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="chips" id="chips"></div>
+
+        <div class="tracks" id="tracks"></div>
+      </div>
+
+      <div class="pill" id="pill" hidden>
+        <div class="th" id="pillCover"></div>
+        <div class="w"><div class="t" id="pillTitle">Rolling in the Deep</div><div class="a" id="pillArtist">Adele · 21</div></div>
+        <button class="round" id="pillPlay" aria-label="Pause"></button>
+        <div class="prog"><i></i></div>
+      </div>
+
+      <div class="foot">
+        <button class="btn primary" id="play">
+          <svg viewBox="0 0 16 16" fill="currentColor" id="playIcon"><path d="M5 3.5v9l8-4.5z"/></svg>
+          <span id="playWord">Play</span>
+        </button>
+        <button class="btn" id="next" aria-label="Listen Next">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 0 0-5 5v1.5A1.5 1.5 0 0 1 4.5 8H5v5H4.5A2.5 2.5 0 0 1 2 10.5V8a6 6 0 0 1 12 0v2.5a2.5 2.5 0 0 1-2.5 2.5H11V8h.5A1.5 1.5 0 0 1 13 9.5V8a5 5 0 0 0-5-5"/></svg>
+          <span id="nextWord">Listen Next</span>
+        </button>
+        <button class="iconbtn boxed" id="more" aria-label="More"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg></button>
+      </div>
+
+      <div class="scrim" id="menuScrim" hidden></div>
+      <div class="menu" id="menu" role="menu" hidden>
+        <div class="section">Play on</div>
+        <button class="item selected" role="menuitemradio">This iPhone</button>
+        <button class="item" role="menuitemradio">Living room<span class="hint">Onkyo</span></button>
+        <div class="sep"></div>
+        <button class="item" role="menuitem" id="miCd"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 14A6 6 0 1 1 8 2a6 6 0 0 1 0 12m0 1A7 7 0 1 0 8 1a7 7 0 0 0 0 14"/><path d="M8 9a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg>Listen Next from the CD</button>
+        <button class="item" role="menuitem"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v8H2zm2 2v4h1.5V6zm3.5 0v4H9V6zm3.5 0v4h1.5V6z"/></svg>Add to a mixtape…</button>
+        <button class="item" role="menuitem"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 2.5 13.5 4.5 5 13H3v-2z"/></svg>Write a listening note…</button>
+        <button class="item" role="menuitem"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h7l3 3v7H3zm1 1v8h8V6.5L9.5 4zM5 7h6v1H5zm0 2h6v1H5z"/></svg>Open in Amperfy<span class="hint">↗</span></button>
+        <div class="sep"></div>
+        <button class="item" role="menuitem"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 2.5 13.5 4.5 5 13H3v-2z"/></svg>Edit</button>
+        <button class="item danger" role="menuitem"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 2h6v1h3v1H2V3h3zm-1 3h8l-.6 9H4.6z"/></svg>Delete</button>
+      </div>
+
+      <div class="sheet-scrim" id="sheetScrim" hidden></div>
+      <div class="sheet" id="sheet" hidden>
+        <div class="handle"></div>
+        <div class="shead"><h3 id="sheetTitle">Listening guide</h3><span class="sub" id="sheetSub"></span><button class="iconbtn" id="sheetClose" aria-label="Close"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.6 3.9 8 7.3l3.4-3.4.7.7L8.7 8l3.4 3.4-.7.7L8 8.7l-3.4 3.4-.7-.7L7.3 8 3.9 4.6z"/></svg></button></div>
+        <div class="sbody" id="sheetBody"></div>
+        <div class="sfoot" id="sheetFoot" hidden></div>
+      </div>
+
+      <div class="toast" id="toast" hidden></div>
+    </div>
+    <div class="home"></div>
+  </div>
+
+  <div class="note">
+    <h1>Piste A — la fiche, écoute d'abord</h1>
+    <p>La fiche album reste la porte d'entrée (un toucher sur une pochette de la grille l'ouvre), mais sur l'iPhone elle est redessinée pour écouter : un en-tête à <b>hauteur fixe</b>, les pistes <b>tout de suite</b>, le reste en <b>puces</b> qui ouvrent une feuille, et au pied <b>▶ Play</b> et <b>Listen Next</b> seuls, le reste sous <b>⋯</b>.</p>
+    <h2>Scénarios</h2>
+    <div class="scen" id="scen">
+      <button data-s="rest" class="on">1 · Fiche au repos</button>
+      <button data-s="guide">2 · Guide en feuille</button>
+      <button data-s="menu">3 · Menu ⋯</button>
+      <button data-s="track">4 · Une piste touchée</button>
+    </div>
+    <div class="scen" id="album">
+      <button data-a="a" class="on">Adele · 21 (1 disque)</button>
+      <button data-a="b">Franz Ferdinand · box (3 disques)</button>
+    </div>
+    <p class="muted" style="font-size:13px">Tout est cliquable dans le cadre : les puces, les pistes, ▶, Listen Next, ⋯, les étoiles, ✕. Le scénario 4 montre aussi la <b>pastille</b> du lecteur posée au-dessus du pied.</p>
+    <h2>L'en-tête à hauteur fixe</h2>
+    <ul>
+      <li><b>Pochette 112 px à gauche</b>, à taille fixe ; le dos en vignette dans son coin.</li>
+      <li><b>À droite, un bloc de la hauteur de la pochette</b> : l'artiste, le murmure (format · pistes · durée · année · pays · label), la ligne du rip, les genres, chacune coupée en fin de ligne (…), jamais à la ligne. Ce qui dépasse est coupé.</li>
+      <li><b>Les étoiles au bas du bloc</b>, sur une ligne réservée de 22 px, données ou non : les noter ne déplace rien. Essayez : touchez une étoile.</li>
+      <li>Avec la méta minimale (un digital sans label ni genre), le bloc garde sa hauteur : la pochette ne bouge pas.</li>
+    </ul>
+    <h2>Les puces, puis les pistes</h2>
+    <ul>
+      <li>Une rangée horizontale scrollable de <b>Chips</b> : Guide, Notes (2), Wikipedia, Also on (3), Scores, Links, Edition &amp; codes. Une puce absente quand il n'y a rien (pas de guide : pas de puce).</li>
+      <li>Chaque puce ouvre une <b>feuille</b> (sheet) sur les deux tiers de l'écran, le verre des menus, fermée par ✕, la poignée ou le voile. Le guide se lit là, pas en place.</li>
+      <li>Juste sous les puces, <b>les pistes par disque</b>, avec leurs crédits en gris. Sur un coffret, « Disc 1 · 12 tracks » en petites capitales et le casque du disque seul pour Listen Next.</li>
+    </ul>
+    <h2>Le pied</h2>
+    <ul>
+      <li><b>▶ Play</b> en or, la seule action or de la fenêtre ; il devient ❚❚ Pause quand l'album joue ici.</li>
+      <li><b>Listen Next</b> (casque) : en or quand l'album y est ; l'appui long ouvre le choix Digital | CD / disques (comme sur la grille).</li>
+      <li><b>⋯</b> : la sortie (cet iPhone, Salon), Listen Next from the CD, Add to a mixtape…, Write a listening note…, Open in Amperfy, Edit, Delete en rouge. Sans CD : « I bought the CD » à la place de Edit.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const ICON = {
+  play: '<path d="M5 3.5v9l8-4.5z"/>',
+  pause: '<path d="M4.5 3h2.5v10H4.5zm4.5 0h2.5v10H9z"/>',
+  star: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.9 4.1 4.5.5-3.3 3.1.9 4.4L8 11.4l-3.9 2.2.9-4.4L1.6 6.1l4.5-.5z"/></svg>',
+  heart: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 14S1.5 9.8 1.5 5.5A3.3 3.3 0 0 1 8 3.9a3.3 3.3 0 0 1 6.5 1.6C14.5 9.8 8 14 8 14"/></svg>',
+  phones: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 0 0-5 5v1.5A1.5 1.5 0 0 1 4.5 8H5v5H4.5A2.5 2.5 0 0 1 2 10.5V8a6 6 0 0 1 12 0v2.5a2.5 2.5 0 0 1-2.5 2.5H11V8h.5A1.5 1.5 0 0 1 13 9.5V8a5 5 0 0 0-5-5"/></svg>',
+  book: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3.5C3.5 2.6 5.5 2.6 7.5 3.6v9.2C5.5 11.8 3.5 11.8 2 12.7zm6.5.1c2-1 4-1 5.5-.1v9.2c-1.5-.9-3.5-.9-5.5.1z"/></svg>',
+  pencil: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 2.5 13.5 4.5 5 13H3v-2z"/></svg>',
+  wiki: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 3h3v1h-.7l2.3 5.7L7.5 5 7 4h-.5V3h3v1h-.6L8.1 5.6 9.9 9.7 12.3 4H11.5V3H15v1h-.8l-3.6 9h-.6L7.7 7.8 5.5 13h-.6L1.8 4H1z"/></svg>',
+  disc: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 14A6 6 0 1 1 8 2a6 6 0 0 1 0 12m0 1A7 7 0 1 0 8 1a7 7 0 0 0 0 14"/><path d="M8 9a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg>',
+  link: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9 2h5v5h-1V3.7L7.4 9.3l-.7-.7L12.3 3H9zM3 4h4v1H4v7h7V9h1v4H3z"/></svg>',
+  tag: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h6l6 6-6 6-6-6zm3 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2"/></svg>',
+  music: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 3h8v1.5H7.5V12a2.5 2.5 0 1 1-1.5-2.3z"/></svg>',
+  text: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v1.5H2zm0 3h12v1.5H2zm0 3h8v1.5H2z"/></svg>',
+};
+
+const ALBUMS = {
+  a: {
+    title: '21', artist: 'Adele', shelf: 'B-4', cover: 'a', coverUrl: '../2026-10-18-paroles/cover-21.jpg',
+    shape: 'CD · 11 tracks · 48:01 · 2011 · XE · XL', rip: '<span class="lossless">Lossless</span> · 11 of 11 tracks · FLAC',
+    genres: 'Pop · Soul', community: '<b>★ 4.1</b> / 5 · 312 votes', stars: 4, inNext: false,
+    guide: true, notes: 2, wiki: true, alsoOn: 2, scores: 0,
+    discs: [{ n: 1, tracks: [
+      ['Rolling in the Deep', '3:48', { lyrics: true, popular: true, heart: true }], ['Rumour Has It', '3:43', { lyrics: true }], ['Turning Tables', '4:10', { lyrics: true }],
+      ['Don\'t You Remember', '4:03', { lyrics: true }], ['Set Fire to the Rain', '4:02', { lyrics: true, popular: true }], ['He Won\'t Go', '4:37', { lyrics: true }],
+      ['Take It All', '3:48', { lyrics: true }], ['I\'ll Be Waiting', '4:01', { lyrics: true }], ['One and Only', '5:48', { lyrics: true }],
+      ['Lovesong', '5:16', { lyrics: true, credits: 'The Cure' }], ['Someone like You', '4:45', { lyrics: true, popular: true, heart: true }],
+    ]}],
+  },
+  b: {
+    title: 'Franz Ferdinand · The Domino Years', artist: 'Franz Ferdinand', shelf: 'C-2', cover: 'b', coverUrl: '../2026-10-18-paroles/cover-282.jpg',
+    shape: 'CD box · 3 discs · 36 tracks · 2:04:12 · 2014 · UK · Domino', rip: '<span class="lossless">Lossless</span> · 36 of 36 tracks · FLAC',
+    genres: 'Indie rock · Post-punk revival', community: '<b>★ 3.9</b> / 5 · 88 votes', stars: 0, inNext: true,
+    guide: true, notes: 0, wiki: true, alsoOn: 3, scores: 0,
+    discs: [
+      { n: 1, sub: 'Franz Ferdinand (2004)', tracks: [['Jacqueline', '3:49', { lyrics: true }], ['Tell Her Tonight', '2:17', { lyrics: true }], ['Take Me Out', '3:57', { lyrics: true, popular: true, heart: true }], ['The Dark of the Matinée', '4:03', { lyrics: true }], ['Auf Achse', '4:20', { lyrics: true }], ['Cheating on You', '2:36', { lyrics: true }], ['This Fire', '4:14', { lyrics: true }], ['Darts of Pleasure', '2:59', { lyrics: true, popular: true }], ['Michael', '3:21', { lyrics: true }], ['Come On Home', '3:46', { lyrics: true }], ['40\'', '3:24', { lyrics: true }], ['Shopping for Blood', '3:06', {}]] },
+      { n: 2, sub: 'You Could Have It So Much Better (2005)', tracks: [['The Fallen', '3:41', { lyrics: true }], ['Do You Want To', '3:35', { lyrics: true, popular: true }], ['This Boy', '2:22', { lyrics: true }], ['Walk Away', '3:36', { lyrics: true }], ['Evil and a Heathen', '2:05', { lyrics: true }], ['You\'re the Reason I\'m Leaving', '2:48', { lyrics: true }], ['Eleanor Put Your Boots On', '2:49', { lyrics: true }], ['Well That Was Easy', '3:02', { lyrics: true }], ['What You Meant', '3:24', { lyrics: true }], ['I\'m Your Villain', '4:03', { lyrics: true }], ['Fade Together', '3:04', { lyrics: true }], ['Outsiders', '4:14', { lyrics: true }]] },
+      { n: 3, sub: 'Tonight: Franz Ferdinand (2009)', tracks: [['Ulysses', '3:10', { lyrics: true, popular: true }], ['Turn It On', '2:46', { lyrics: true }], ['No You Girls', '3:42', { lyrics: true }], ['Send Him Away', '3:02', { lyrics: true }], ['Twilight Omens', '2:27', { lyrics: true }], ['Bite Hard', '3:26', { lyrics: true }], ['What She Came For', '3:33', { lyrics: true }], ['Live Alone', '3:53', { lyrics: true }], ['Can\'t Stop Feeling', '3:09', { lyrics: true }], ['Lucid Dreams', '7:56', { lyrics: true }], ['Dream Again', '3:24', { lyrics: true }], ['Katherine Kiss Me', '2:34', { lyrics: true }]] },
+    ],
+  },
+};
+
+const $ = id => document.getElementById(id);
+const state = { album: 'a', stars: 4, inNext: false, playing: null, paused: false, scenario: 'rest' };
+let toastTimer;
+
+function svg(path, extra = '') { return `<svg viewBox="0 0 16 16" fill="currentColor" ${extra}>${path}</svg>`; }
+
+function render() {
+  const al = ALBUMS[state.album];
+  $('hTitle').textContent = al.title;
+  $('hShelf').textContent = al.shelf;
+  $('hArtist').textContent = al.artist;
+  $('hShape').textContent = al.shape;
+  $('hRip').innerHTML = al.rip;
+  $('hGenres').innerHTML = `<span class="genre">${al.genres}</span>`;
+  $('hCommunity').innerHTML = al.community;
+  $('cover').className = `cover ${al.cover}`;
+  $('pillCover').style.backgroundImage = `url(${al.coverUrl})`;
+  renderStars();
+  renderChips(al);
+  renderTracks(al);
+  renderFoot(al);
+  renderPill(al);
+}
+
+function renderStars() {
+  $('stars').innerHTML = [1, 2, 3, 4, 5].map(i => `<button class="${i <= state.stars ? 'on' : ''}" data-i="${i}" aria-label="${i} stars">${ICON.star}</button>`).join('');
+}
+
+function renderChips(al) {
+  const chips = [];
+  if (al.guide) chips.push({ k: 'guide', icon: ICON.book, label: 'Guide' });
+  chips.push({ k: 'notes', icon: ICON.pencil, label: 'Notes', n: al.notes || null, muted: !al.notes });
+  if (al.wiki) chips.push({ k: 'wiki', icon: ICON.wiki, label: 'Wikipedia' });
+  if (al.alsoOn) chips.push({ k: 'also', icon: ICON.disc, label: 'Also on', n: al.alsoOn });
+  if (al.scores) chips.push({ k: 'scores', icon: ICON.music, label: 'Scores', n: al.scores });
+  chips.push({ k: 'links', icon: ICON.link, label: 'Links', n: 3 });
+  chips.push({ k: 'edition', icon: ICON.tag, label: 'Edition & codes' });
+  $('chips').innerHTML = chips.map(c => `<button class="chip${c.muted ? ' muted' : ''}" data-k="${c.k}">${c.icon}${c.label}${c.n ? `<span class="n">${c.n}</span>` : ''}</button>`).join('');
+}
+
+function renderTracks(al) {
+  const many = al.discs.length > 1;
+  $('tracks').innerHTML = al.discs.map(d => `
+    <div class="disc">
+      ${many ? `<div class="disc-head"><h6>Disc ${d.n} · ${d.tracks.length} tracks${d.sub ? ` <span style="text-transform:none;letter-spacing:0;font-weight:400">· ${d.sub}</span>` : ''}</h6>
+        <button class="quiet${state.inNext ? ' on' : ''}" title="This disc alone in Listen Next">${ICON.phones}</button></div>` : ''}
+      ${d.tracks.map((t, i) => {
+        const [title, dur, o] = t;
+        const cur = state.playing && state.playing.d === d.n && state.playing.i === i;
+        return `<div class="track${cur ? ' current' : ''}" data-d="${d.n}" data-i="${i}" role="button">
+          <span class="no">${o.popular ? '<span class="dot" title="One of the album\'s most listened tracks"></span>' : ''}${cur ? '<span class="bars"><i></i><i></i><i></i></span>' : `${i + 1}.`}</span>
+          <span class="t"><div class="title">${title}</div>${o.credits ? `<div class="credits">${o.credits}</div>` : ''}</span>
+          ${o.heart ? `<span class="heart on">${ICON.heart}</span>` : ''}
+          <span class="dur">${dur}</span>
+        </div>
+        ${cur ? `<div class="track-more">
+          ${o.lyrics ? `<button class="quiet" data-act="lyrics">${ICON.text}Lyrics</button>` : ''}
+          <button class="quiet" data-act="credits">${ICON.tag}Credits</button>
+          <button class="quiet" data-act="heart">${ICON.heart}</button>
+          <span class="plays">×${o.popular ? 43 : 7}</span>
+        </div>` : ''}`;
+      }).join('')}
+    </div>`).join('');
+}
+
+function renderFoot(al) {
+  const playingHere = Boolean(state.playing);
+  $('playIcon').innerHTML = playingHere && !state.paused ? ICON.pause : ICON.play;
+  $('playWord').textContent = playingHere ? (state.paused ? 'Resume' : 'Pause') : 'Play';
+  $('next').classList.toggle('active', state.inNext);
+  $('nextWord').textContent = state.inNext ? 'In Listen Next' : 'Listen Next';
+  $('card').classList.toggle('paused', state.paused);
+}
+
+function renderPill(al) {
+  const p = state.playing;
+  $('pill').hidden = !p;
+  $('body').classList.toggle('with-pill', Boolean(p));
+  if (!p) return;
+  const d = al.discs.find(x => x.n === p.d);
+  $('pillTitle').textContent = d.tracks[p.i][0];
+  $('pillArtist').textContent = `${al.artist} · ${al.title}`;
+  $('pillPlay').innerHTML = svg(state.paused ? ICON.play : ICON.pause);
+  $('pillPlay').setAttribute('aria-label', state.paused ? 'Play' : 'Pause');
+}
+
+function toast(html) {
+  const t = $('toast'); t.innerHTML = html; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+}
+
+// La feuille : ce que chaque puce montre.
+const SHEETS = {
+  guide: al => ({ title: 'Listening guide', sub: al.title, body: `
+    <p>Recorded after a break-up, <i>${al.title}</i> opens with its most defiant song and spends the rest of its length coming down from it. Listen for the way the drums are mixed: close and dry on the singles, farther off and roomier on the ballads, so the record seems to move from a stage to a bedroom.</p>
+    <p>Track 3 is the one to turn up. The piano is doubled an octave lower than you expect, which is why the chorus sounds heavier than its three chords should allow. The bridge drops the bass entirely for eight bars; on headphones you hear the room's air come in.</p>
+    <p>The last two songs were cut live in one take each. There is a chair creaking at 2:41 of the closer that the engineer chose to keep, and it is the most honest second on the album.</p>
+    <p>If you only have ten minutes: 1, 3, 11.</p>` }),
+  notes: al => ({ title: 'Listening notes', sub: al.notes ? `${al.notes} notes` : '', body: al.notes ? `
+    <div class="note-item"><div class="when">12.10.2026 · on the Onkyo</div><div class="stars"><span class="s">${[1,2,3,4].map(() => `<button class="on">${ICON.star}</button>`).join('')}<button>${ICON.star}</button></span></div>Played it loud on a Sunday afternoon. The second half holds up better than I remembered; 9 is the one I keep going back to.</div>
+    <div class="note-item"><div class="when">03.02.2025 · this iPhone</div>First listen since the rip. The FLAC is a different record from the stream: the bass on 1 finally has a floor.</div>` : `<p class="muted">No listening note yet.</p>`,
+    foot: `<button class="btn quiet sm">Cancel</button><button class="btn sm" id="writeNote">${ICON.pencil}Write a listening note…</button>` }),
+  wiki: al => ({ title: 'On Wikipedia', sub: 'en.wikipedia.org', body: `
+    <p><i>${al.title}</i> is the second studio album by ${al.artist}, released on 24 January 2011 through XL Recordings. The album was named after the age of the singer during its production. Conceived as a departure from the acoustic sound of her debut, it draws on American country and Southern blues influences.</p>
+    <p>The album topped the charts in more than thirty countries and became the world's best-selling album of the year for both 2011 and 2012. It won the Grammy Award for Album of the Year, and three of its singles reached number one in the United States.</p>
+    <p class="muted">Read the whole article ↗</p>` }),
+  also: al => ({ title: 'Also on', sub: `${al.alsoOn} albums`, body: `
+    <div class="row"><div class="th" style="background-image:url(../2026-10-18-paroles/cover-205.jpg)"></div><div class="w"><b>Live at the Royal Albert Hall</b><span>CD · 17 tracks · 9 of this album's</span></div><span class="chev">›</span></div>
+    <div class="row"><div class="th" style="background-image:url(../2026-10-18-paroles/cover-302.jpg)"></div><div class="w"><b>Now That's What I Call Music! 78</b><span>digital · 44 tracks · 2 of this album's</span></div><span class="chev">›</span></div>
+    ${al.alsoOn > 2 ? `<div class="row"><div class="th" style="background-image:url(../2026-10-18-paroles/cover-344.jpg)"></div><div class="w"><b>Hits to the Head</b><span>CD · 20 tracks · 6 of this album's</span></div><span class="chev">›</span></div>` : ''}` }),
+  links: al => ({ title: 'Links', sub: '', body: `
+    <div class="row"><div class="w"><b>MusicBrainz</b><span>this exact edition</span></div><span class="chev">↗</span></div>
+    <div class="row"><div class="w"><b>Discogs</b><span>release 2690094</span></div><span class="chev">↗</span></div>
+    <div class="row"><div class="w"><b>Navidrome</b><span>the rip, on music.lab</span></div><span class="chev">↗</span></div>` }),
+  edition: al => ({ title: 'Edition, codes and more', sub: '', body: `
+    <dl>
+      <dt>Edition</dt><dd>European first pressing, jewel case with 16-page booklet.</dd>
+      <dt>Producers</dt><dd>Paul Epworth, Rick Rubin, Ryan Tedder, Fraser T Smith, Jim Abbiss, Dan Wilson</dd>
+      <dt>Recorded at</dt><dd>Shangri-La, Malibu · Eastcote, London</dd>
+      <dt>Owned</dt><dd>Very good · bought 14.03.2019 · CHF 9</dd>
+      <dt>In DexVault</dt><dd class="muted">added 02.11.2023 · updated 20.10.2026</dd>
+      <dt>Catalogue no.</dt><dd><code>XLCD 520</code></dd>
+      <dt>Barcode</dt><dd><code>634904052027</code></dd>
+      <dt>ISRC</dt><dd><code>GBBKS1000335 … GBBKS1000345</code> <span class="muted">(11, one per track)</span></dd>
+      <dt>MusicBrainz</dt><dd><code>5a7d9e2c-0b1f-4f0e-9c3d-2a1b8d4e6f70</code></dd>
+    </dl>` }),
+};
+
+function openSheet(k) {
+  const s = SHEETS[k](ALBUMS[state.album]);
+  $('sheetTitle').textContent = s.title; $('sheetSub').textContent = s.sub || '';
+  $('sheetBody').innerHTML = s.body; $('sheetBody').scrollTop = 0;
+  $('sheetFoot').innerHTML = s.foot || ''; $('sheetFoot').hidden = !s.foot;
+  $('sheet').hidden = false; $('sheetScrim').hidden = false;
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.dataset.k === k));
+}
+function closeSheet() { $('sheet').hidden = true; $('sheetScrim').hidden = true; document.querySelectorAll('.chip').forEach(c => c.classList.remove('on')); }
+function openMenu() { $('menu').hidden = false; $('menuScrim').hidden = false; }
+function closeMenu() { $('menu').hidden = true; $('menuScrim').hidden = true; }
+
+// Les gestes.
+$('chips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) openSheet(c.dataset.k); });
+$('sheetClose').onclick = closeSheet; $('sheetScrim').onclick = closeSheet;
+$('sheet').querySelector('.handle').onclick = closeSheet;
+$('sheetFoot').addEventListener('click', e => { if (e.target.closest('#writeNote')) { closeSheet(); toast('A note is written in a dialog of its own, as today.'); } });
+$('more').onclick = openMenu; $('menuScrim').onclick = closeMenu;
+$('menu').addEventListener('click', e => {
+  const it = e.target.closest('.item'); if (!it) return;
+  closeMenu();
+  if (it.classList.contains('danger')) toast('<span style="color:var(--dv-danger)">Delete</span> asks “Delete this album?” in a confirm() of its own, red.');
+  else if (it.id === 'miCd') { state.inNext = true; render(); toast(`<b>${ALBUMS[state.album].title}</b> goes to Listen Next’s CD list.`); }
+  else toast(`“${it.textContent.replace(/[↗✓]/g, '').trim()}” — as today, in its own dialog.`);
+});
+$('stars').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const i = Number(b.dataset.i); state.stars = state.stars === i ? 0 : i; renderStars(); });
+$('next').onclick = () => { state.inNext = !state.inNext; render(); toast(state.inNext ? `<b>${ALBUMS[state.album].title}</b> is in Listen Next.` : `<b>${ALBUMS[state.album].title}</b> left Listen Next.`); };
+$('play').onclick = () => {
+  if (!state.playing) { state.playing = { d: ALBUMS[state.album].discs[0].n, i: 0 }; state.paused = false; }
+  else state.paused = !state.paused;
+  render();
+};
+$('pillPlay').onclick = () => { state.paused = !state.paused; render(); };
+$('tracks').addEventListener('click', e => {
+  const act = e.target.closest('[data-act]');
+  if (act) {
+    if (act.dataset.act === 'lyrics') toast('Lyrics open in the <b>full screen player</b>, its Lyrics view: the pill slid up.');
+    else if (act.dataset.act === 'credits') toast('Credits in a sheet, like the guide.');
+    else toast('♥ in Navidrome, as today.');
+    return;
+  }
+  const q = e.target.closest('.disc-head .quiet');
+  if (q) { q.classList.toggle('on'); toast(q.classList.contains('on') ? 'This disc alone is in Listen Next.' : 'This disc left Listen Next.'); return; }
+  const t = e.target.closest('.track'); if (!t) return;
+  const d = Number(t.dataset.d), i = Number(t.dataset.i);
+  if (state.playing && state.playing.d === d && state.playing.i === i) { state.paused = !state.paused; }
+  else { state.playing = { d, i }; state.paused = false; }
+  render();
+  // La piste touchée reste sous le doigt.
+  const row = $('tracks').querySelector('.track.current'); if (row) row.scrollIntoView({ block: 'nearest' });
+});
+$('close').onclick = () => { $('card').classList.add('away'); setTimeout(() => { $('card').classList.remove('away'); toast('Back to the grid: a touch on a cover opens the card again.'); }, 900); };
+
+// Les scénarios, à droite.
+function scenario(s) {
+  state.scenario = s;
+  document.querySelectorAll('#scen button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  closeSheet(); closeMenu(); $('toast').hidden = true;
+  if (s === 'rest') { state.playing = null; state.paused = false; render(); $('body').scrollTop = 0; }
+  if (s === 'guide') { state.playing = null; render(); $('body').scrollTop = 0; openSheet('guide'); }
+  if (s === 'menu') { state.playing = null; render(); $('body').scrollTop = 0; openMenu(); }
+  if (s === 'track') { const al = ALBUMS[state.album]; state.playing = { d: al.discs[0].n, i: al.discs[0].tracks.findIndex(t => t[2].popular) }; state.paused = false; render();
+    const row = $('tracks').querySelector('.track.current'); if (row) row.scrollIntoView({ block: 'center' }); }
+}
+$('scen').addEventListener('click', e => { const b = e.target.closest('button'); if (b) scenario(b.dataset.s); });
+$('album').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.album = b.dataset.a; const al = ALBUMS[state.album]; state.stars = al.stars; state.inNext = al.inNext;
+  document.querySelectorAll('#album button').forEach(x => x.classList.toggle('on', x === b));
+  scenario(state.scenario);
+});
+render();
+</script>
+</body>
+</html>

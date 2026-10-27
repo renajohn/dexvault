@@ -1,0 +1,497 @@
+/*
+ * An album's sheet on a phone (AlbumSheet.tsx): the player's full screen at
+ * rest, slid up over the page. It stands above the header (10000) and under a
+ * record's card (10100), which (i) opens over it, and under the player's full
+ * screen (10500). It takes the whole page: the player's pill gives way to
+ * the disc of what plays at its foot (services/phoneDoor). The look of the full screen (PhonePlayer.css) is taken
+ * up here value for value rather than depended on.
+ */
+
+.album-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  overflow: hidden;
+  background: var(--dv-page);
+  color: var(--dv-text);
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.album-sheet--open {
+  transform: none;
+  will-change: transform;
+}
+
+.album-sheet:focus {
+  outline: none;
+}
+
+/* Under the finger it follows it, at once. */
+.album-sheet--drag {
+  transition: none;
+}
+
+/* The cover, blurred large and dimmed: the light of the album, never a colour of the app's. */
+.album-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.album-sheet-backdrop img {
+  position: absolute;
+  inset: -20%;
+  width: 140%;
+  height: 140%;
+  object-fit: cover;
+  filter: blur(60px) saturate(1.4);
+  opacity: 0.6;
+}
+
+.album-sheet-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(26, 26, 26, 0.3), rgba(26, 26, 26, 0.8) 75%);
+}
+
+.album-sheet-inner {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--safe-top) + 4px) max(22px, var(--safe-right)) calc(var(--safe-foot) + 8px) max(22px, var(--safe-left));
+}
+
+/* The handle, at the top: a short rounded line. */
+.album-sheet-handle {
+  flex: none;
+  align-self: center;
+  width: 80px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.album-sheet-handle span {
+  width: 38px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.album-sheet-handle:focus-visible {
+  outline: none;
+}
+
+.album-sheet-handle:focus-visible span {
+  background: var(--dv-gold);
+}
+
+/* The cover, at a height that never changes: the words under it cut rather than push. */
+.album-sheet-cover {
+  flex: none;
+  align-self: center;
+  width: 176px;
+  height: 176px;
+  margin: 4px 0 12px;
+}
+
+.album-sheet-cover img,
+.album-sheet-nocover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--dv-radius-lg);
+  object-fit: cover;
+  background: #333;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.album-sheet-nocover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Who and what, a line each, cut at the end; (i) and ⋯ beside them. */
+.album-sheet-words {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 60px;
+  margin-right: -6px;
+}
+
+.album-sheet-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.album-sheet-artist,
+.album-sheet-title,
+.album-sheet-murmur {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.album-sheet-artist {
+  font-size: 0.9rem;
+  color: var(--dv-text-muted);
+}
+
+.album-sheet-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.album-sheet-murmur {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--dv-text-faint);
+}
+
+.album-sheet-murmur__cd {
+  color: var(--dv-silver);
+}
+
+/* The band: one height at rest and in play, so that nothing jumps as the one gives way to the other. */
+.album-sheet-band {
+  position: relative;
+  flex: none;
+  height: 104px;
+  margin: 4px 0 2px;
+}
+
+.album-sheet-idle,
+.album-sheet-live {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.album-sheet-idle {
+  gap: 0;
+}
+
+.album-sheet-next,
+.album-sheet-output {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.album-sheet-next {
+  left: 36px;
+}
+
+.album-sheet-output {
+  right: 36px;
+}
+
+.album-sheet-live {
+  flex-direction: column;
+  justify-content: flex-start;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+.album-sheet--here .album-sheet-idle {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
+.album-sheet--here .album-sheet-live {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* The one gold action of the sheet: ▶, large and round, for a finger. Here is the one place it is sized. */
+.ui-button.album-sheet-play {
+  width: 68px;
+  height: 68px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 2.2rem;
+}
+
+.ui-button.album-sheet-play svg {
+  margin-left: 3px;
+}
+
+.ui-button.album-sheet-play--live {
+  width: 52px;
+  height: 52px;
+  font-size: 1.8rem;
+}
+
+.ui-button.album-sheet-play--live svg {
+  margin-left: 0;
+}
+
+.album-sheet-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+}
+
+/* ⏮ ⏯ ⏭, in a row under the place in the track. */
+.album-sheet-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  margin-top: 4px;
+}
+
+/* The place in the track: thin, thicker under the finger, its dot there. */
+.album-sheet-seek {
+  flex: none;
+  width: 100%;
+}
+
+.album-sheet-scrubber {
+  position: relative;
+  height: 22px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.album-sheet-scrubber::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  transition: top 0.12s ease, height 0.12s ease;
+}
+
+.album-sheet-scrubber__fill {
+  position: absolute;
+  left: 0;
+  top: 9px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--dv-gold);
+  transition: top 0.12s ease, height 0.12s ease, background-color 0.2s ease;
+}
+
+.album-sheet-scrubber__dot {
+  position: absolute;
+  top: 5px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--dv-gold);
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+
+.album-sheet-scrubber--paused .album-sheet-scrubber__fill,
+.album-sheet-scrubber--paused .album-sheet-scrubber__dot {
+  background: #8a8f98;
+}
+
+.album-sheet-scrubber--held::before,
+.album-sheet-scrubber--held .album-sheet-scrubber__fill {
+  top: 7px;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.album-sheet-scrubber--held .album-sheet-scrubber__dot {
+  transform: scale(1.5);
+}
+
+.album-sheet-scrubber:focus-visible {
+  outline: none;
+}
+
+.album-sheet-scrubber:focus-visible .album-sheet-scrubber__dot {
+  box-shadow: var(--dv-ring);
+}
+
+.album-sheet-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -2px;
+  font-size: 0.75rem;
+  color: var(--dv-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Under the band: where it plays, or why it cannot, in one line cut at its end. */
+.album-sheet-line {
+  flex: none;
+  min-height: 20px;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.8rem;
+  color: var(--dv-text-muted);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.album-sheet-where svg {
+  vertical-align: -2px;
+}
+
+.album-sheet-where--cd {
+  color: var(--dv-silver);
+}
+
+/* The tracks, by disc for a box; the one playing in gold; one with no file greyed. They scroll alone. */
+.album-sheet-tracks,
+.album-sheet-guide {
+  flex: 1;
+  min-height: 0;
+  margin: 8px -22px 0;
+  padding: 0 14px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to bottom, transparent, #000 10px, #000 calc(100% - 14px), transparent);
+}
+
+.album-sheet-tracks::-webkit-scrollbar,
+.album-sheet-guide::-webkit-scrollbar {
+  display: none;
+}
+
+.album-sheet-guide {
+  padding: 6px 22px 16px;
+  font-size: 0.95rem;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.album-sheet-disc {
+  margin: 10px 8px 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--dv-text-faint);
+}
+
+.album-sheet-tracks ol {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.album-sheet-track {
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--dv-radius-md);
+  background: none;
+  color: var(--dv-text);
+  text-align: left;
+}
+
+.album-sheet-track:active:not(:disabled) {
+  background: var(--dv-veil);
+}
+
+.album-sheet-track:disabled {
+  color: var(--dv-text-muted);
+}
+
+.album-sheet-track--now {
+  color: var(--dv-gold);
+  font-weight: 600;
+}
+
+.album-sheet-track__no {
+  flex: none;
+  width: 22px;
+  display: flex;
+  justify-content: center;
+  color: var(--dv-text-faint);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.album-sheet-track__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.album-sheet-track__time {
+  flex: none;
+  color: var(--dv-text-faint);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.album-sheet-empty {
+  margin: 30px 20px;
+  font-size: 0.9rem;
+  color: var(--dv-text-muted);
+  text-align: center;
+}
+
+/* At the foot: the disc of another album playing, and Tracks | Guide when the album has a guide. */
+.album-sheet-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.album-sheet-foot > :last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The disc alone, its words beside it: it takes the foot's width, left to right. */
+.album-sheet-foot--now .album-sheet-now {
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .album-sheet,
+  .album-sheet--open,
+  .album-sheet-idle,
+  .album-sheet-live {
+    transition: none;
+  }
+}

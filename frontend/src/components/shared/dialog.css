@@ -3,7 +3,8 @@
  * had it (icon, title, what tells it apart, ‹ ›, ✕) over a line, its body,
  * its foot over a line, the action it is for on the right. A centred dialog
  * for a form or a question; a panel along the right edge for a record's card
- * (side-panel-modal, App.css).
+ * (side-panel-modal, App.css); a sheet that comes up from the foot of the
+ * screen, the menus' glass, for what a phone's card keeps behind a chip.
  */
 :root {
   --dialog-bg: #2d2d2d;
@@ -156,4 +157,101 @@
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
+}
+
+/* ---------------------------------------------------------------- Sheet */
+
+/*
+ * A sheet lies at the foot of its .modal (which already ends above the player's
+ * bar), the width of the screen, two thirds high; the menus' glass, its top
+ * corners round, a handle to pull it down by. It slides up as it comes and
+ * down as it goes, in place of Bootstrap's drop from above.
+ */
+.dialog--sheet .modal-dialog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  max-width: 640px;
+  height: 72%;
+  margin: 0 auto;
+  min-height: 0;
+}
+
+.dialog--sheet-tall .modal-dialog {
+  height: calc(100% - var(--safe-top) - 12px);
+}
+
+.modal.dialog--sheet.fade .modal-dialog {
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.modal.dialog--sheet.show .modal-dialog {
+  transform: none;
+}
+
+.dialog--sheet .modal-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--dv-surface-edge);
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  background: var(--dv-surface);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.dialog-sheet__handle {
+  display: block;
+  flex: none;
+  width: 38px;
+  height: 5px;
+  margin: 8px auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.3);
+  /* A finger's worth to catch, around a bar five pixels high. */
+  box-shadow: 0 0 0 10px transparent;
+  touch-action: none;
+}
+
+.dialog-sheet__handle:focus-visible {
+  outline: none;
+  box-shadow: var(--dv-ring);
+}
+
+.dialog--sheet .dialog-head {
+  padding: 6px 8px 8px 18px;
+  border-bottom: 0;
+}
+
+.dialog--sheet .dialog-title {
+  font-size: 1rem;
+}
+
+/* The body scrolls on its own, and keeps clear of the home indicator. */
+.dialog--sheet .dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 18px calc(16px + var(--safe-foot));
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.dialog--sheet .dialog-foot.modal-footer {
+  flex: none;
+  padding-bottom: calc(12px + var(--safe-foot));
+}
+
+/* The sheet's veil: darker than a dialog's, as it hides more. */
+.modal-backdrop.dialog-sheet-backdrop.show {
+  opacity: 0.45;
 }

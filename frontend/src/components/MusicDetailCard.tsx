@@ -4,7 +4,7 @@ import { ButtonGroup } from 'react-bootstrap';
 import Dialog from './shared/Dialog';
 import scorePiecesService, { type AlbumScore } from '../services/scorePiecesService';
 import Menu, { MenuChevron } from './shared/Menu';
-import { BsPencil, BsTrash, BsDisc, BsApple, BsTags, BsPlayFill, BsPauseFill, BsHeadphones, BsBoxArrowUpRight, BsChevronRight, BsStarFill, BsArrowClockwise } from 'react-icons/bs';
+import { BsPencil, BsTrash, BsDisc, BsApple, BsTags, BsPlayFill, BsPauseFill, BsHeadphones, BsBoxArrowUpRight, BsChevronRight, BsStarFill, BsArrowClockwise, BsBook, BsWikipedia, BsMusicNoteList, BsLink45Deg, BsTag, BsThreeDots } from 'react-icons/bs';
 import musicService from '../services/musicService';
 import CoverModal from './CoverModal';
 import CoverFinder from './CoverFinder';
@@ -34,9 +34,14 @@ import Spinner from './shared/Spinner';
 import StarRating from './shared/StarRating';
 import toast from './shared/Toast';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
-import MixtapeMenu from './MixtapeMenu';
+import MixtapeMenu, { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
+import Chip from './shared/Chip';
+import { confirm } from './shared/ConfirmDialog';
+import { setFullPlayer, useCoversPlayer } from '../services/phoneDoor';
+import NowPlayingDisc, { useNowPlayingDoor } from './NowPlayingDisc';
+import { useMedia } from '../utils/useNarrow';
 import { useMixtapes } from '../utils/mixtapeStore';
-import { BsCassetteFill, BsXLg, BsLaptop } from 'react-icons/bs';
+import { BsCassetteFill, BsXLg, BsLaptop, BsImage } from 'react-icons/bs';
 import remote, { useRemotePlayers, type RemotePlayer } from '../services/remote';
 import { discsInWords, heldOf } from '../utils/listenNextEntry';
 
@@ -241,6 +246,20 @@ const TrackMixtapes: React.FC<{ songId: string; title: string }> = ({ songId, ti
 /** A row of Listen Next as the server sends it: the album, one disc of it or none, and its list. */
 type ListenNextRow = { id: number; disc?: number | null; medium?: ListenNextMedium };
 
+/** On a phone, what a chip under the head opens in a sheet. */
+type SheetKind = 'guide' | 'notes' | 'story' | 'also' | 'scores' | 'links' | 'edition';
+
+/** The sheet's head, by what it shows. */
+const SHEETS: Record<SheetKind, { title: string; icon: React.ReactNode }> = {
+  guide: { title: 'Before you listen', icon: <BsBook /> },
+  notes: { title: 'Listening notes', icon: <BsPencil /> },
+  story: { title: 'On Wikipedia', icon: <BsWikipedia /> },
+  also: { title: 'Also on', icon: <BsDisc /> },
+  scores: { title: 'On the shelf of scores', icon: <BsMusicNoteList /> },
+  links: { title: 'Links', icon: <BsLink45Deg /> },
+  edition: { title: 'Edition, codes and more', icon: <BsTag /> },
+};
+
 const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, onDelete, onSearch, onListenNextChange, onPrevious, onNext, digital, onWish, onDismiss, onBought, onCoverChange, onOpenAlbum }) => {
   const [showCoverModal, setShowCoverModal] = useState<boolean>(false);
   const [coverModalData, setCoverModalData] = useState<CoverModalData>({ coverUrl: '', title: '', artist: '', coverType: '' });
@@ -292,6 +311,11 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   // The scores holding what it plays: "On the shelf of scores".
   const [scores, setScores] = useState<AlbumScore[]>([]);
   const [showAllOverlaps, setShowAllOverlaps] = useState<boolean>(false);
+  // A phone's width: the card is laid out to listen first (the prototypes of 2026-10-27), a computer's as before.
+  const phone = useMedia('(max-width: 767px)');
+  // On a phone, the sheet open over the card, and the dialog naming a new mixtape from ⋯.
+  const [sheet, setSheet] = useState<SheetKind | null>(null);
+  const [naming, setNaming] = useState<boolean>(false);
   const navidromeId = digital?.album?.navidromeId ?? null;
   // A wish or a digital album: no CD, the shelf code gives way to the cloud.
   const hasCd = cd.titleStatus !== 'digital' && cd.titleStatus !== 'wish';
@@ -543,7 +567,22 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
     setNoteCount(null);
     setWritingNote(false);
     setStoryOpen(null);
+    setSheet(null);
   }, [cd.id]);
+
+  // On a phone the guide and the notes live in sheets, unread until opened: the chips still have to
+  // know whether there is a guide, and how many notes, so they are asked for here.
+  useEffect(() => {
+    if (!phone) return undefined;
+    let current = true;
+    musicService.getAlbumGuide(Number(cd.id))
+      .then(guide => { if (current) setHasGuide(guide !== null); })
+      .catch(() => { if (current) setHasGuide(false); });
+    musicService.getAlbumNotes(Number(cd.id))
+      .then(list => { if (current) setNoteCount(list.length); })
+      .catch(() => undefined);
+    return () => { current = false; };
+  }, [cd.id, phone]);
   // Wikipedia is open at once when no guide tells what matters first, until a click says otherwise.
   const showStory = storyOpen ?? !hasGuide;
 
@@ -598,6 +637,9 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   const nowPlaying = usePlayer(state => state.playing);
   const resume = usePlayer(state => state.resume);
   const playingHere = nowAlbumId === Number(cd.id);
+  const nowPlayingDoor = useNowPlayingDoor(cd.id) && phone;
+  // On a phone the card takes the whole page: the player's pill gives way to the disc at its foot.
+  useCoversPlayer(phone);
   const resumeHere = !playingHere && resume?.album.id === Number(cd.id) ? resume : null;
   // The computers the remote can send this album or a track of it to.
   const computers = useRemotePlayers().filter(p => p.online);
@@ -688,12 +730,884 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   const frontCover = coverBroken ? null : getCoverImage();
   const backCover = getBackCoverImage();
 
+  /** On a phone, Delete is an entry of ⋯: it asks before it does, there being no button to press twice. */
+  const askDelete = async () => {
+    if (await confirm({ title: `Delete “${cd.title}”?`, message: 'It leaves the collection. This cannot be undone.', confirmLabel: 'Delete', danger: true })) onDelete();
+  };
+
+  // ---- The pieces of the card, drawn once and laid out for a computer or for a phone. ----
+
+  const covers = (
+    <div className="album-head-covers">
+      {frontCover ? (
+        <img
+          key={`front-${cd.id}`}
+          src={frontCover}
+          alt={`${cd.title} front cover`}
+          className="album-head-cover"
+          // On a phone, this album playing, its cover opens the full screen player (its bars say so); else it grows.
+          onClick={() => (phone && playingHere ? setFullPlayer(true) : handleCoverClick(frontCover, 'Front'))}
+          title={phone && playingHere ? 'Now playing: open the player' : undefined}
+          onError={() => setCoverBroken(true)}
+        />
+      ) : (
+        <div className="album-head-cover album-head-cover-empty">
+          <BsDisc size={40} aria-hidden="true" />
+          {onCoverChange && (
+            <Button size="sm" className="album-head-find" onClick={() => setFindingCover('front')}>Find a cover…</Button>
+          )}
+        </div>
+      )}
+      {phone && playingHere && frontCover && (
+        <span className="album-head-cover-playing" aria-hidden="true"><NowPlayingBars playing={nowPlaying} /></span>
+      )}
+      {/* On a phone the head has a fixed height and no room under the cover: the back is found from ⋯. */}
+      {!backCover && onCoverChange && !phone && (
+        <Button size="sm" variant="quiet" className="album-head-find-back" onClick={() => setFindingCover('back')}>Find the back…</Button>
+      )}
+      {backCover && (
+        <img
+          key={`back-${cd.id}`}
+          src={backCover}
+          alt={`${cd.title} back cover`}
+          title="Back cover"
+          className="album-head-back"
+          onClick={() => handleCoverClick(backCover, 'Back')}
+          onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
+      )}
+    </div>
+  );
+
+  // Who, then the object and its edition in one murmur: format, tracks, length, year, country, label.
+  const artistButton = (
+    <button type="button" className="album-head-artist album-head-filter" onClick={() => handleSearch('artist', getArtistDisplay())}>
+      {getArtistDisplay()}
+    </button>
+  );
+  const shapeText = [shape, released, labels, original && `first ${original}`].filter(Boolean).join(' · ');
+  const shapeLine = shapeText ? <div className="album-head-shape">{shapeText}</div> : null;
+
+  /** How to listen to it: the rip in Navidrome, or with Digital on, the CD missing and the files. */
+  const listenLines = (compact: boolean) => (digital === undefined ? (
+    rip?.configured !== false && <div className="album-head-line">{ripText}</div>
+  ) : (
+    <>
+      {!hasCd && !compact && (
+        <div className="album-head-line album-head-physical">
+          <span className="album-head-muted">{cd.titleStatus === 'wish' ? 'No CD · on your wish list' : 'No CD'}</span>
+          {/* The box below holds the bookmark when there is something to decide. */}
+          {onWish && digital.album && !(isToBuy(digital.album) || cd.titleStatus === 'wish') && (
+            <button type="button" className="album-head-link" onClick={onWish} aria-pressed={cd.titleStatus === 'wish'}>
+              {cd.titleStatus === 'wish' ? <BsBookmarkFill aria-hidden="true" /> : <BsBookmark aria-hidden="true" />}
+              {cd.titleStatus === 'wish' ? 'Wished' : 'Add to wishlist'}
+            </button>
+          )}
+        </div>
+      )}
+      <div className="album-head-line">
+        {/* On a phone, the lines are counted: No CD opens the files' line rather than taking one. */}
+        {!hasCd && compact && <span className="album-head-muted">{cd.titleStatus === 'wish' ? 'No CD · wished · ' : 'No CD · '}</span>}
+        {digital.album ? (
+          <>
+            <span className={isLossy(digital.album) ? 'album-head-lossy' : 'album-head-lossless'}>{formatLabel(digital.album)}</span>
+            <span className="album-head-muted">
+              {' · '}{digital.album.songCount} tracks
+              {' · '}{digital.album.listening.plays} play{digital.album.listening.plays === 1 ? '' : 's'} in 90 days
+            </span>
+            {isLossy(digital.album) && hasCd && <span className="album-head-lossy"> · rip the CD again</span>}
+          </>
+        ) : digital.notRipped ? <span className="album-head-muted">Not ripped yet.</span> : ripText}
+      </div>
+    </>
+  ));
+
+  const genresLine = cd.genres && cd.genres.length > 0 && (
+    <div className="album-head-line album-head-genres">
+      {cd.genres.map((genre: string, index: number) => (
+        <React.Fragment key={genre}>
+          {index > 0 && ' · '}
+          <button type="button" className="album-head-filter" onClick={() => handleSearch('genre', genre)}>{genre}</button>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+
+  /** The other albums holding some of its tracks, the most first: how many of this one's, which on hover. */
+  const overlapTip = (other: AlbumOverlap) => `${other.shared === 1 ? 'One track' : `${other.shared} tracks`} also on ${other.title}`
+    + ` (${other.titleStatus === 'digital' ? 'digital' : other.format || 'CD'}, ${other.trackCount} tracks): `
+    + other.tracks.map(track => track.title).join(', ');
+  const overlapsLine = overlaps.length > 0 && (
+    <div className="album-head-line album-head-overlaps">
+      <span className="album-head-muted">Also on </span>
+      {(showAllOverlaps ? overlaps : overlaps.slice(0, OVERLAPS_SHOWN)).map((other, index) => (
+        <React.Fragment key={other.id}>
+          {index > 0 && <span className="album-head-muted"> · </span>}
+          {onOpenAlbum ? (
+            <button type="button" className="album-head-filter" title={overlapTip(other)} onClick={() => onOpenAlbum(other.id)}>{other.title}</button>
+          ) : <span title={overlapTip(other)}>{other.title}</span>}
+          <span className="album-head-muted"> {overlapCount(other, trackCount)}</span>
+        </React.Fragment>
+      ))}
+      {!showAllOverlaps && overlaps.length > OVERLAPS_SHOWN && (
+        <>
+          <span className="album-head-muted"> · </span>
+          <button type="button" className="album-head-filter album-head-muted" onClick={() => setShowAllOverlaps(true)}>
+            {overlaps.length - OVERLAPS_SHOWN} more
+          </button>
+        </>
+      )}
+    </div>
+  );
+
+  /** A score's title, short: without the instrument after the dash nor the parentheses, its publisher after. */
+  const scoreTitle = (score: AlbumScore) =>
+    [score.title.replace(/\s*[-–]\s*(?:piano|klavier)\b.*$/i, '').replace(/\s*\(.*?\)\s*/g, ' ').trim(), score.publisher].filter(Boolean).join(', ');
+  /** The scores on the shelf that hold what it plays: their card, in Scores. */
+  const scoresLine = scores.length > 0 && (
+    <div className="album-head-line album-head-scores">
+      <span className="album-head-muted">On the shelf of scores: </span>
+      {scores.map((score, index) => (
+        <React.Fragment key={score.id}>
+          {index > 0 && <span className="album-head-muted"> · </span>}
+          <ScoreLink id={score.id} title={scoreTitle(score)} />
+        </React.Fragment>
+      ))}
+    </div>
+  );
+
+  /** One's own stars, the community's in a murmur beside them: one line, its end cut rather than wrapped. */
+  const ratingRow = (
+    <div className="album-head-rating">
+      <StarRating value={stars} onChange={rate} />
+      {(cd.musicbrainzReleaseId || cd.urls?.discogs) && (
+        <span className="album-head-muted album-head-community-line">
+          {typeof community.communityRating === 'number' ? (
+            <span className="album-head-cut" title={communityDetail(community)}>
+              <span className="album-head-community">
+                <BsStarFill aria-hidden="true" /> {community.communityRating.toFixed(1)}
+              </span>
+              <span> / 5 · {votesLabel(community.communityVotes ?? 0)}</span>
+            </span>
+          ) : (
+            <span className="album-head-cut" title={communityDetail(community) || undefined}>
+              {community.communityVotes ? `Too few votes (${community.communityVotes})` : 'No community rating'}
+            </span>
+          )}
+          <button
+            type="button"
+            className="album-head-refresh"
+            onClick={refreshMusicBrainz}
+            disabled={refreshingMb}
+            aria-label="Refresh the community rating"
+            title="Reread MusicBrainz and Discogs"
+          >
+            <BsArrowClockwise aria-hidden="true" className={refreshingMb ? 'album-head-spinning' : undefined} />
+          </button>
+        </span>
+      )}
+    </div>
+  );
+  const ratingNotes = (
+    <>
+      {starsNote && <div className="album-head-note">{starsNote}</div>}
+      {mbError && <div className="album-head-note">{mbError}</div>}
+    </>
+  );
+
+  const hasLinks = Boolean(cd.musicbrainzReleaseId || links.length > 0);
+  /** The links out: MusicBrainz, those kept with the album, Picard on a computer that has it. */
+  const linkItems = (
+    <>
+      {cd.musicbrainzReleaseId && (
+        <a
+          className="album-head-link"
+          href={`https://musicbrainz.org/release/${cd.musicbrainzReleaseId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          MusicBrainz
+          <BsBoxArrowUpRight aria-hidden="true" />
+        </a>
+      )}
+      {links.map(([key, url]) => (
+        <a key={key} className="album-head-link" href={url} target="_blank" rel="noopener noreferrer">
+          {urlLabel(key)}
+          <BsBoxArrowUpRight aria-hidden="true" />
+        </a>
+      ))}
+      {cd.musicbrainzReleaseId && canUsePicard() && (
+        <button
+          type="button"
+          className="album-head-link"
+          onClick={() => openInPicard(cd.musicbrainzReleaseId!)}
+          title="Load this exact edition in MusicBrainz Picard, open on this computer"
+        >
+          <BsTags aria-hidden="true" />
+          Tag in Picard
+        </button>
+      )}
+    </>
+  );
+
+  /** What is rarely wanted: the edition's note, the credits, the copy owned, the codes, the old notes. */
+  const facts = (
+    <dl className="album-head-facts" id={`album-advanced-${cd.id}`}>
+      {cd.editionNotes && <Field label="Edition"><span className="album-head-annotation">{cd.editionNotes}</span></Field>}
+      {cd.producer && cd.producer.length > 0 && (
+        <Field label={cd.producer.length > 1 ? 'Producers' : 'Producer'}>{cd.producer.join(', ')}</Field>
+      )}
+      {cd.engineer && cd.engineer.length > 0 && (
+        <Field label={cd.engineer.length > 1 ? 'Engineers' : 'Engineer'}>{cd.engineer.join(', ')}</Field>
+      )}
+      {cd.recordingLocation && <Field label="Recorded at">{cd.recordingLocation}</Field>}
+      {cd.recordingQuality && <Field label="Quality">{cd.recordingQuality}</Field>}
+      {cd.language && <Field label="Language">{cd.language.toUpperCase()}</Field>}
+      {(owned || ownership.notes) && (
+        <Field label="Owned">
+          {owned}
+          {ownership.notes && <span className="album-head-note">{ownership.notes}</span>}
+        </Field>
+      )}
+      <Field label="In DexVault">
+        <span className="album-head-muted">
+          added {added}
+          {updated && updated !== added && ` · updated ${updated}`}
+        </span>
+      </Field>
+      {cd.catalogNumber && <Field label="Catalogue no."><code className="album-head-code">{cd.catalogNumber}</code></Field>}
+      {cd.barcode && <Field label="Barcode"><code className="album-head-code">{cd.barcode}</code></Field>}
+      {cd.isrcCodes && cd.isrcCodes.length > 0 && (
+        <Field label="ISRC">
+          {/* One per track: the first and the last, all of them on a click. */}
+          {cd.isrcCodes.length > 3 && !showIsrc ? (
+            <button type="button" className="album-head-clamp" title="Show every code" onClick={() => setShowIsrc(true)}>
+              <code className="album-head-code">{cd.isrcCodes[0]} … {cd.isrcCodes[cd.isrcCodes.length - 1]}</code>
+              <span className="album-head-muted"> ({cd.isrcCodes.length}, one per track)</span>
+            </button>
+          ) : (
+            <code className="album-head-code">{cd.isrcCodes.join(', ')}</code>
+          )}
+        </Field>
+      )}
+      {cd.musicbrainzReleaseId && (
+        <Field label="MusicBrainz"><code className="album-head-code">{cd.musicbrainzReleaseId}</code></Field>
+      )}
+      {cd.annotation && (
+        <Field label="Album notes"><span className="album-head-annotation">{cd.annotation}</span></Field>
+      )}
+    </dl>
+  );
+
+  /** To buy: why, and what to do about it, only when there is something to decide. */
+  const buyBox = digital?.album && !hasCd && (isToBuy(digital.album) || cd.titleStatus === 'wish') && (
+    <div className="album-buy">
+      <div>
+        {isSuggested(digital.album) ? (
+          <><strong><BsCartFill aria-hidden="true" /> Worth buying</strong> — {buyReason(digital.album)}</>
+        ) : (
+          <strong><BsBookmarkFill aria-hidden="true" /> On your wish list</strong>
+        )}
+      </div>
+      <div className="album-buy-actions">
+        {onWish && (
+          <Button active={cd.titleStatus === 'wish'} size="sm" onClick={onWish}
+            icon={cd.titleStatus === 'wish' ? <BsBookmarkFill /> : <BsBookmark />}>
+            {cd.titleStatus === 'wish' ? 'Wished' : 'Add to wishlist'}
+          </Button>
+        )}
+        <LinkButton size="sm" icon={<BsSearch />} href={ricardoUrl(digital.album)} external={!appleMobile} title="Search the CD on Ricardo">
+          Ricardo
+        </LinkButton>
+        {onDismiss && cd.titleStatus !== 'wish' && (
+          <Button variant="quiet" size="sm" className="album-buy-dismiss" onClick={() => onDismiss(!digital.album!.dismissed)}>
+            {digital.album.dismissed ? 'Interested after all' : 'Not interested'}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+
+  /** The tracks need no title: a line above them says where they start. */
+  const tracks = discs.length > 0 && (
+    <div className="album-tracks">
+      {discs.map((disc: CdDisc, discIndex: number) => {
+        const credits = discsCredits[discIndex];
+        // The movements of a work go under its heading, which says who wrote and who plays them all;
+        // under a movement, only what differs. Who wrote the rest is in each track's credits.
+        const works = workGroups(disc.tracks.map(track => track.title));
+        const workCredits = new Map<number, ReturnType<typeof discCredits> & { start: number }>();
+        works.forEach((work, index) => {
+          if (!work?.first) return;
+          let end = index + 1;
+          while (works[end] && !works[end]!.first) end++;
+          workCredits.set(index, { ...discCredits(disc.tracks.slice(index, end), albumArtists), start: index });
+          for (let i = index + 1; i < end; i++) workCredits.set(i, workCredits.get(index)!);
+        });
+        return (
+          <div key={discIndex} className="disc-tracks mb-3">
+            {discs.length > 1 && (
+              <div className="disc-head">
+                <h6 className="disc-title">Disc {disc.number}</h6>
+                {/* This disc alone in Listen Next, or out, as the album's button; its ▾ chooses its list. Held when the whole album is. */}
+                {(() => {
+                  const on = listenNextHeld === 'all' || listenNextHeld.includes(disc.number);
+                  const medium = discMedium(disc.number);
+                  return (
+                    <span className="ui-button-group">
+                      <Button variant="quiet" size="sm" active={on} icon={(medium ?? plainMedium) === 'cd' ? <BsDisc /> : <BsHeadphones />}
+                        onClick={() => handleListenNextToggle(disc.number, medium ?? plainMedium)} disabled={togglingListenNext}
+                        aria-label={on ? `Disc ${disc.number} in Listen Next` : `Disc ${disc.number} to Listen Next`}
+                        title={!on ? (plainMedium === 'cd' ? `Play disc ${disc.number} next` : `Stream disc ${disc.number} next`) : listenNextHeld === 'all'
+                          ? `The whole album is in Listen Next: disc ${disc.number} alone instead` : `Take disc ${disc.number} out of Listen Next`}>
+                        {on ? 'In Listen Next' : 'Listen Next'}
+                        {on && medium === 'cd' && ' · from the CD'}
+                      </Button>
+                      {canBeCd && (
+                        <Menu label={`Disc ${disc.number} in Listen Next`} align="end" trigger={(props, open) => (
+                          <Button {...props} variant="quiet" size="sm" active={on} className="ui-button--split"
+                            aria-label={`Disc ${disc.number}: streamed or from the CD`} title="Streamed or from the CD" disabled={togglingListenNext}>
+                            <MenuChevron open={open} />
+                          </Button>
+                        )}>
+                          <Menu.Section title={`Listen to disc ${disc.number}`} />
+                          {(['digital', 'cd'] as const).map(choice => (
+                            <Menu.Choice key={choice} selected={on && medium === choice} hint={choice === plainMedium ? 'Default' : undefined}
+                              onSelect={() => { if (!(on && medium === choice)) handleListenNextToggle(disc.number, choice); }}>
+                              {choice === 'digital' ? 'Streamed' : 'From the CD'}
+                            </Menu.Choice>
+                          ))}
+                        </Menu>
+                      )}
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
+            <div className="track-list">
+              {disc.tracks.map((track: CdTrack, trackIndex: number) => {
+                const key = `${disc.number}-${trackIndex}`;
+                const open = selectedTrack === key;
+                const words = withWords.has(`${disc.number}-${track.no}`);
+                const file = rip?.found ? ripFileFor(rip.tracks, disc.number, Number(track.no)) : null;
+                const playUrl = file ? trackListenUrl(file, appleMobile) : null;
+                const ownPlay = ownPlayer && Boolean(file?.id);
+                const current = playingHere && nowTrack?.disc === disc.number && nowTrack?.no === Number(track.no);
+                // The buttons inside the row act on their own, not as a click on the row.
+                const own = (event: React.SyntheticEvent) => event.stopPropagation();
+                const work = works[trackIndex];
+                return (
+                <React.Fragment key={trackIndex}>
+                {work?.first && (
+                  <div className="track-work">
+                    {work.work}
+                    {workCredits.get(trackIndex)?.common && <span className="track-work-by"> · {workCredits.get(trackIndex)!.common}</span>}
+                  </div>
+                )}
+                <div
+                  className={`track-item track-selectable${open ? ' track-selected' : ''}${work ? ' track-in-work' : ''}${current ? ' track-current' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={open}
+                  aria-controls={open ? `track-details-${key}` : undefined}
+                  onClick={() => toggleTrack(key)}
+                  onKeyDown={(event: React.KeyboardEvent) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      toggleTrack(key);
+                    }
+                  }}
+                >
+                  <span className={`track-number${playUrl || ownPlay ? ' track-playable' : ''}`}>
+                    {/* A grey dot before the number of the tracks most listened to: an invitation, not a grade. */}
+                    {track.popular && (
+                      <span className="track-popular" title="One of the album's most listened tracks">
+                        <span className="visually-hidden">Popular: </span>
+                      </span>
+                    )}
+                    <span className="track-number-text">
+                      {current ? (
+                        <NowPlayingBars playing={nowPlaying} />
+                      ) : `${track.no}.`}
+                    </span>
+                    {ownPlay ? (
+                      <button type="button" className="track-play" onClick={event => { own(event); if (current) player.toggle(); else playFrom(disc.number, Number(track.no)); }}
+                        onKeyDown={own} aria-label={`${current && nowPlaying ? 'Pause' : 'Play'} ${track.title}`} title={current && nowPlaying ? 'Pause' : 'Play'}>
+                        {current && nowPlaying ? <BsPauseFill aria-hidden="true" /> : <BsPlayFill aria-hidden="true" />}
+                      </button>
+                    ) : playUrl && (computers.length > 0 || elsewhere.length > 0) ? (
+                      // A computer listening, or an appliance: this track here in Amperfy, or there from it on.
+                      <span onClick={own} onKeyDown={own}>
+                        <Menu label={`Play ${track.title}`} trigger={props => (
+                          <button type="button" {...props} className="track-play" aria-label={`Play ${track.title}`} title="Play"><BsPlayFill aria-hidden="true" /></button>
+                        )}>
+                          <Menu.Item icon={<BsPlayFill />} onSelect={() => { window.location.href = playUrl; }}>Play here, in {appleMobile ? 'Amperfy' : 'Navidrome'}</Menu.Item>
+                          {outputItems(disc.number, Number(track.no))}
+                          {computers.map(target => (
+                            <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target, disc.number, Number(track.no))}>Play on {target.name}</Menu.Item>
+                          ))}
+                        </Menu>
+                      </span>
+                    ) : playUrl && (
+                      <a className="track-play" href={playUrl} aria-label={`Play ${track.title} in ${appleMobile ? 'Amperfy' : 'Navidrome'}`}
+                        title={`Play in ${appleMobile ? 'Amperfy' : 'Navidrome'}`} onClick={own} onKeyDown={own}
+                        {...(appleMobile ? {} : { target: '_blank', rel: 'noopener noreferrer' })}>
+                        <BsPlayFill aria-hidden="true" />
+                      </a>
+                    )}
+                  </span>
+                  <span className="track-title">
+                    {work ? work.movement : track.title}
+                    {words && (open ? (
+                      <span className="track-view" role="group" aria-label="Show">
+                        {(['credits', 'lyrics'] as const).map(view => (
+                          <button key={view} type="button" className={trackView === view ? 'active' : ''} aria-pressed={trackView === view}
+                            onClick={event => { own(event); setTrackView(view); }} onKeyDown={own}>{view}</button>
+                        ))}
+                      </span>
+                    ) : (
+                      <button type="button" className="track-lyrics-tag" title="Show the lyrics"
+                        onClick={event => { own(event); toggleTrack(key, 'lyrics'); }} onKeyDown={own}>lyrics</button>
+                    ))}
+                    {(() => {
+                      const inWork = workCredits.get(trackIndex);
+                      const line = inWork ? inWork.perTrack[trackIndex - inWork.start] : credits.perTrack[trackIndex];
+                      return line && <span className="track-credits">{line}</span>;
+                    })()}
+                  </span>
+                  {(() => {
+                    const heard = digitalTracks.get(`${disc.number}-${track.no}`);
+                    // Every play ever, under the pointer and on the open track; a lighter grey when heard in the last 90 days.
+                    return heard && (heard.id || heard.rating > 0 || heard.totalPlays > 0) && (
+                      <span className="track-digital">
+                        {heard.rating > 0 && <span title="Your stars, from Navidrome"><BsStarFill aria-hidden="true" /> {heard.rating}</span>}
+                        {heard.id && <TrackFavourite songId={heard.id} title={track.title} />}
+                        {heard.totalPlays > 0 && (
+                          <span className={`track-plays${heard.plays > 0 ? ' track-plays-lately' : ''}`} title={playsText(heard)}>
+                            ×{heard.totalPlays}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })()}
+                  {file?.id && <TrackMixtapes songId={file.id} title={track.title} />}
+                  {track.durationSec && (
+                    <span className="track-duration">
+                      {formatDuration(track.durationSec)}
+                    </span>
+                  )}
+                </div>
+                {open && (
+                  <TrackDetails
+                    id={`track-details-${key}`}
+                    track={{ ...track, disc: disc.number }}
+                    albumId={Number(cd.id)}
+                    albumArtists={Array.isArray(cd.artist) ? cd.artist : [cd.artist]}
+                    rip={rip}
+                    ripError={ripError}
+                    heard={digitalTracks.get(`${disc.number}-${track.no}`)}
+                    view={words ? trackView : 'credits'}
+                    onSearch={onSearch ? predicate => { onSearch(predicate); onClose(); } : undefined}
+                  />
+                )}
+                </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // ---- The foot's buttons, shared by both layouts. ----
+
+  /** Play, Pause or Resume what DexVault plays; or Listen in Navidrome or Amperfy; or Apple Music for a CD not ripped. */
+  const playButton = ownPlayer && ripAlbum ? (
+    <Button variant="primary" className="music-detail-play-main" onClick={() => {
+      if (playingHere) player.toggle();
+      else if (resumeHere) player.resume();
+      else player.playAlbum(playerAlbum(), playerTracks, 0);
+    }}>
+      {playingHere && nowPlaying ? <BsPauseFill className="me-1" /> : <BsPlayFill className="me-1" />}
+      {playingHere ? (nowPlaying ? 'Pause' : 'Resume') : resumeHere ? 'Resume' : 'Play'}
+      {/* On an appliance, which one. */}
+      {onAppliance && !resumeHere && <span className="music-detail-play-where">{' · '}{output.name}</span>}
+      {resumeHere && (
+        <span className="music-detail-play-where">
+          {' · '}{resumeHere.tracks[resumeHere.index]?.title} {Math.floor(resumeHere.position / 60)}:{String(Math.floor(resumeHere.position % 60)).padStart(2, '0')}
+        </span>
+      )}
+    </Button>
+  ) : ripAlbum ? (
+    <Button variant="primary" className="music-detail-play-main" icon={<BsPlayFill />} onClick={() => openListen(ripAlbum)}>Listen</Button>
+  ) : rip === undefined && !ripError ? (
+    <Button variant="primary" className="music-detail-play-main" disabled>
+      <Spinner size="sm" className="me-2" />
+      Listen
+    </Button>
+  ) : (
+    <Button className="music-detail-play-main" disabled={openingApple} onClick={handleOpenAppleMusic} aria-label={openingApple ? 'Opening Apple Music…' : 'Apple Music'}>
+      {openingApple ? (
+        <>
+          <Spinner size="sm" className="me-2" />
+          Opening Apple Music…
+        </>
+      ) : (
+        <>
+          <BsApple className="me-1" />
+          <span className="music-detail-long">Apple Music</span>
+          <span className="music-detail-short" aria-hidden="true">Apple</span>
+        </>
+      )}
+    </Button>
+  );
+
+  /** More ways to listen: played on another output, from the start, in Navidrome or Amperfy, on a computer. */
+  const playMoreItems = ripAlbum && (
+    <>
+      {/* Played on another output, which is then the output: the appliances, this browser. */}
+      {elsewhere.length > 0 && <Menu.Section title="Play on" />}
+      {outputItems()}
+      {ownPlayer && elsewhere.length > 0 && <Menu.Separator />}
+      {ownPlayer && (playingHere || resumeHere) && (
+        <Menu.Item icon={<BsArrowCounterclockwise />} onSelect={() => player.playAlbum(playerAlbum(), playerTracks, 0)}>Play from the start</Menu.Item>
+      )}
+      {/* On an iPhone, Amperfy still a click away. */}
+      {ownPlayer && (
+        <Menu.Item icon={<BsBoxArrowUpRight />} hint={appleMobile ? undefined : 'new tab'} onSelect={() => openListen(ripAlbum)}>
+          {appleMobile ? 'Open in Amperfy' : 'Open in Navidrome'}
+        </Menu.Item>
+      )}
+      {computers.map(target => (
+        <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target)}>Play on {target.name}</Menu.Item>
+      ))}
+    </>
+  );
+  /** Whether the ▾ beside Play (a computer) or the ⋯ (a phone) has a way to listen to offer. */
+  const hasPlayMore = Boolean(ripAlbum) && (ownPlayer || computers.length > 0 || elsewhere.length > 0);
+
+  /** The whole album in or out, streamed unless it is a CD with no rip. */
+  const listenNextButton = (
+    <Button active={isInListenNext}
+      aria-label={isInListenNext ? 'In Listen Next' : 'Listen Next'}
+      title={isInListenNext ? 'Take it out of Listen Next' : plainMedium === 'cd' ? 'Play the CD next' : 'Stream it next'}
+      icon={(isInListenNext ? albumMedium : plainMedium) === 'cd' ? <BsDisc /> : <BsHeadphones />}
+      onClick={() => handleListenNextToggle(undefined, isInListenNext ? undefined : plainMedium)}
+      disabled={togglingListenNext}
+    >
+      <span className={phone ? 'music-detail-next-words' : 'music-detail-long'}>
+        {isInListenNext ? 'In Listen Next' : 'Listen Next'}
+        {Array.isArray(listenNextHeld) && listenNextHeld.length > 0 && (
+          <span className="music-detail-next-discs"> · {discsInWords(listenNextHeld)}</span>
+        )}
+        {albumMedium === 'cd' && <span className="music-detail-next-discs"> · from the CD</span>}
+      </span>
+      {!phone && <span className="music-detail-short" aria-hidden="true">Next</span>}
+    </Button>
+  );
+  /** Its ▾ chooses the list, and the discs when it has several. */
+  const listenNextMenu = (canBeCd || discs.length > 1) && (
+    <Menu drop="up" align={phone ? 'end' : 'start'} label="Listen Next" trigger={(props, open) => (
+      <Button {...props} active={isInListenNext} className="ui-button--split" aria-label="Choose how and what for Listen Next"
+        title={canBeCd ? 'Streamed or from the CD' : 'Some discs only'} disabled={togglingListenNext}>
+        <MenuChevron open={open} />
+      </Button>
+    )}>
+      {canBeCd && (
+        <>
+          <Menu.Section title="Listen" />
+          {/* The album's list: what of it is there moves, all of it; nothing there, the whole album goes. */}
+          {(['digital', 'cd'] as const).map(medium => (
+            <Menu.Choice key={medium} selected={albumMedium === medium} hint={medium === plainMedium ? 'Default' : undefined}
+              onSelect={() => { if (albumMedium !== medium) handleListenNextToggle(undefined, medium); }}>
+              {medium === 'digital' ? 'Streamed' : 'From the CD'}
+            </Menu.Choice>
+          ))}
+        </>
+      )}
+      {discs.length > 1 && (
+        <>
+          {canBeCd && <Menu.Separator />}
+          <Menu.Choice selected={listenNextHeld === 'all'} hint={`${discs.length} discs`}
+            onSelect={() => { if (listenNextHeld !== 'all') handleListenNextToggle('all', isInListenNext ? undefined : plainMedium); }}>
+            All discs
+          </Menu.Choice>
+          <Menu.Separator />
+          {discs.map(disc => (
+            <Menu.Choice key={disc.number} selected={Array.isArray(listenNextHeld) && listenNextHeld.includes(disc.number)}
+              hint={`${disc.tracks.length} tracks`} onSelect={() => handleListenNextToggle(disc.number, discMedium(disc.number) ?? plainMedium)}>
+              Disc {disc.number}
+            </Menu.Choice>
+          ))}
+        </>
+      )}
+      {isInListenNext && (
+        <>
+          <Menu.Separator />
+          <Menu.Item icon={<BsXLg />} onSelect={() => handleListenNextToggle()}>Take out of Listen Next</Menu.Item>
+        </>
+      )}
+    </Menu>
+  );
+
+  // ---- A computer: the head as a page, the parts under it in place, the foot with every button. ----
+
+  const computerBody = (
+    <>
+      {/* The head, with no frame of its own (the panel is one): the cover; beside it who and what; under
+          them how to listen, the genres, the stars and the links, a line each; the rest folded in one. */}
+      <div className="album-head">
+        {covers}
+        <div className="album-head-who">
+          {artistButton}
+          {shapeLine}
+        </div>
+        <div className="album-head-rest">
+          {listenLines(false)}
+          {genresLine}
+          {overlapsLine}
+          {scoresLine}
+          {ratingRow}
+          {ratingNotes}
+          {hasLinks && <div className="album-head-links">{linkItems}</div>}
+        </div>
+
+        {/* What is rarely wanted, in one fold: the edition's note, the credits, the copy owned, the codes, the old notes. */}
+        <div className="album-head-more">
+          <button
+            type="button"
+            className="album-head-link album-head-toggle"
+            aria-expanded={showAdvanced}
+            aria-controls={`album-advanced-${cd.id}`}
+            onClick={() => setShowAdvanced(open => !open)}
+          >
+            <BsChevronRight aria-hidden="true" className={showAdvanced ? 'album-head-chevron-open' : undefined} />
+            Edition, codes and more
+          </button>
+          {showAdvanced && facts}
+        </div>
+      </div>
+
+      {buyBox}
+
+      <AlbumGuide albumId={Number(cd.id)} onLoaded={setHasGuide} />
+      <AlbumNotes albumId={Number(cd.id)} writing={writingNote} onCount={setNoteCount} />
+      {/* One line for what is a click away: the first listening note, the story on Wikipedia. */}
+      <div className="album-extras">
+        {noteCount === 0 && (
+          <>
+            <Button variant="quiet" size="sm" icon={<BsPencil aria-hidden="true" />} className="album-extras-link" aria-expanded={writingNote} onClick={() => setWritingNote(!writingNote)}>
+              Write a listening note…
+            </Button>
+            <span className="album-extras-sep" aria-hidden="true">·</span>
+          </>
+        )}
+        <Button variant="quiet" size="sm" icon={<BsChevronRight aria-hidden="true" className={showStory ? 'album-extras-chevron-open' : undefined} />} className="album-extras-link" aria-expanded={showStory} onClick={() => setStoryOpen(!showStory)}>
+          Read on Wikipedia…
+        </Button>
+      </div>
+      <AlbumStory albumId={cd.id} open={showStory} />
+
+      {tracks}
+    </>
+  );
+
+  const computerFoot = (
+    <>
+      {/* How to listen on the left, always at hand however far the body has scrolled. */}
+      <div className="music-detail-listen">
+        {hasPlayMore ? (
+          <ButtonGroup className="music-detail-play">
+            {playButton}
+            <Menu drop="up" label={ownPlayer ? 'More ways to listen' : 'Where to listen'} trigger={(props, open) => (
+              <Button variant="primary" {...props} className="music-detail-play-more" aria-label={ownPlayer ? 'More ways to listen' : 'Where to listen'}>
+                <MenuChevron open={open} />
+              </Button>
+            )}>
+              {playMoreItems}
+            </Menu>
+          </ButtonGroup>
+        ) : playButton}
+        <span className="ui-button-group">
+          {listenNextButton}
+          {listenNextMenu}
+        </span>
+        {/* The whole CD in or out of a mixtape: its tracks that have a file. */}
+        {playerTracks.length > 0 && (
+          <MixtapeMenu songIds={playerTracks.map(track => track.songId)} align="start"
+            trigger={(props, open) => (
+              <Button {...props} icon={<BsCassetteFill />} aria-label="Mixtapes">
+                <span className="music-detail-long">Mixtapes</span>
+                <MenuChevron open={open} />
+              </Button>
+            )} />
+        )}
+      </div>
+      <div className="music-detail-manage">
+        {!hasCd && onBought && (
+          <Button icon={<BsDisc />} onClick={onBought} aria-label="I bought the CD">
+            <span className="music-detail-long">I bought the CD</span>
+            <span className="music-detail-short" aria-hidden="true">Bought</span>
+          </Button>
+        )}
+        {/* A digital album is Navidrome's: it goes when its files go, and it has nothing of a CD to edit. */}
+        {onEdit && cd.titleStatus !== 'digital' && (
+          <Button icon={<BsPencil />} onClick={onEdit} aria-label="Edit">
+            <span className="music-detail-long">Edit</span>
+          </Button>
+        )}
+        {cd.titleStatus !== 'digital' && (
+          <Button variant="danger" active={confirmDelete}
+            aria-label={confirmDelete ? 'Are you sure?' : 'Delete'}
+            icon={<BsTrash />}
+            ref={deleteBtnRef}
+            onClick={handleDelete}
+          >
+            {confirmDelete ? (
+              <><span className="music-detail-long">Are you sure?</span><span className="music-detail-short" aria-hidden="true">Sure?</span></>
+            ) : <span className="music-detail-long">Delete</span>}
+          </Button>
+        )}
+      </div>
+    </>
+  );
+
+  // ---- A phone: a head of fixed height, chips that open sheets, the tracks at once, three buttons at the foot. ----
+
+  const linkCount = (cd.musicbrainzReleaseId ? 1 : 0) + links.length;
+  const chip = (kind: SheetKind, icon: React.ReactNode, words: string, count?: number, muted?: boolean) => (
+    <Chip icon={icon} count={count} muted={muted} active={sheet === kind} onClick={() => setSheet(kind)}>{words}</Chip>
+  );
+
+  const phoneBody = (
+    <>
+      <div className="album-head album-head--phone">
+        {covers}
+        {/* Beside the cover, as high as it and no more: what overflows is cut, the stars keep their line at the foot. */}
+        <div className="album-head-who album-head-who--phone">
+          <div className="album-head-who-lines">
+            {artistButton}
+            {shapeLine}
+            {listenLines(true)}
+            {genresLine}
+          </div>
+          {ratingRow}
+        </div>
+      </div>
+      {ratingNotes}
+
+      {buyBox}
+
+      {/* What is to read, a chip each, in a row that wraps: a sheet opens on a tap. */}
+      <div className="album-chips">
+        {hasGuide && chip('guide', <BsBook />, 'Guide')}
+        {chip('notes', <BsPencil />, 'Notes', noteCount || undefined, !noteCount)}
+        {chip('story', <BsWikipedia />, 'Wikipedia')}
+        {overlaps.length > 0 && chip('also', <BsDisc />, 'Also on', overlaps.length)}
+        {scores.length > 0 && chip('scores', <BsMusicNoteList />, 'Scores', scores.length)}
+        {hasLinks && chip('links', <BsLink45Deg />, 'Links', linkCount)}
+        {chip('edition', <BsTag />, 'Edition & codes')}
+      </div>
+
+      {tracks}
+    </>
+  );
+
+  /** What the open sheet shows: the same parts as a computer's card, one at a time. */
+  const sheetBody = sheet === 'guide' ? <AlbumGuide albumId={Number(cd.id)} onLoaded={setHasGuide} />
+    : sheet === 'notes' ? <AlbumNotes albumId={Number(cd.id)} writing onCount={setNoteCount} />
+    : sheet === 'story' ? <AlbumStory albumId={cd.id} open />
+    : sheet === 'also' ? (
+      <ul className="card-sheet-list">
+        {overlaps.map(other => {
+          const thumb = musicService.getImageUrl(other.cover);
+          return (
+            <li key={other.id}>
+              <button type="button" className="card-sheet-row" title={overlapTip(other)} disabled={!onOpenAlbum}
+                onClick={() => { setSheet(null); onOpenAlbum?.(other.id); }}>
+                {thumb ? <img className="card-sheet-thumb" src={thumb} alt="" /> : <span className="card-sheet-thumb card-sheet-thumb-empty"><BsDisc aria-hidden="true" /></span>}
+                <span className="card-sheet-words">
+                  <span className="card-sheet-title">{other.title}</span>
+                  <span className="album-head-muted">
+                    {other.titleStatus === 'digital' ? 'digital' : other.format || 'CD'} · {other.trackCount} tracks · {overlapCount(other, trackCount)} of this album's
+                  </span>
+                </span>
+                {onOpenAlbum && <BsChevronRight aria-hidden="true" className="card-sheet-chevron" />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    )
+    : sheet === 'scores' ? (
+      <ul className="card-sheet-list">
+        {scores.map(score => (
+          <li key={score.id} className="card-sheet-row">
+            <BsMusicNoteList aria-hidden="true" className="card-sheet-icon" />
+            <ScoreLink id={score.id} title={scoreTitle(score)} />
+          </li>
+        ))}
+      </ul>
+    )
+    : sheet === 'links' ? <div className="card-sheet-links">{linkItems}</div>
+    : sheet === 'edition' ? facts
+    : null;
+
+  const phoneFoot = (
+    <>
+      {/* Another album playing: its disc, which opens the full screen player, the pill having given way to the card. */}
+      {nowPlayingDoor && (
+        <>
+          <NowPlayingDisc exceptAlbumId={cd.id} className="music-detail-now" />
+          <span className="music-detail-now-rule" aria-hidden="true" />
+        </>
+      )}
+      {playButton}
+      <span className="ui-button-group music-detail-next">
+        {listenNextButton}
+        {listenNextMenu}
+      </span>
+      {/* Everything else under ⋯: where to play, mixtapes, a note, the CD bought, Edit, and Delete apart in red. */}
+      <Menu drop="up" align="end" label="More" trigger={(props, open) => (
+        <IconButton {...props} label="More" boxed active={open} className="music-detail-more"><BsThreeDots /></IconButton>
+      )}>
+        {hasPlayMore && playMoreItems}
+        {hasPlayMore && <Menu.Separator />}
+        {playerTracks.length > 0 && (
+          <>
+            <MixtapeEntries songIds={playerTracks.map(track => track.songId)} onNew={() => setNaming(true)} />
+            <Menu.Separator />
+          </>
+        )}
+        <Menu.Item icon={<BsPencil />} onSelect={() => setSheet('notes')}>Write a listening note…</Menu.Item>
+        {!hasCd && onWish && (
+          <Menu.Item icon={cd.titleStatus === 'wish' ? <BsBookmarkFill /> : <BsBookmark />} onSelect={onWish}>
+            {cd.titleStatus === 'wish' ? 'Take off the wish list' : 'Add to wish list'}
+          </Menu.Item>
+        )}
+        {!hasCd && onBought && <Menu.Item icon={<BsDisc />} onSelect={onBought}>I bought the CD</Menu.Item>}
+        {!backCover && onCoverChange && <Menu.Item icon={<BsImage />} onSelect={() => setFindingCover('back')}>Find the back cover…</Menu.Item>}
+        {onEdit && cd.titleStatus !== 'digital' && <Menu.Item icon={<BsPencil />} onSelect={onEdit}>Edit</Menu.Item>}
+        {cd.titleStatus !== 'digital' && (
+          <>
+            <Menu.Separator />
+            <Menu.Item danger icon={<BsTrash />} onSelect={askDelete}>Delete</Menu.Item>
+          </>
+        )}
+      </Menu>
+    </>
+  );
+
   return (
     <Dialog
       variant="panel"
       onClose={handleClose}
       zIndex={10100}
-      className="music-detail-modal"
+      className={`music-detail-modal${phone ? ' music-detail-modal--phone' : ''}`}
       icon={<BsDisc />}
       title={cd.title}
       aside={hasCd ? <ShelfCode kind="album" id={cd.id} variant="inline" className="music-detail-shelf" />
@@ -701,696 +1615,21 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       steps={{ onPrevious, onNext, noun: 'album' }}
     >
       <Dialog.Body ref={bodyRef}>
-        {/* The head, with no frame of its own (the panel is one): the cover; beside it who and what; under
-            them how to listen, the genres, the stars and the links, a line each; the rest folded in one. */}
-        <div className="album-head">
-          <div className="album-head-covers">
-            {frontCover ? (
-              <img
-                key={`front-${cd.id}`}
-                src={frontCover}
-                alt={`${cd.title} front cover`}
-                className="album-head-cover"
-                onClick={() => handleCoverClick(frontCover, 'Front')}
-                onError={() => setCoverBroken(true)}
-              />
-            ) : (
-              <div className="album-head-cover album-head-cover-empty">
-                <BsDisc size={40} aria-hidden="true" />
-                {onCoverChange && (
-                  <Button size="sm" className="album-head-find" onClick={() => setFindingCover('front')}>Find a cover…</Button>
-                )}
-              </div>
-            )}
-            {!backCover && onCoverChange && (
-              <Button size="sm" variant="quiet" className="album-head-find-back" onClick={() => setFindingCover('back')}>Find the back…</Button>
-            )}
-            {backCover && (
-              <img
-                key={`back-${cd.id}`}
-                src={backCover}
-                alt={`${cd.title} back cover`}
-                title="Back cover"
-                className="album-head-back"
-                onClick={() => handleCoverClick(backCover, 'Back')}
-                onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            )}
-          </div>
-
-          {/* Who, then the object and its edition in one murmur: format, tracks, length, year, country, label. */}
-          <div className="album-head-who">
-            <button type="button" className="album-head-artist album-head-filter" onClick={() => handleSearch('artist', getArtistDisplay())}>
-              {getArtistDisplay()}
-            </button>
-            {(shape || released || labels || original) && (
-              <div className="album-head-shape">
-                {[shape, released, labels, original && `first ${original}`].filter(Boolean).join(' · ')}
-              </div>
-            )}
-          </div>
-
-          <div className="album-head-rest">
-            {/* How to listen to it: the rip in Navidrome, or with Digital on, the CD missing and the files. */}
-            {digital === undefined ? (
-              rip?.configured !== false && <div className="album-head-line">{ripText}</div>
-            ) : (
-              <>
-                {!hasCd && (
-                  <div className="album-head-line album-head-physical">
-                    <span className="album-head-muted">{cd.titleStatus === 'wish' ? 'No CD · on your wish list' : 'No CD'}</span>
-                    {/* The box below holds the bookmark when there is something to decide. */}
-                    {onWish && digital.album && !(isToBuy(digital.album) || cd.titleStatus === 'wish') && (
-                      <button type="button" className="album-head-link" onClick={onWish} aria-pressed={cd.titleStatus === 'wish'}>
-                        {cd.titleStatus === 'wish' ? <BsBookmarkFill aria-hidden="true" /> : <BsBookmark aria-hidden="true" />}
-                        {cd.titleStatus === 'wish' ? 'Wished' : 'Add to wishlist'}
-                      </button>
-                    )}
-                  </div>
-                )}
-                <div className="album-head-line">
-                  {digital.album ? (
-                    <>
-                      <span className={isLossy(digital.album) ? 'album-head-lossy' : 'album-head-lossless'}>{formatLabel(digital.album)}</span>
-                      <span className="album-head-muted">
-                        {' · '}{digital.album.songCount} tracks
-                        {' · '}{digital.album.listening.plays} play{digital.album.listening.plays === 1 ? '' : 's'} in 90 days
-                      </span>
-                      {isLossy(digital.album) && hasCd && <span className="album-head-lossy"> · rip the CD again</span>}
-                    </>
-                  ) : digital.notRipped ? <span className="album-head-muted">Not ripped yet.</span> : ripText}
-                </div>
-              </>
-            )}
-
-            {cd.genres && cd.genres.length > 0 && (
-              <div className="album-head-line album-head-genres">
-                {cd.genres.map((genre: string, index: number) => (
-                  <React.Fragment key={genre}>
-                    {index > 0 && ' · '}
-                    <button type="button" className="album-head-filter" onClick={() => handleSearch('genre', genre)}>{genre}</button>
-                  </React.Fragment>
-                ))}
-              </div>
-            )}
-
-            {/* The other albums holding some of its tracks, the most first: how many of this one's, which on hover. */}
-            {overlaps.length > 0 && (
-              <div className="album-head-line album-head-overlaps">
-                <span className="album-head-muted">Also on </span>
-                {(showAllOverlaps ? overlaps : overlaps.slice(0, OVERLAPS_SHOWN)).map((other, index) => {
-                  const tip = `${other.shared === 1 ? 'One track' : `${other.shared} tracks`} also on ${other.title}`
-                    + ` (${other.titleStatus === 'digital' ? 'digital' : other.format || 'CD'}, ${other.trackCount} tracks): `
-                    + other.tracks.map(track => track.title).join(', ');
-                  return (
-                    <React.Fragment key={other.id}>
-                      {index > 0 && <span className="album-head-muted"> · </span>}
-                      {onOpenAlbum ? (
-                        <button type="button" className="album-head-filter" title={tip} onClick={() => onOpenAlbum(other.id)}>{other.title}</button>
-                      ) : <span title={tip}>{other.title}</span>}
-                      <span className="album-head-muted"> {overlapCount(other, trackCount)}</span>
-                    </React.Fragment>
-                  );
-                })}
-                {!showAllOverlaps && overlaps.length > OVERLAPS_SHOWN && (
-                  <>
-                    <span className="album-head-muted"> · </span>
-                    <button type="button" className="album-head-filter album-head-muted" onClick={() => setShowAllOverlaps(true)}>
-                      {overlaps.length - OVERLAPS_SHOWN} more
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* The scores on the shelf that hold what it plays: their card, in Scores. */}
-            {scores.length > 0 && (
-              <div className="album-head-line album-head-scores">
-                <span className="album-head-muted">On the shelf of scores: </span>
-                {scores.map((score, index) => (
-                  <React.Fragment key={score.id}>
-                    {index > 0 && <span className="album-head-muted"> · </span>}
-                    <ScoreLink id={score.id} title={[score.title.replace(/\s*[-–]\s*(?:piano|klavier)\b.*$/i, '').replace(/\s*\(.*?\)\s*/g, ' ').trim(), score.publisher].filter(Boolean).join(', ')} />
-                  </React.Fragment>
-                ))}
-              </div>
-            )}
-
-            {/* One's own stars, the community's in a murmur beside them: one line, its end cut rather than wrapped. */}
-            <div className="album-head-rating">
-              <StarRating value={stars} onChange={rate} />
-              {(cd.musicbrainzReleaseId || cd.urls?.discogs) && (
-                <span className="album-head-muted album-head-community-line">
-                  {typeof community.communityRating === 'number' ? (
-                    <span className="album-head-cut" title={communityDetail(community)}>
-                      <span className="album-head-community">
-                        <BsStarFill aria-hidden="true" /> {community.communityRating.toFixed(1)}
-                      </span>
-                      <span> / 5 · {votesLabel(community.communityVotes ?? 0)}</span>
-                    </span>
-                  ) : (
-                    <span className="album-head-cut" title={communityDetail(community) || undefined}>
-                      {community.communityVotes ? `Too few votes (${community.communityVotes})` : 'No community rating'}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className="album-head-refresh"
-                    onClick={refreshMusicBrainz}
-                    disabled={refreshingMb}
-                    aria-label="Refresh the community rating"
-                    title="Reread MusicBrainz and Discogs"
-                  >
-                    <BsArrowClockwise aria-hidden="true" className={refreshingMb ? 'album-head-spinning' : undefined} />
-                  </button>
-                </span>
-              )}
-            </div>
-            {starsNote && <div className="album-head-note">{starsNote}</div>}
-            {mbError && <div className="album-head-note">{mbError}</div>}
-
-            {(cd.musicbrainzReleaseId || links.length > 0) && (
-              <div className="album-head-links">
-                {cd.musicbrainzReleaseId && (
-                  <a
-                    className="album-head-link"
-                    href={`https://musicbrainz.org/release/${cd.musicbrainzReleaseId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    MusicBrainz
-                    <BsBoxArrowUpRight aria-hidden="true" />
-                  </a>
-                )}
-                {links.map(([key, url]) => (
-                  <a key={key} className="album-head-link" href={url} target="_blank" rel="noopener noreferrer">
-                    {urlLabel(key)}
-                    <BsBoxArrowUpRight aria-hidden="true" />
-                  </a>
-                ))}
-                {cd.musicbrainzReleaseId && canUsePicard() && (
-                  <button
-                    type="button"
-                    className="album-head-link"
-                    onClick={() => openInPicard(cd.musicbrainzReleaseId!)}
-                    title="Load this exact edition in MusicBrainz Picard, open on this computer"
-                  >
-                    <BsTags aria-hidden="true" />
-                    Tag in Picard
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* What is rarely wanted, in one fold: the edition's note, the credits, the copy owned, the codes, the old notes. */}
-          <div className="album-head-more">
-            <button
-              type="button"
-              className="album-head-link album-head-toggle"
-              aria-expanded={showAdvanced}
-              aria-controls={`album-advanced-${cd.id}`}
-              onClick={() => setShowAdvanced(open => !open)}
-            >
-              <BsChevronRight aria-hidden="true" className={showAdvanced ? 'album-head-chevron-open' : undefined} />
-              Edition, codes and more
-            </button>
-            {showAdvanced && (
-              <dl className="album-head-facts" id={`album-advanced-${cd.id}`}>
-                {cd.editionNotes && <Field label="Edition"><span className="album-head-annotation">{cd.editionNotes}</span></Field>}
-                {cd.producer && cd.producer.length > 0 && (
-                  <Field label={cd.producer.length > 1 ? 'Producers' : 'Producer'}>{cd.producer.join(', ')}</Field>
-                )}
-                {cd.engineer && cd.engineer.length > 0 && (
-                  <Field label={cd.engineer.length > 1 ? 'Engineers' : 'Engineer'}>{cd.engineer.join(', ')}</Field>
-                )}
-                {cd.recordingLocation && <Field label="Recorded at">{cd.recordingLocation}</Field>}
-                {cd.recordingQuality && <Field label="Quality">{cd.recordingQuality}</Field>}
-                {cd.language && <Field label="Language">{cd.language.toUpperCase()}</Field>}
-                {(owned || ownership.notes) && (
-                  <Field label="Owned">
-                    {owned}
-                    {ownership.notes && <span className="album-head-note">{ownership.notes}</span>}
-                  </Field>
-                )}
-                <Field label="In DexVault">
-                  <span className="album-head-muted">
-                    added {added}
-                    {updated && updated !== added && ` · updated ${updated}`}
-                  </span>
-                </Field>
-                {cd.catalogNumber && <Field label="Catalogue no."><code className="album-head-code">{cd.catalogNumber}</code></Field>}
-                {cd.barcode && <Field label="Barcode"><code className="album-head-code">{cd.barcode}</code></Field>}
-                {cd.isrcCodes && cd.isrcCodes.length > 0 && (
-                  <Field label="ISRC">
-                    {/* One per track: the first and the last, all of them on a click. */}
-                    {cd.isrcCodes.length > 3 && !showIsrc ? (
-                      <button type="button" className="album-head-clamp" title="Show every code" onClick={() => setShowIsrc(true)}>
-                        <code className="album-head-code">{cd.isrcCodes[0]} … {cd.isrcCodes[cd.isrcCodes.length - 1]}</code>
-                        <span className="album-head-muted"> ({cd.isrcCodes.length}, one per track)</span>
-                      </button>
-                    ) : (
-                      <code className="album-head-code">{cd.isrcCodes.join(', ')}</code>
-                    )}
-                  </Field>
-                )}
-                {cd.musicbrainzReleaseId && (
-                  <Field label="MusicBrainz"><code className="album-head-code">{cd.musicbrainzReleaseId}</code></Field>
-                )}
-                {cd.annotation && (
-                  <Field label="Album notes"><span className="album-head-annotation">{cd.annotation}</span></Field>
-                )}
-              </dl>
-            )}
-          </div>
-        </div>
-
-        {digital?.album && !hasCd && (isToBuy(digital.album) || cd.titleStatus === 'wish') && (
-          <div className="album-buy">
-            <div>
-              {isSuggested(digital.album) ? (
-                <><strong><BsCartFill aria-hidden="true" /> Worth buying</strong> — {buyReason(digital.album)}</>
-              ) : (
-                <strong><BsBookmarkFill aria-hidden="true" /> On your wish list</strong>
-              )}
-            </div>
-            <div className="album-buy-actions">
-              {onWish && (
-                <Button active={cd.titleStatus === 'wish'} size="sm" onClick={onWish}
-                  icon={cd.titleStatus === 'wish' ? <BsBookmarkFill /> : <BsBookmark />}>
-                  {cd.titleStatus === 'wish' ? 'Wished' : 'Add to wishlist'}
-                </Button>
-              )}
-              <LinkButton size="sm" icon={<BsSearch />} href={ricardoUrl(digital.album)} external={!appleMobile} title="Search the CD on Ricardo">
-                Ricardo
-              </LinkButton>
-              {onDismiss && cd.titleStatus !== 'wish' && (
-                <Button variant="quiet" size="sm" className="album-buy-dismiss" onClick={() => onDismiss(!digital.album!.dismissed)}>
-                  {digital.album.dismissed ? 'Interested after all' : 'Not interested'}
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-
-        <AlbumGuide albumId={Number(cd.id)} onLoaded={setHasGuide} />
-        <AlbumNotes albumId={Number(cd.id)} writing={writingNote} onCount={setNoteCount} />
-        {/* One line for what is a click away: the first listening note, the story on Wikipedia. */}
-        <div className="album-extras">
-          {noteCount === 0 && (
-            <>
-              <Button variant="quiet" size="sm" icon={<BsPencil aria-hidden="true" />} className="album-extras-link" aria-expanded={writingNote} onClick={() => setWritingNote(!writingNote)}>
-                Write a listening note…
-              </Button>
-              <span className="album-extras-sep" aria-hidden="true">·</span>
-            </>
-          )}
-          <Button variant="quiet" size="sm" icon={<BsChevronRight aria-hidden="true" className={showStory ? 'album-extras-chevron-open' : undefined} />} className="album-extras-link" aria-expanded={showStory} onClick={() => setStoryOpen(!showStory)}>
-            Read on Wikipedia…
-          </Button>
-        </div>
-        <AlbumStory albumId={cd.id} open={showStory} />
-
-        {/* The tracks need no title: a line above them says where they start. */}
-        {discs.length > 0 && (
-          <div className="album-tracks">
-            {discs.map((disc: CdDisc, discIndex: number) => {
-              const credits = discsCredits[discIndex];
-              // The movements of a work go under its heading, which says who wrote and who plays them all;
-              // under a movement, only what differs. Who wrote the rest is in each track's credits.
-              const works = workGroups(disc.tracks.map(track => track.title));
-              const workCredits = new Map<number, ReturnType<typeof discCredits> & { start: number }>();
-              works.forEach((work, index) => {
-                if (!work?.first) return;
-                let end = index + 1;
-                while (works[end] && !works[end]!.first) end++;
-                workCredits.set(index, { ...discCredits(disc.tracks.slice(index, end), albumArtists), start: index });
-                for (let i = index + 1; i < end; i++) workCredits.set(i, workCredits.get(index)!);
-              });
-              return (
-                <div key={discIndex} className="disc-tracks mb-3">
-                  {discs.length > 1 && (
-                    <div className="disc-head">
-                      <h6 className="disc-title">Disc {disc.number}</h6>
-                      {/* This disc alone in Listen Next, or out, as the album's button; its ▾ chooses its list. Held when the whole album is. */}
-                      {(() => {
-                        const on = listenNextHeld === 'all' || listenNextHeld.includes(disc.number);
-                        const medium = discMedium(disc.number);
-                        return (
-                          <span className="ui-button-group">
-                            <Button variant="quiet" size="sm" active={on} icon={(medium ?? plainMedium) === 'cd' ? <BsDisc /> : <BsHeadphones />}
-                              onClick={() => handleListenNextToggle(disc.number, medium ?? plainMedium)} disabled={togglingListenNext}
-                              aria-label={on ? `Disc ${disc.number} in Listen Next` : `Disc ${disc.number} to Listen Next`}
-                              title={!on ? (plainMedium === 'cd' ? `Play disc ${disc.number} next` : `Stream disc ${disc.number} next`) : listenNextHeld === 'all'
-                                ? `The whole album is in Listen Next: disc ${disc.number} alone instead` : `Take disc ${disc.number} out of Listen Next`}>
-                              {on ? 'In Listen Next' : 'Listen Next'}
-                              {on && medium === 'cd' && ' · from the CD'}
-                            </Button>
-                            {canBeCd && (
-                              <Menu label={`Disc ${disc.number} in Listen Next`} align="end" trigger={(props, open) => (
-                                <Button {...props} variant="quiet" size="sm" active={on} className="ui-button--split"
-                                  aria-label={`Disc ${disc.number}: streamed or from the CD`} title="Streamed or from the CD" disabled={togglingListenNext}>
-                                  <MenuChevron open={open} />
-                                </Button>
-                              )}>
-                                <Menu.Section title={`Listen to disc ${disc.number}`} />
-                                {(['digital', 'cd'] as const).map(choice => (
-                                  <Menu.Choice key={choice} selected={on && medium === choice} hint={choice === plainMedium ? 'Default' : undefined}
-                                    onSelect={() => { if (!(on && medium === choice)) handleListenNextToggle(disc.number, choice); }}>
-                                    {choice === 'digital' ? 'Streamed' : 'From the CD'}
-                                  </Menu.Choice>
-                                ))}
-                              </Menu>
-                            )}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                  )}
-                  <div className="track-list">
-                    {disc.tracks.map((track: CdTrack, trackIndex: number) => {
-                      const key = `${disc.number}-${trackIndex}`;
-                      const open = selectedTrack === key;
-                      const words = withWords.has(`${disc.number}-${track.no}`);
-                      const file = rip?.found ? ripFileFor(rip.tracks, disc.number, Number(track.no)) : null;
-                      const playUrl = file ? trackListenUrl(file, appleMobile) : null;
-                      const ownPlay = ownPlayer && Boolean(file?.id);
-                      const current = playingHere && nowTrack?.disc === disc.number && nowTrack?.no === Number(track.no);
-                      // The buttons inside the row act on their own, not as a click on the row.
-                      const own = (event: React.SyntheticEvent) => event.stopPropagation();
-                      const work = works[trackIndex];
-                      return (
-                      <React.Fragment key={trackIndex}>
-                      {work?.first && (
-                        <div className="track-work">
-                          {work.work}
-                          {workCredits.get(trackIndex)?.common && <span className="track-work-by"> · {workCredits.get(trackIndex)!.common}</span>}
-                        </div>
-                      )}
-                      <div
-                        className={`track-item track-selectable${open ? ' track-selected' : ''}${work ? ' track-in-work' : ''}${current ? ' track-current' : ''}`}
-                        role="button"
-                        tabIndex={0}
-                        aria-expanded={open}
-                        aria-controls={open ? `track-details-${key}` : undefined}
-                        onClick={() => toggleTrack(key)}
-                        onKeyDown={(event: React.KeyboardEvent) => {
-                          if (event.target !== event.currentTarget) return;
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            toggleTrack(key);
-                          }
-                        }}
-                      >
-                        <span className={`track-number${playUrl || ownPlay ? ' track-playable' : ''}`}>
-                          {/* A grey dot before the number of the tracks most listened to: an invitation, not a grade. */}
-                          {track.popular && (
-                            <span className="track-popular" title="One of the album's most listened tracks">
-                              <span className="visually-hidden">Popular: </span>
-                            </span>
-                          )}
-                          <span className="track-number-text">
-                            {current ? (
-                              <NowPlayingBars playing={nowPlaying} />
-                            ) : `${track.no}.`}
-                          </span>
-                          {ownPlay ? (
-                            <button type="button" className="track-play" onClick={event => { own(event); if (current) player.toggle(); else playFrom(disc.number, Number(track.no)); }}
-                              onKeyDown={own} aria-label={`${current && nowPlaying ? 'Pause' : 'Play'} ${track.title}`} title={current && nowPlaying ? 'Pause' : 'Play'}>
-                              {current && nowPlaying ? <BsPauseFill aria-hidden="true" /> : <BsPlayFill aria-hidden="true" />}
-                            </button>
-                          ) : playUrl && (computers.length > 0 || elsewhere.length > 0) ? (
-                            // A computer listening, or an appliance: this track here in Amperfy, or there from it on.
-                            <span onClick={own} onKeyDown={own}>
-                              <Menu label={`Play ${track.title}`} trigger={props => (
-                                <button type="button" {...props} className="track-play" aria-label={`Play ${track.title}`} title="Play"><BsPlayFill aria-hidden="true" /></button>
-                              )}>
-                                <Menu.Item icon={<BsPlayFill />} onSelect={() => { window.location.href = playUrl; }}>Play here, in {appleMobile ? 'Amperfy' : 'Navidrome'}</Menu.Item>
-                                {outputItems(disc.number, Number(track.no))}
-                                {computers.map(target => (
-                                  <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target, disc.number, Number(track.no))}>Play on {target.name}</Menu.Item>
-                                ))}
-                              </Menu>
-                            </span>
-                          ) : playUrl && (
-                            <a className="track-play" href={playUrl} aria-label={`Play ${track.title} in ${appleMobile ? 'Amperfy' : 'Navidrome'}`}
-                              title={`Play in ${appleMobile ? 'Amperfy' : 'Navidrome'}`} onClick={own} onKeyDown={own}
-                              {...(appleMobile ? {} : { target: '_blank', rel: 'noopener noreferrer' })}>
-                              <BsPlayFill aria-hidden="true" />
-                            </a>
-                          )}
-                        </span>
-                        <span className="track-title">
-                          {work ? work.movement : track.title}
-                          {words && (open ? (
-                            <span className="track-view" role="group" aria-label="Show">
-                              {(['credits', 'lyrics'] as const).map(view => (
-                                <button key={view} type="button" className={trackView === view ? 'active' : ''} aria-pressed={trackView === view}
-                                  onClick={event => { own(event); setTrackView(view); }} onKeyDown={own}>{view}</button>
-                              ))}
-                            </span>
-                          ) : (
-                            <button type="button" className="track-lyrics-tag" title="Show the lyrics"
-                              onClick={event => { own(event); toggleTrack(key, 'lyrics'); }} onKeyDown={own}>lyrics</button>
-                          ))}
-                          {(() => {
-                            const inWork = workCredits.get(trackIndex);
-                            const line = inWork ? inWork.perTrack[trackIndex - inWork.start] : credits.perTrack[trackIndex];
-                            return line && <span className="track-credits">{line}</span>;
-                          })()}
-                        </span>
-                        {(() => {
-                          const heard = digitalTracks.get(`${disc.number}-${track.no}`);
-                          // Every play ever, under the pointer and on the open track; a lighter grey when heard in the last 90 days.
-                          return heard && (heard.id || heard.rating > 0 || heard.totalPlays > 0) && (
-                            <span className="track-digital">
-                              {heard.rating > 0 && <span title="Your stars, from Navidrome"><BsStarFill aria-hidden="true" /> {heard.rating}</span>}
-                              {heard.id && <TrackFavourite songId={heard.id} title={track.title} />}
-                              {heard.totalPlays > 0 && (
-                                <span className={`track-plays${heard.plays > 0 ? ' track-plays-lately' : ''}`} title={playsText(heard)}>
-                                  ×{heard.totalPlays}
-                                </span>
-                              )}
-                            </span>
-                          );
-                        })()}
-                        {file?.id && <TrackMixtapes songId={file.id} title={track.title} />}
-                        {track.durationSec && (
-                          <span className="track-duration">
-                            {formatDuration(track.durationSec)}
-                          </span>
-                        )}
-                      </div>
-                      {open && (
-                        <TrackDetails
-                          id={`track-details-${key}`}
-                          track={{ ...track, disc: disc.number }}
-                          albumId={Number(cd.id)}
-                          albumArtists={Array.isArray(cd.artist) ? cd.artist : [cd.artist]}
-                          rip={rip}
-                          ripError={ripError}
-                          heard={digitalTracks.get(`${disc.number}-${track.no}`)}
-                          view={words ? trackView : 'credits'}
-                          onSearch={onSearch ? predicate => { onSearch(predicate); onClose(); } : undefined}
-                        />
-                      )}
-                      </React.Fragment>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
+        {phone ? phoneBody : computerBody}
       </Dialog.Body>
 
-      <Dialog.Footer>
-        {/* How to listen on the left, always at hand however far the body has scrolled. */}
-        <div className="music-detail-listen">
-          {ownPlayer && ripAlbum ? (
-            // Play, Pause or Resume what DexVault plays; Navidrome a click away.
-            <ButtonGroup className="music-detail-play">
-              <Button variant="primary" onClick={() => {
-                if (playingHere) player.toggle();
-                else if (resumeHere) player.resume();
-                else player.playAlbum(playerAlbum(), playerTracks, 0);
-              }}>
-                {playingHere && nowPlaying ? <BsPauseFill className="me-1" /> : <BsPlayFill className="me-1" />}
-                {playingHere ? (nowPlaying ? 'Pause' : 'Resume') : resumeHere ? 'Resume' : 'Play'}
-                {/* On an appliance, which one. */}
-                {onAppliance && !resumeHere && <span className="music-detail-play-where">{' · '}{output.name}</span>}
-                {resumeHere && (
-                  <span className="music-detail-play-where">
-                    {' · '}{resumeHere.tracks[resumeHere.index]?.title} {Math.floor(resumeHere.position / 60)}:{String(Math.floor(resumeHere.position % 60)).padStart(2, '0')}
-                  </span>
-                )}
-              </Button>
-              <Menu drop="up" label="More ways to listen" trigger={(props, open) => (
-                <Button variant="primary" {...props} className="music-detail-play-more" aria-label="More ways to listen">
-                  <MenuChevron open={open} />
-                </Button>
-              )}>
-                {/* Played on another output, which is then the output: the appliances, this browser. */}
-                {elsewhere.length > 0 && <Menu.Section title="Play on" />}
-                {outputItems()}
-                {elsewhere.length > 0 && <Menu.Separator />}
-                {(playingHere || resumeHere) && (
-                  <Menu.Item icon={<BsArrowCounterclockwise />} onSelect={() => player.playAlbum(playerAlbum(), playerTracks, 0)}>Play from the start</Menu.Item>
-                )}
-                {/* On an iPhone, Amperfy still a click away. */}
-                <Menu.Item icon={<BsBoxArrowUpRight />} hint={appleMobile ? undefined : 'new tab'} onSelect={() => openListen(ripAlbum)}>
-                  {appleMobile ? 'Open in Amperfy' : 'Open in Navidrome'}
-                </Menu.Item>
-                {computers.map(target => (
-                  <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target)}>Play on {target.name}</Menu.Item>
-                ))}
-              </Menu>
-            </ButtonGroup>
-          ) : ripAlbum && (computers.length > 0 || elsewhere.length > 0) ? (
-            // A phone with a computer listening or an appliance: Amperfy here, or there.
-            <ButtonGroup className="music-detail-play">
-              <Button variant="primary" icon={<BsPlayFill />} onClick={() => openListen(ripAlbum)}>Listen</Button>
-              <Menu drop="up" label="Where to listen" trigger={(props, open) => (
-                <Button variant="primary" {...props} className="music-detail-play-more" aria-label="Where to listen">
-                  <MenuChevron open={open} />
-                </Button>
-              )}>
-                {elsewhere.length > 0 && <Menu.Section title="Play on" />}
-                {outputItems()}
-                {computers.map(target => (
-                  <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target)}>Play on {target.name}</Menu.Item>
-                ))}
-              </Menu>
-            </ButtonGroup>
-          ) : ripAlbum ? (
-            <Button variant="primary" icon={<BsPlayFill />} onClick={() => openListen(ripAlbum)}>
-              Listen
-            </Button>
-          ) : rip === undefined && !ripError ? (
-            <Button variant="primary" disabled>
-              <Spinner size="sm" className="me-2" />
-              Listen
-            </Button>
-          ) : (
-            <Button disabled={openingApple} onClick={handleOpenAppleMusic} aria-label={openingApple ? 'Opening Apple Music…' : 'Apple Music'}>
-              {openingApple ? (
-                <>
-                  <Spinner size="sm" className="me-2" />
-                  Opening Apple Music…
-                </>
-              ) : (
-                <>
-                  <BsApple className="me-1" />
-                  <span className="music-detail-long">Apple Music</span>
-                  <span className="music-detail-short" aria-hidden="true">Apple</span>
-                </>
-              )}
-            </Button>
-          )}
-          {/* The whole album in or out, streamed unless it is a CD with no rip; its ▾ chooses the list, and the discs when it has several. */}
-          <span className="ui-button-group">
-            <Button active={isInListenNext}
-              aria-label={isInListenNext ? 'In Listen Next' : 'Listen Next'}
-              title={isInListenNext ? 'Take it out of Listen Next' : plainMedium === 'cd' ? 'Play the CD next' : 'Stream it next'}
-              icon={(isInListenNext ? albumMedium : plainMedium) === 'cd' ? <BsDisc /> : <BsHeadphones />}
-              onClick={() => handleListenNextToggle(undefined, isInListenNext ? undefined : plainMedium)}
-              disabled={togglingListenNext}
-            >
-              <span className="music-detail-long">
-                {isInListenNext ? 'In Listen Next' : 'Listen Next'}
-                {Array.isArray(listenNextHeld) && listenNextHeld.length > 0 && (
-                  <span className="music-detail-next-discs"> · {discsInWords(listenNextHeld)}</span>
-                )}
-                {albumMedium === 'cd' && <span className="music-detail-next-discs"> · from the CD</span>}
-              </span>
-              <span className="music-detail-short" aria-hidden="true">Next</span>
-            </Button>
-            {(canBeCd || discs.length > 1) && (
-              <Menu drop="up" label="Listen Next" trigger={(props, open) => (
-                <Button {...props} active={isInListenNext} className="ui-button--split" aria-label="Choose how and what for Listen Next"
-                  title={canBeCd ? 'Streamed or from the CD' : 'Some discs only'} disabled={togglingListenNext}>
-                  <MenuChevron open={open} />
-                </Button>
-              )}>
-                {canBeCd && (
-                  <>
-                    <Menu.Section title="Listen" />
-                    {/* The album's list: what of it is there moves, all of it; nothing there, the whole album goes. */}
-                    {(['digital', 'cd'] as const).map(medium => (
-                      <Menu.Choice key={medium} selected={albumMedium === medium} hint={medium === plainMedium ? 'Default' : undefined}
-                        onSelect={() => { if (albumMedium !== medium) handleListenNextToggle(undefined, medium); }}>
-                        {medium === 'digital' ? 'Streamed' : 'From the CD'}
-                      </Menu.Choice>
-                    ))}
-                  </>
-                )}
-                {discs.length > 1 && (
-                  <>
-                    {canBeCd && <Menu.Separator />}
-                    <Menu.Choice selected={listenNextHeld === 'all'} hint={`${discs.length} discs`}
-                      onSelect={() => { if (listenNextHeld !== 'all') handleListenNextToggle('all', isInListenNext ? undefined : plainMedium); }}>
-                      All discs
-                    </Menu.Choice>
-                    <Menu.Separator />
-                    {discs.map(disc => (
-                      <Menu.Choice key={disc.number} selected={Array.isArray(listenNextHeld) && listenNextHeld.includes(disc.number)}
-                        hint={`${disc.tracks.length} tracks`} onSelect={() => handleListenNextToggle(disc.number, discMedium(disc.number) ?? plainMedium)}>
-                        Disc {disc.number}
-                      </Menu.Choice>
-                    ))}
-                  </>
-                )}
-                {isInListenNext && (
-                  <>
-                    <Menu.Separator />
-                    <Menu.Item icon={<BsXLg />} onSelect={() => handleListenNextToggle()}>Take out of Listen Next</Menu.Item>
-                  </>
-                )}
-              </Menu>
-            )}
-          </span>
-          {/* The whole CD in or out of a mixtape: its tracks that have a file. */}
-          {playerTracks.length > 0 && (
-            <MixtapeMenu songIds={playerTracks.map(track => track.songId)} align="start"
-              trigger={(props, open) => (
-                <Button {...props} icon={<BsCassetteFill />} aria-label="Mixtapes">
-                  <span className="music-detail-long">Mixtapes</span>
-                  <MenuChevron open={open} />
-                </Button>
-              )} />
-          )}
-        </div>
-        <div className="music-detail-manage">
-          {!hasCd && onBought && (
-            <Button icon={<BsDisc />} onClick={onBought} aria-label="I bought the CD">
-              <span className="music-detail-long">I bought the CD</span>
-              <span className="music-detail-short" aria-hidden="true">Bought</span>
-            </Button>
-          )}
-          {/* A digital album is Navidrome's: it goes when its files go, and it has nothing of a CD to edit. */}
-          {onEdit && cd.titleStatus !== 'digital' && (
-            <Button icon={<BsPencil />} onClick={onEdit} aria-label="Edit">
-              <span className="music-detail-long">Edit</span>
-            </Button>
-          )}
-          {cd.titleStatus !== 'digital' && (
-            <Button variant="danger" active={confirmDelete}
-              aria-label={confirmDelete ? 'Are you sure?' : 'Delete'}
-              icon={<BsTrash />}
-              ref={deleteBtnRef}
-              onClick={handleDelete}
-            >
-              {confirmDelete ? (
-                <><span className="music-detail-long">Are you sure?</span><span className="music-detail-short" aria-hidden="true">Sure?</span></>
-              ) : <span className="music-detail-long">Delete</span>}
-            </Button>
-          )}
-        </div>
+      <Dialog.Footer className={phone ? 'music-detail-foot--phone' : undefined}>
+        {phone ? phoneFoot : computerFoot}
       </Dialog.Footer>
+
+      {/* On a phone, what a chip opened: over the card (10100), under the dialogs that stand over everything (12000). */}
+      {phone && sheet && (
+        <Dialog variant="sheet" tall={sheet === 'guide'} zIndex={10150} onClose={() => setSheet(null)}
+          className="music-detail-sheet" icon={SHEETS[sheet].icon} title={SHEETS[sheet].title}>
+          <Dialog.Body>{sheetBody}</Dialog.Body>
+        </Dialog>
+      )}
+      {naming && <NewMixtapeDialog songIds={playerTracks.map(track => track.songId)} onClose={() => setNaming(false)} />}
 
       {findingCover && (
         <CoverFinder albumId={cd.id} side={findingCover} title={cd.title} artist={cd.artist}

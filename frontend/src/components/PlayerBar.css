@@ -386,6 +386,13 @@
     transform: none;
   }
 
+  /* A music window over the whole page: the pill slides away under it, the disc at its foot standing for it. */
+  .player-bar.player-bar-out.player-bar--covered {
+    transform: translateY(calc(100% + var(--player-pill-gap) * 2 + var(--safe-bottom)));
+    visibility: hidden;
+    transition: transform 0.25s ease-out, visibility 0s linear 0.25s;
+  }
+
   /* The progress, a line along the pill's foot, inside its round ends. */
   .player-bar-progress,
   .player-bar-progress:hover,

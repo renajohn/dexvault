@@ -1103,3 +1103,276 @@
   font-weight: 400;
   opacity: 0.85;
 }
+
+/*
+ * On a phone the card is laid out to listen first (docs/superpowers/specs/2026-10-27-musicdex-iphone,
+ * track A): a head of fixed height, the cover 112 px and beside it a block as high, its lines cut
+ * rather than wrapped and the stars on a line of their own at its foot; under it a row of chips
+ * that wraps, each opening a sheet; then the tracks at once; at the foot Play, Listen Next and ⋯.
+ */
+@media (max-width: 767.98px) {
+  .album-head--phone {
+    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-rows: 112px;
+    gap: 0 14px;
+    align-items: start;
+  }
+
+  .album-head--phone .album-head-cover {
+    width: 112px;
+    height: 112px;
+  }
+
+  .album-head-who--phone {
+    grid-row: 1;
+    align-self: start;
+    height: 112px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0;
+    min-width: 0;
+    overflow: hidden;
+    /* Stretched to the column's width, not their own: a line as wide as its words is never cut in …. */
+    align-items: stretch;
+  }
+
+  /* The lines above the stars: what has no room is cut at the foot, never the stars. */
+  .album-head-who-lines {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .album-head-who-lines > * {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .album-head-who--phone .album-head-artist {
+    font-size: 1.05rem;
+  }
+
+  .album-head-who--phone .album-head-rating {
+    flex: none;
+    height: 24px;
+    margin-top: 4px;
+    gap: 8px;
+  }
+
+  .music-detail-modal--phone .album-head-note {
+    margin-top: 6px;
+  }
+
+  /* To buy, in one compact line under the head. */
+  .music-detail-modal--phone .album-buy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+  }
+
+  .music-detail-modal--phone .album-buy-actions {
+    margin-top: 0;
+  }
+
+  /* The chips: a row that wraps, never one that scrolls or runs out of the screen. */
+  .album-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 12px 0 0;
+  }
+
+  .music-detail-modal--phone .album-tracks {
+    margin-top: 12px;
+    padding-top: 8px;
+  }
+
+  /* The foot: Play takes the room left, Listen Next gives way (its words end in …), ⋯ stays square. */
+  .music-detail-modal--phone .music-detail-foot--phone.modal-footer {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  /* Play takes what the foot leaves: the modal's own rule for its buttons (0 1 auto) is stronger than one class. */
+  .music-detail-modal--phone .music-detail-foot--phone .music-detail-play-main {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .music-detail-foot--phone .music-detail-next {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .music-detail-foot--phone .music-detail-next > .ui-button:first-child {
+    min-width: 0;
+  }
+
+  .music-detail-foot--phone .music-detail-next-words {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* Which discs, and from which list: the ▾ says it, the button has no room to. */
+  .music-detail-foot--phone .music-detail-next-discs {
+    display: none;
+  }
+
+  .music-detail-foot--phone .music-detail-more {
+    flex: none;
+  }
+
+  /* What another album plays, its disc before Play, a rule between them: not this album's Play. */
+  .music-detail-foot--phone .music-detail-now {
+    margin-left: -2px;
+  }
+
+  .music-detail-now-rule {
+    flex: none;
+    width: 1px;
+    height: 24px;
+    margin: 0 2px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* This album playing: its bars on its cover, which opens the full screen player. */
+  .album-head-cover-playing {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    display: grid;
+    place-items: center;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    pointer-events: none;
+  }
+}
+
+/* The sheet a chip opens: the parts of the card as they are, without their small-capitals title (the sheet's says it). */
+.music-detail-sheet .info-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  overflow-x: visible;
+}
+
+.music-detail-sheet .info-section:hover {
+  background: none;
+}
+
+.music-detail-sheet .album-guide > h4,
+.music-detail-sheet .album-notes > h4 {
+  display: none;
+}
+
+/* The story keeps its title: it holds the loop that looks Wikipedia up again. */
+.music-detail-sheet .info-section h4 {
+  margin-bottom: 8px;
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  color: #8a8a8a;
+}
+
+.music-detail-sheet .album-head-facts {
+  grid-template-columns: 1fr;
+  gap: 1px;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.music-detail-sheet .album-head-facts dt:not(:first-child) {
+  margin-top: 8px;
+}
+
+/* A list in a sheet: the other albums, the scores, one a line, a hairline between. */
+.card-sheet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.card-sheet-list li:first-child > .card-sheet-row {
+  border-top: 0;
+}
+
+.card-sheet-thumb {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.card-sheet-thumb-empty {
+  display: grid;
+  place-items: center;
+  background: #333;
+  color: #777;
+}
+
+.card-sheet-words {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.card-sheet-title {
+  color: var(--dv-text);
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.card-sheet-chevron,
+.card-sheet-icon {
+  flex: none;
+  color: var(--dv-text-faint);
+}
+
+.card-sheet-links {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}

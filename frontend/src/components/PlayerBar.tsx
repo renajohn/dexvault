@@ -11,6 +11,7 @@ import Menu, { MenuChevron } from './shared/Menu';
 import PlayerTracks from './PlayerTracks';
 import OutputMenu, { OutputEntries } from './OutputMenu';
 import OutputSettings from './OutputSettings';
+import { useCovered } from '../services/phoneDoor';
 import PhonePlayer from './PhonePlayer';
 import { useMedia } from '../utils/useNarrow';
 import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
@@ -126,20 +127,23 @@ const PlayerBar: React.FC = () => {
   const known = useOutputs();
   const inMusic = useLocation().pathname.startsWith('/musicdex');
   const outputName = output.kind === 'renderer' ? output.name : '';
-  // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
-  const idle = !shown && output.kind === 'renderer' && known.length > 0 && inMusic && !isComputer();
-  // The settings of an appliance, opened from the ⋯ of a phone's bar.
-  const [settingsFor, setSettingsFor] = useState<Output | null>(null);
   // A phone's width: a pill at the foot, full screen at a tap.
   const phone = useMedia('(max-width: 767px)');
+  // On a phone, a music window over the whole page (an album's sheet, a record's card): the pill gives way to
+  // the disc at its foot, and its room goes back to the window. The full screen stays, the disc opening it.
+  const covered = useCovered() && phone;
+  // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
+  const idle = !shown && output.kind === 'renderer' && known.length > 0 && inMusic && !isComputer() && !covered;
+  // The settings of an appliance, opened from the ⋯ of a phone's bar.
+  const [settingsFor, setSettingsFor] = useState<Output | null>(null);
 
   // The heart the track had when the album was started, unless the card has told a newer one since.
   useEffect(() => { if (track) seedFavourite(track.songId, track.starred, true); }, [track]);
 
   // The room the bar takes, for the pages and the cards: --player-h on the root.
   useEffect(() => {
-    document.documentElement.style.setProperty('--player-h', shown || idle ? 'var(--player-bar-room)' : '0px');
-  }, [shown, idle]);
+    document.documentElement.style.setProperty('--player-h', (shown && !covered) || idle ? 'var(--player-bar-room)' : '0px');
+  }, [shown, idle, covered]);
 
   // What the bar last showed, kept while it slides away after ✕.
   const last = useRef<{ album: NonNullable<typeof album>; track: NonNullable<typeof track> } | null>(null);
@@ -176,8 +180,8 @@ const PlayerBar: React.FC = () => {
   const taken = outputStatus === 'taken';
 
   return (
-    <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}${phone ? ' player-bar--pill' : ''}`} role="region"
-      aria-label={outputName ? `Playing on ${outputName}` : 'Player'} aria-hidden={!out}>
+    <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}${phone ? ' player-bar--pill' : ''}${covered ? ' player-bar--covered' : ''}`} role="region"
+      aria-label={outputName ? `Playing on ${outputName}` : 'Player'} aria-hidden={!out || covered}>
       {last.current && (() => {
         const { album, track } = last.current;
         // A song of a mixtape shows the cover of its CD, and leads there.

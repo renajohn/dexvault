@@ -1,0 +1,139 @@
+/*
+ * What plays, at the foot of a music window on a phone (NowPlayingDisc.tsx):
+ * the cover round as a disc, in a ring of the place in the track, gold while
+ * it plays and grey when paused, its bars in a corner. A component's own
+ * stylesheet places it (margins, order), never its look.
+ */
+.now-playing-disc {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* A finger drawn up is the disc's, never the page's scroll. */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.now-playing-disc__disc {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+}
+
+.now-playing-disc img,
+.now-playing-disc__nocover {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #333;
+}
+
+.now-playing-disc__nocover {
+  display: grid;
+  place-items: center;
+  color: var(--dv-text-faint);
+}
+
+.now-playing-disc__ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.now-playing-disc__ring circle {
+  fill: none;
+  stroke-width: 2.5;
+}
+
+.now-playing-disc__groove {
+  stroke: rgba(255, 255, 255, 0.12);
+}
+
+.now-playing-disc__fill {
+  stroke: var(--dv-gold);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
+}
+
+.now-playing-disc--paused .now-playing-disc__fill {
+  stroke: #8a8f98;
+}
+
+/* Its bars on a dab of the menus' glass, in the disc's corner. */
+.now-playing-disc__bars {
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--dv-surface);
+  box-shadow: inset 0 0 0 1px var(--dv-surface-edge);
+}
+
+.now-playing-disc__bars .now-playing-bars {
+  width: 10px;
+  height: 9px;
+  gap: 1.5px;
+}
+
+.now-playing-disc__bars .now-playing-bars i {
+  width: 2px;
+}
+
+.now-playing-disc--paused .now-playing-bars i {
+  background: #8a8f98;
+}
+
+.now-playing-disc:focus-visible {
+  outline: none;
+}
+
+.now-playing-disc:focus-visible img {
+  box-shadow: var(--dv-ring-image);
+}
+
+/* With its words: the track, and under it its artist, cut at their end. */
+.now-playing-disc__words {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.now-playing-disc__track-title,
+.now-playing-disc__artist {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.now-playing-disc__track-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--dv-text);
+}
+
+.now-playing-disc__artist {
+  font-size: 0.78rem;
+  color: var(--dv-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .now-playing-disc__fill {
+    transition: none;
+  }
+}

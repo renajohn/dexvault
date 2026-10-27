@@ -37,6 +37,33 @@ describe('Dialog', () => {
     expect(onBack).toHaveBeenCalled();
   });
 
+  it('as a sheet, comes with a handle: pulled down a little it stays, pulled far or tapped it closes', async () => {
+    const onClose = vi.fn();
+    render(<Dialog variant="sheet" onClose={onClose} title="Links"><Dialog.Body>MusicBrainz</Dialog.Body></Dialog>);
+
+    const sheet = screen.getByRole('dialog', { name: 'Links' });
+    expect(sheet).toHaveClass('dialog--sheet');
+    const handle = screen.getByRole('button', { name: 'Pull down to close' });
+
+    fireEvent.touchStart(handle, { touches: [{ clientY: 100 }] });
+    fireEvent.touchMove(handle, { touches: [{ clientY: 130 }] });
+    fireEvent.touchEnd(handle);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.touchStart(handle, { touches: [{ clientY: 100 }] });
+    fireEvent.touchMove(handle, { touches: [{ clientY: 300 }] });
+    fireEvent.touchEnd(handle);
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it('as a sheet, closes on a tap of its handle', async () => {
+    const onClose = vi.fn();
+    render(<Dialog variant="sheet" onClose={onClose} title="Links"><Dialog.Body>MusicBrainz</Dialog.Body></Dialog>);
+    fireEvent.click(screen.getByRole('button', { name: 'Pull down to close' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
   it('as a question to answer, has no ✕', () => {
     render(<Dialog modal onClose={vi.fn()} title="Restoring…"><Dialog.Body>Wait</Dialog.Body></Dialog>);
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();

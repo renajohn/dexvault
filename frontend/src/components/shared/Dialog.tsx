@@ -45,8 +45,14 @@ export interface DialogProps extends Omit<DialogHeaderProps, 'titleId' | 'classN
   onClose: () => void;
   /** sm a question, md a form, lg a search or a long form. */
   size?: 'sm' | 'md' | 'lg';
-  /** center: a form or a question; panel: a record's card along the right edge. */
-  variant?: 'center' | 'panel';
+  /**
+   * center: a form or a question; panel: a record's card along the right edge;
+   * sheet: a leaf that comes up from the foot of the screen, the menus' glass,
+   * two thirds high, closed by ✕, the veil, or its handle pulled down.
+   */
+  variant?: 'center' | 'panel' | 'sheet';
+  /** A sheet as high as the screen, for a long text. */
+  tall?: boolean;
   /**
    * The whole screen below this width: a panel below lg, where it becomes the
    * panel along the right edge, never a box in between; a large dialog below md.
@@ -78,11 +84,12 @@ const DialogClose = createContext<() => void>(() => undefined);
 export const useDialogClose = () => useContext(DialogClose);
 
 const DialogRoot: React.FC<DialogProps> = ({
-  show = true, onClose, size = 'md', variant = 'center', fullscreen, modal = false, scrollable, zIndex, className, backdropClassName,
+  show = true, onClose, size = 'md', variant = 'center', tall = false, fullscreen, modal = false, scrollable, zIndex, className, backdropClassName,
   title, icon, aside, steps, onBack, header, role = 'dialog', describedBy, onEntered, modalProps, children,
 }) => {
   const titleId = useId();
   const panel = variant === 'panel';
+  const sheet = variant === 'sheet';
   const full = fullscreen ?? (panel ? 'lg' : size === 'lg' ? 'md' : false);
   // Asked to close, it leaves on its own first: the page that holds it may take it away at once,
   // and a panel would vanish rather than slide out. Once it has left, the page is told.
@@ -112,6 +119,27 @@ const DialogRoot: React.FC<DialogProps> = ({
     const timer = window.setTimeout(() => setPresent(false), 700);
     return () => window.clearTimeout(timer);
   }, [show]);
+  // A sheet's handle, pulled: the sheet follows the finger, and let go low enough it closes; else it comes back.
+  const modalRef = useRef<HTMLElement | null>(null);
+  const pull = useRef<{ from: number; by: number } | null>(null);
+  const sheetBox = () => modalRef.current?.querySelector<HTMLElement>('.modal-dialog') ?? null;
+  const onPullStart = (event: React.TouchEvent) => { pull.current = { from: event.touches[0].clientY, by: 0 }; };
+  const onPullMove = (event: React.TouchEvent) => {
+    const box = sheetBox();
+    if (!pull.current || !box) return;
+    pull.current.by = Math.max(0, event.touches[0].clientY - pull.current.from);
+    box.style.transition = 'none';
+    box.style.transform = `translateY(${pull.current.by}px)`;
+  };
+  const onPullEnd = () => {
+    const box = sheetBox();
+    const by = pull.current?.by ?? 0;
+    pull.current = null;
+    if (!box) return;
+    box.style.transition = '';
+    box.style.transform = '';
+    if (by > 80) close();
+  };
   if (!present && !show) return null;
   return (
     <DialogClose.Provider value={close}>
@@ -122,23 +150,39 @@ const DialogRoot: React.FC<DialogProps> = ({
       onEntered={onEntered}
       // react-bootstrap gives a role prop to its inner box: an alert dialog is the outer one that bears the title.
       onEnter={(node: HTMLElement) => {
+        modalRef.current = node;
         if (role !== 'dialog') node.setAttribute('role', role);
         // A record's card sets every .modal's z-index !important (MusicDetailCard.css): a z-index asked for, over the
         // phone's player say, must be as firm to win.
         if (zIndex) node.style.setProperty('z-index', String(zIndex), 'important');
       }}
-      centered
+      // A sheet's veil goes just under it, as firmly: the card's styles hold every backdrop under the card.
+      {...(sheet && zIndex ? {
+        renderBackdrop: ({ ref, ...props }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDivElement> }) => (
+          <div {...props} className={['modal-backdrop', 'dialog-sheet-backdrop', backdropClassName].filter(Boolean).join(' ')}
+            ref={element => {
+              if (typeof ref === 'function') ref(element);
+              element?.style.setProperty('z-index', String(zIndex - 1), 'important');
+            }} />
+        ),
+      } : {})}
+      centered={!sheet}
       size={size === 'md' ? undefined : size}
       fullscreen={full ? `${full}-down` as 'md-down' : undefined}
       scrollable={scrollable}
       backdrop={modal ? 'static' : true}
       style={zIndex ? { zIndex } : undefined}
-      className={['dialog', `dialog--${variant}`, `dialog--${size}`, panel && 'side-panel-modal', className].filter(Boolean).join(' ')}
+      className={['dialog', `dialog--${variant}`, `dialog--${size}`, panel && 'side-panel-modal', sheet && tall && 'dialog--sheet-tall', className].filter(Boolean).join(' ')}
       backdropClassName={[panel && 'side-panel-backdrop', backdropClassName].filter(Boolean).join(' ') || undefined}
       aria-labelledby={titleId}
       aria-describedby={describedBy}
       {...modalProps}
     >
+      {sheet && (
+        // The handle: a bar to pull the sheet down by, a tap on it closes too.
+        <button type="button" className="dialog-sheet__handle" aria-label="Pull down to close" onClick={close}
+          onTouchStart={onPullStart} onTouchMove={onPullMove} onTouchEnd={onPullEnd} onTouchCancel={onPullEnd} />
+      )}
       {header ?? (
         <DialogHeader title={title} icon={icon} aside={aside} steps={steps} onBack={onBack} onClose={modal ? undefined : close} titleId={titleId} />
       )}
