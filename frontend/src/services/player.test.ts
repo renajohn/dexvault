@@ -303,4 +303,105 @@ describe('player', () => {
       expect(player.getState().resume).toMatchObject({ album, index: 1, barOpen: false });
     });
   });
+  describe('when the network comes and goes', () => {
+    const failed = (audio: HTMLAudioElement) =>
+      Object.defineProperty(audio, 'error', { value: { code: 2 }, configurable: true });
+
+    it('takes the track up again where it was once its stream is cut, without saying it stopped', () => {
+      vi.useFakeTimers();
+      try {
+        player.playAlbum(album, tracks, 0);
+        const audio = playingAudio();
+        audio.currentTime = 80;
+        failed(audio);
+        audio.dispatchEvent(new Event('error'));
+        expect(player.getState()).toMatchObject({ playing: true, error: null });
+
+        const load = vi.mocked(HTMLMediaElement.prototype.load);
+        load.mockClear();
+        vi.advanceTimersByTime(1000);
+        expect(load.mock.instances).toContain(audio);
+        expect(player.getState().position).toBe(80);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('takes it up at once when the network is back', () => {
+      vi.useFakeTimers();
+      try {
+        player.playAlbum(album, tracks, 0);
+        const audio = playingAudio();
+        failed(audio);
+        audio.dispatchEvent(new Event('error'));
+        const load = vi.mocked(HTMLMediaElement.prototype.load);
+        load.mockClear();
+        window.dispatchEvent(new Event('online'));
+        expect(load.mock.instances).toContain(audio);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('says so once it gave up, and ▶ tries again', () => {
+      vi.useFakeTimers();
+      try {
+        player.playAlbum(album, tracks, 0);
+        const audio = playingAudio();
+        failed(audio);
+        for (let i = 0; i < 7; i += 1) {
+          audio.dispatchEvent(new Event('error'));
+          vi.advanceTimersByTime(30000);
+        }
+        expect(player.getState()).toMatchObject({ playing: false, error: expect.any(String) });
+        const play = vi.mocked(HTMLMediaElement.prototype.play);
+        play.mockClear();
+        player.toggle(true);
+        expect(player.getState().playing).toBe(true);
+        expect(play).toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('loads the next track again when its preload was cut, rather than playing nothing', () => {
+      player.playAlbum(album, tracks, 0);
+      const next = created.find(audio => audio.src.endsWith('/stream/s2'))!;
+      failed(next);
+      const load = vi.mocked(HTMLMediaElement.prototype.load);
+      load.mockClear();
+      player.next();
+      expect(player.getState().index).toBe(1);
+      expect(load.mock.instances).toContain(next);
+    });
+
+    it('takes a track up again that waits for its data too long', () => {
+      vi.useFakeTimers();
+      try {
+        player.playAlbum(album, tracks, 0);
+        const audio = playingAudio();
+        Object.defineProperty(audio, 'paused', { value: false, configurable: true });
+        audio.dispatchEvent(new Event('waiting'));
+        const load = vi.mocked(HTMLMediaElement.prototype.load);
+        load.mockClear();
+        vi.advanceTimersByTime(10000 + 1000);
+        expect(load.mock.instances).toContain(audio);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('plays the next track on the element that played when an iPhone refuses the spare', async () => {
+      player.playAlbum(album, tracks, 0);
+      const first = playingAudio();
+      vi.mocked(HTMLMediaElement.prototype.play).mockImplementationOnce(() =>
+        Promise.reject(Object.assign(new Error('refused'), { name: 'NotAllowedError' })));
+      first.dispatchEvent(new Event('ended'));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(player.getState()).toMatchObject({ index: 1, playing: true, error: null });
+      expect(first.src).toContain('/stream/s2');
+      expect(first.muted).toBe(false);
+    });
+  });
 });

@@ -415,7 +415,21 @@ const saveResume = (barOpen = true) => {
 const countedAt = (track: PlayerTrack, at: number) =>
   at >= SCROBBLE_AFTER_SEC || (Boolean(track.durationSec) && at >= (track.durationSec as number) / 2);
 
-/** Loads the track after the current one into the spare element, ready to take over. */
+/**
+ * An element that holds its source but can no longer play it: its stream cut
+ * (the network lost in a tunnel, Wi-Fi left for the mobile network), or never
+ * loaded. Its source is the right one, so it would otherwise never load again.
+ */
+const broken = (audio: HTMLAudioElement): boolean =>
+  Boolean(audio.src) && (audio.error !== null || audio.networkState === HTMLMediaElement.NETWORK_NO_SOURCE);
+
+/** Loads `url` again, the same source or another. */
+const reload = (audio: HTMLAudioElement, url: string) => {
+  if (audio.src.endsWith(url)) audio.load();
+  else audio.src = url;
+};
+
+/** Loads the track after the current one into the spare element, ready to take over; again when its load failed. */
 const preloadNext = () => {
   const next = state.tracks[state.index + 1];
   const other = spare();
@@ -426,12 +440,78 @@ const preloadNext = () => {
   }
   const url = streamUrl(next.songId);
   other.muted = true;
-  if (!other.src.endsWith(url)) {
-    other.src = url;
+  if (!other.src.endsWith(url) || broken(other)) {
     other.preload = 'auto';
-    other.load();
+    reload(other, url);
   }
 };
+
+/*
+ * A stream cut while it plays: the track is taken up again where it was, a
+ * little later each time, at once when the network comes back. A track that
+ * waits for its data that long without an error is taken up again too: a
+ * connection gone without a word leaves the element waiting for ever.
+ */
+const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 30000];
+const STALL_MS = 10000;
+let retries = 0;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let stallTimer: ReturnType<typeof setTimeout> | null = null;
+let retryNow: (() => void) | null = null;
+
+const calm = () => {
+  if (retryTimer) clearTimeout(retryTimer);
+  if (stallTimer) clearTimeout(stallTimer);
+  retryTimer = stallTimer = null;
+  retryNow = null;
+};
+
+/** The track playing, loaded again from where it was. */
+const recover = () => {
+  const track = state.tracks[state.index];
+  if (!track || !state.album) return;
+  const audio = current();
+  const index = state.index;
+  const at = audio.currentTime > 0 ? audio.currentTime : state.position;
+  calm();
+  if (retries >= RETRY_MS.length) {
+    retries = 0;
+    audio.pause();
+    set({ playing: false, error: 'Could not play this track from Navidrome' });
+    return;
+  }
+  // Still playing, as far as the bar says: it is only waiting for the network.
+  set({ playing: true, position: at, error: null });
+  const again = () => {
+    calm();
+    if (state.index !== index || current() !== audio || !state.album) return;
+    reload(audio, streamUrl(track.songId));
+    wantAt(audio, at);
+    watchStall();
+    audio.play().catch(error => {
+      if ((error as Error).name === 'AbortError') return;
+      set({ playing: false, error: (error as Error).message });
+    });
+  };
+  retryNow = again;
+  retryTimer = setTimeout(again, RETRY_MS[retries++]);
+};
+
+/** Armed while the track waits for its data: if nothing has moved by then, it is taken up again. */
+const watchStall = () => {
+  if (stallTimer) clearTimeout(stallTimer);
+  const audio = current();
+  const from = audio.currentTime;
+  stallTimer = setTimeout(() => {
+    stallTimer = null;
+    if (current() !== audio || audio.paused || !state.playing) return;
+    if (audio.currentTime === from) recover();
+  }, STALL_MS);
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => { retryNow?.(); });
+}
 
 const updateMediaSession = () => {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !state.album) return;
@@ -475,7 +555,10 @@ const start = (index: number, at = 0) => {
   const track = state.tracks[index];
   if (!track) return;
   const url = streamUrl(track.songId);
-  if (spare().src.endsWith(url)) {
+  calm();
+  retries = 0;
+  const swapped = spare().src.endsWith(url);
+  if (swapped) {
     // The spare holds it: the one playing stops, and its late 'pause' finds it no longer mine.
     current().pause();
     current().muted = true;
@@ -484,8 +567,9 @@ const start = (index: number, at = 0) => {
   const audio = current();
   audio.muted = false;
   // A new source stops the element by itself, with no 'pause' of its own to show Play a moment.
-  const changed = !audio.src.endsWith(url);
-  if (changed) audio.src = url;
+  // The spare's load cut by the network holds the right source and nothing to play: loaded again.
+  const changed = !audio.src.endsWith(url) || broken(audio);
+  if (changed) reload(audio, url);
   // Played on from where it was left: counted then already if far enough in.
   scrobbled = countedAt(track, at);
   announced = false;
@@ -494,9 +578,27 @@ const start = (index: number, at = 0) => {
   // No listener waiting for the metadata: on an iPhone nothing loads before a touch, and one left waiting took the
   // next album, or a seek made meanwhile, back to this place. And play() at once, within the touch that asked it.
   if (at > 0 || changed) wantAt(audio, at);
+  watchStall();
   audio.play().catch(error => {
     // Interrupted by a newer load or play (iOS does so as a track follows another): the sound goes on, nothing is wrong.
     if ((error as Error).name === 'AbortError' || !audio.paused) return;
+    // The spare refused, as an iPhone may refuse an element of its own outside a touch, the screen locked: the
+    // track goes on the element that was playing, which the touch that started the album let play.
+    if ((error as Error).name === 'NotAllowedError' && swapped && current() === audio && state.index === index) {
+      audio.muted = true;
+      active = 1 - active;
+      const other = current();
+      other.muted = false;
+      reload(other, url);
+      wantAt(other, at);
+      watchStall();
+      other.play().catch(again => {
+        if ((again as Error).name === 'AbortError' || !other.paused) return;
+        set({ playing: false, error: (again as Error).message });
+      });
+      preloadNext();
+      return;
+    }
     set({ playing: false, error: (error as Error).message });
   });
   preloadNext();
@@ -542,6 +644,13 @@ const setUp = () => {
       if (Math.abs(position - lastSaved) >= 5) {
         lastSaved = position;
         saveResume();
+        // The next track's load cut on the way: tried again, so that it is there when this one ends.
+        if (broken(spare())) preloadNext();
+      }
+      // It moves: no longer stalled.
+      if (stallTimer && !audio.paused && audio.readyState >= 3) {
+        clearTimeout(stallTimer);
+        stallTimer = null;
       }
     });
     audio.addEventListener('playing', () => {
@@ -551,11 +660,17 @@ const setUp = () => {
         announced = true;
         post(track.songId, false);
       }
-      set({ playing: true });
+      retries = 0;
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = null;
+      set({ playing: true, error: null });
       updateMediaSession();
     });
+    // Out of data while it plays: taken up again if it stays so.
+    audio.addEventListener('waiting', () => { if (mine() && state.playing) watchStall(); });
     audio.addEventListener('pause', () => {
       if (!mine() || audio.ended) return;
+      calm();
       set({ playing: false });
       saveResume();
       updateMediaSession();
@@ -570,9 +685,11 @@ const setUp = () => {
       // The album is over: its list goes on, or it can be played again from its card, from the start.
       else endAlbum('ended');
     });
+    // The stream cut: taken up again where it was, a few times, before saying so.
     audio.addEventListener('error', () => {
       if (!mine() || !audio.src) return;
-      set({ playing: false, error: 'Could not play this track from Navidrome' });
+      if (state.playing) recover();
+      else set({ error: 'Could not play this track from Navidrome' });
     });
   });
   if ('mediaSession' in navigator) {
@@ -592,6 +709,7 @@ const setUp = () => {
 /** ✕ here: stops, keeps where it was for Resume, and takes the bar away: a reload does not bring it back. */
 const stopHere = () => {
   if (!state.album) return;
+  calm();
   saveResume(false);
   audios.forEach(audio => { audio.pause(); audio.removeAttribute('src'); audio.load(); });
   options = {};
@@ -647,8 +765,9 @@ export const player = {
       holdAwake();
       // Brought back by a reload, its track not loaded: started now, within the touch, as any track is. An iPhone
       // loads a source set outside a touch in a state it can neither take up at its place nor seek in.
-      if (!audio.src) {
-        start(state.index, state.position);
+      // Its stream cut, or given up on: loaded again the same way, from where it was.
+      if (!audio.src || broken(audio) || state.error) {
+        start(state.index, audio.currentTime > 0 ? audio.currentTime : state.position);
         return;
       }
       audio.play().then(() => { if (state.error) set({ error: null }); }).catch(error => set({ error: (error as Error).message }));
@@ -847,6 +966,8 @@ export const resetPlayer = () => {
   audios = [];
   active = 0;
   options = {};
+  calm();
+  retries = 0;
   waitingQueue = null;
   keepAwakeContext?.close().catch(() => undefined);
   keepAwakeContext = null;
