@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  BsBoxArrowUpRight, BsChatQuote, BsChatQuoteFill, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
+  BsBoxArrowUpRight, BsChatQuote, BsChatQuoteFill, BsInfoCircle, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
   BsSkipBackwardFill, BsSkipForwardFill, BsSpeaker, BsThreeDots, BsX,
 } from 'react-icons/bs';
 import { setFullPlayer, useFullPlayer } from '../services/phoneDoor';
@@ -380,7 +380,6 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
       <button type="button" {...triggerProps} className="player-bar-button now-playing-more" aria-label="More"><BsThreeDots aria-hidden="true" /></button>
     )}>
       {props.from && <Menu.Section title={`Playing from ${props.from}`} />}
-      {props.onOpen && <Menu.Item icon={<BsDisc />} onSelect={() => leave(props.onOpen!)}>Open {cover.title}</Menu.Item>}
       {props.onOpenMixtape && <Menu.Item icon={<BsDisc />} onSelect={() => leave(props.onOpenMixtape!.open)}>Open {props.onOpenMixtape.title}</Menu.Item>}
       {props.onAllTracks && <Menu.Item icon={<BsMusicNoteList />} onSelect={props.onAllTracks}>Listen Next's tracks…</Menu.Item>}
       {props.rest?.menu}
@@ -519,7 +518,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
             </p>
           )}
 
-          {/* The words, the guide, the tracks: as many even columns as there are, each centred in its own. */}
+          {/* The words, the guide, the tracks, the details: as many even columns as there are, each centred in its own. */}
           <footer className={`now-playing-foot${props.door ? ' now-playing-foot--door' : ''}`}>
             {props.door}
             {hasLyrics && (
@@ -539,6 +538,12 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
               <button type="button" className={`player-bar-button now-playing-tool${view === 'tracks' ? ' now-playing-tool--on' : ''}`}
                 onClick={() => toggleView('tracks')} aria-pressed={view === 'tracks'} aria-label="Tracks">
                 <BsMusicNoteList aria-hidden="true" />
+              </button>
+            )}
+            {/* The album's card, its details: the full screen goes back to the pill under it. */}
+            {props.onOpen && (
+              <button type="button" className="player-bar-button now-playing-tool" onClick={() => leave(props.onOpen!)} aria-label="Album details">
+                <BsInfoCircle aria-hidden="true" />
               </button>
             )}
           </footer>

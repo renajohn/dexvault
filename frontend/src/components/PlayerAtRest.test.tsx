@@ -88,6 +88,10 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     fireEvent.click(within(sheet).getByRole('button', { name: 'Tracks' }));
     fireEvent.click(within(sheet).getByRole('button', { name: /Freddie Freeloader/ }));
     expect(playAlbum).toHaveBeenLastCalledWith(expect.objectContaining({ id: 12 }), expect.any(Array), 1);
+
+    // (i) at the foot: the album's card, the full screen going back under it.
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Album details' }));
+    expect(screen.getByTestId('full')).toHaveTextContent('false');
   });
 
   it('another album playing: its disc at the left of the foot goes back to it, and closing lets the album go', async () => {
