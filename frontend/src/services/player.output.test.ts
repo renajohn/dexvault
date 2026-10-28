@@ -96,6 +96,39 @@ describe('the player on an output', () => {
     expect(JSON.parse(window.localStorage.getItem('dexvault.player.resume')!)).toMatchObject({ barOpen: false });
   });
 
+  it('keeps the album in hand when Salon is chosen, not what Salon held paused of its own', () => {
+    const other = { id: 9, title: 'Matters of the Heart', artist: 'Tracy Chapman', cover: null };
+    player.playAlbum(album, tracks, 1, 40);
+    player.toggle(false);
+    audios.forEach(audio => audio.dispatchEvent(new Event('pause')));
+    takeState(session({ album: other, status: 'paused' }));
+
+    player.setOutput(SALON);
+    expect(player.getState()).toMatchObject({ album, index: 1, playing: false, output: SALON });
+    player.toggle();
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/play', body: { album: { id: 7 }, index: 1 } });
+  });
+
+  it('brings the album paused on Bureau along in hand when this browser is chosen, ▶ playing it here', () => {
+    player.setOutput(BUREAU);
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused', position: 40 }));
+    player.setOutput({ kind: 'local' });
+    expect(player.getState()).toMatchObject({ output: { kind: 'local' }, album, index: 1, playing: false, position: 40, barShown: true });
+    player.toggle();
+    expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(commands().filter(call => call.url.includes('bureau'))).toEqual([]);
+  });
+
+  it('brings the album paused on Bureau along to Salon, ▶ playing it there', () => {
+    player.setOutput(BUREAU);
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused', position: 40 }));
+    takeState(session({ status: 'paused', album: { id: 9, title: 'Saucerful', artist: 'Pink Floyd', cover: null } }));
+    player.setOutput(SALON);
+    expect(player.getState()).toMatchObject({ output: SALON, album, index: 1, playing: false });
+    player.toggle();
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/play', body: { album: { id: 7 }, index: 1, position: 40 } });
+  });
+
   it('shows what plays on the appliance, and sends it the bar’s commands', async () => {
     player.setOutput(SALON);
     takeState(session());

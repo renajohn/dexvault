@@ -255,10 +255,11 @@ let lastResume: { session: OutputState | null; resume: PlayerResume | null } = {
 
 /** An appliance's play as the bar shows it: the same shape as this browser's. */
 /**
- * An appliance chosen while this browser's album was paused, and holding
- * nothing of its own: the bar keeps that album, paused, on the appliance, ▶
- * playing it there from where it was. Without it the bar went away with the
- * album, the output's menu with it.
+ * An appliance chosen while the album in hand was paused: the bar keeps that
+ * album, paused, on the appliance, ▶ playing it there from where it was. What
+ * the appliance held paused of its own is not shown in its place: an output is
+ * where the album in hand sounds, not a shelf of its own. Only an appliance
+ * playing (or a play waiting for it to answer) shows what it plays.
  */
 let carrying = false;
 
@@ -268,7 +269,7 @@ const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState 
   const track = session?.tracks[session.index];
   if (!sameOutput(lastOutput, output) || lastOutput.kind !== 'renderer' || lastOutput.name !== output.name) lastOutput = output;
   carrying = chosen.kind === 'renderer' && chosen.id === output.id && state.album !== null && !state.playing
-    && (!session?.album || session.status === 'stopped');
+    && session?.status !== 'playing' && !session?.wanted;
   if (carrying) {
     return {
       ...state,
@@ -894,6 +895,23 @@ const setUp = () => {
 };
 
 /** ✕ here: stops, keeps where it was for Resume, and takes the bar away: a reload does not bring it back. */
+/** What an appliance holds, paused, taken in hand here, nothing loaded: ▶ plays it wherever the bar then plays. */
+const takeInHand = (session: OutputState) => {
+  stopHere();
+  setUp();
+  const album = session.album!;
+  const index = Math.max(0, Math.min(session.index, session.tracks.length - 1));
+  const track = session.tracks[index];
+  const position = positionAt(session);
+  const restore = session.queue && album.id != null ? queues.get(session.queue) : undefined;
+  options = restore ? restore(album as PlayerAlbum & { id: number }) : {};
+  set({ album, queue: session.queue ?? null, tracks: session.tracks, index, playing: false, position,
+    duration: session.duration || track.durationSec || 0, barShown: true, resume: null, error: null });
+  scrobbled = countedAt(track, position);
+  announced = false;
+  updateMediaSession();
+};
+
 const stopHere = () => {
   if (!state.album) return;
   calm();
@@ -928,7 +946,11 @@ export const player = {
     const { from: _from, ...sent } = album;
     if (onRenderer(id => outputs.play(id, {
       album: sent, tracks, index: Math.max(0, Math.min(index, tracks.length - 1)), position: at, listenNext: playOptions.queue === 'listenNext',
-    }))) return;
+    }))) {
+      // The album in hand is the appliance's now: none kept here to come back in its place once it pauses.
+      stopHere();
+      return;
+    }
     setUp();
     holdAwake();
     options = playOptions;
@@ -1097,6 +1119,7 @@ export const player = {
    */
   setOutput: (next: PlayerOutput, { transfer = true }: { transfer?: boolean } = {}) => {
     const from = view.output;
+    const wasCarrying = carrying;
     const moving = transfer && view.playing && view.album !== null && view.tracks.length > 0;
     chosen = next.kind === 'local' ? LOCAL : { kind: 'renderer', id: next.id, name: next.name };
     writeStored(OUTPUT_KEY, chosen.kind === 'local' ? '' : JSON.stringify(chosen));
@@ -1122,6 +1145,9 @@ export const player = {
       return;
     }
     const session = sessionOf(from.id);
+    // Paused there: its album comes along in hand, paused, ▶ playing it on the output chosen.
+    if (transfer && !moving && !wasCarrying && session?.album && session.tracks.length > 0
+      && session.status !== 'stopped' && session.status !== 'taken') takeInHand(session);
     refresh();
     if (moving && session?.album) {
       if (next.kind === 'renderer') {
