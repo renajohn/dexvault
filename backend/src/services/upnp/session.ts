@@ -23,6 +23,11 @@ import logger from '../../logger';
  * where it was, or the play asked of it while it was away. The Onkyo stops
  * answering for half a minute as it wakes, and comes back holding whatever
  * track of ours it had last: that is not someone else's play.
+ *
+ * Whatever was asked last wins. Pause, ✕, or another output chosen forget the
+ * play kept for an appliance away, and silence any track of ours it plays,
+ * even one the session lost track of (an earlier one, a play it could not
+ * follow): asked again for a few minutes when it does not answer then.
  */
 
 export type SessionStatus = 'playing' | 'paused' | 'stopped' | 'taken' | 'unreachable';
@@ -57,6 +62,8 @@ export interface OutputState {
   /** The entries of Listen Next still to come in this turn ("12:0"), for the time left. */
   upcoming: EntryKey[];
   error: string | null;
+  /** Away, with a play to give as soon as it answers: the bar shows it as playing, ⏸ forgets it. */
+  wanted: boolean;
 }
 
 /** A session as written in output_sessions, to outlive a restart. */
@@ -77,6 +84,8 @@ export interface SessionDeps {
   renderer: () => Renderer | null;
   /** Its description read again, at the first call unanswered: a WiiM changes port when it restarts. */
   reload?: () => Promise<unknown>;
+  /** Whether the list says it answers: read again once a call is answered while the list says it does not. */
+  reachable?: () => boolean;
   /** Where the appliance reaches the media listener: http://dexvault.lab.crog.org:3002 */
   mediaBase: string;
   name: () => string;
@@ -116,8 +125,17 @@ const POLL_PAUSED_MS = 5000;
 const POLL_AWAY_MS = [5000, 15000, 60000];
 /** Away with a play to give it as soon as it answers: asked this often. */
 const POLL_WANTED_MS = 5000;
-/** Back within this long of going away, or of a play asked while away, it plays on by itself; later, it waits for ▶. */
+/** Back within this long of going away as it played, it plays on by itself; later, it waits for ▶. */
 const RETAKE_WITHIN_MS = 5 * 60_000;
+/** A play asked of it while away is given if it answers within this long: the Onkyo wakes in half a minute; later, it waits for ▶. */
+const ASKED_WITHIN_MS = 2 * 60_000;
+/** Paused or stopped while away, asked this long to silence what of ours it plays once it answers. */
+const HUSH_WITHIN_MS = 5 * 60_000;
+/** Given up for ▶ when back, still asked this long whether it plays our track by itself, every 15 s. */
+const WATCH_FOR_MS = 10 * 60_000;
+const POLL_WATCH_MS = 15_000;
+/** Answering while the list says it does not: the list read again, once in this long at most. */
+const RELOAD_EVERY_MS = 30_000;
 /** Someone else's track, or none, read this many polls in a row before letting go: one reading alone may be a step between two tracks. */
 const FOREIGN_STRIKES = 2;
 /** An address of ours (the media listener's) for a track that is not in the list: left over from an earlier play, nobody else's. */
@@ -168,6 +186,12 @@ export class OutputSession {
   /** Polls in a row that found someone else's track, or none, on the appliance. */
   private strikes = 0;
   private probed = false;
+  /** Pause or ✕ asked while it did not answer: what of ours it plays silenced as soon as it does, until `until`. */
+  private hush: { how: 'pause' | 'stop'; until: number } | null = null;
+  /** Until when a session given up for ▶, not on the appliance, still asks it whether it plays our track. */
+  private watchUntil = 0;
+  /** When the list was last read again for an answer it did not expect: once in 30 s at most. */
+  private reloadedAt = -Infinity;
   private awayPolls = 0;
   private polls = 0;
   private lastSaved = 0;
@@ -266,6 +290,7 @@ export class OutputSession {
     try {
       const value = await work(renderer);
       this.failures = 0;
+      this.answered();
       return value;
     } catch (error) {
       if (error instanceof DeviceUnreachableError) {
@@ -274,6 +299,13 @@ export class OutputSession {
       }
       throw error;
     }
+  }
+
+  /** It answers while the list says it does not (read a minute ago): the list read again, the pages told at once. */
+  private answered(): void {
+    if (!this.deps.reload || this.deps.reachable?.() !== false || this.now() - this.reloadedAt < RELOAD_EVERY_MS) return;
+    this.reloadedAt = this.now();
+    this.deps.reload().catch(() => undefined);
   }
 
   private failed(): void {
@@ -307,7 +339,48 @@ export class OutputSession {
 
   /** Whether a play waits for the appliance to answer. */
   private wanted(): boolean {
-    return this.wantedAt != null && this.now() - this.wantedAt <= RETAKE_WITHIN_MS;
+    return this.wantedAt != null && this.now() - this.wantedAt <= (this.wantedTrack ? ASKED_WITHIN_MS : RETAKE_WITHIN_MS);
+  }
+
+  /**
+   * What of ours the appliance plays, silenced: a track of this list, or one
+   * left over; someone else's is left alone. Paused on the track the session
+   * holds, it is ours again, paused there. False when it does not answer.
+   */
+  private async silence(how: 'pause' | 'stop'): Promise<boolean> {
+    let transport;
+    let where;
+    try {
+      transport = await this.call(renderer => renderer.transportInfo());
+      where = await this.call(renderer => renderer.positionInfo());
+    } catch (error) {
+      if (error instanceof OutputUnreachableError) return false;
+      throw error;
+    }
+    const ours = this.indexOfUri(where.trackUri);
+    const sounding = transport.state === 'PLAYING' || transport.state === 'TRANSITIONING';
+    if (ours == null || ours === -1 || !sounding) return true;
+    const pause = how === 'pause' && ours === this.index;
+    try {
+      await this.call(renderer => (pause ? renderer.pause() : renderer.stop()));
+    } catch (error) {
+      if (error instanceof OutputUnreachableError) return false;
+      logger.warn(`${this.deps.name()} would not ${pause ? 'pause' : 'stop'}: ${(error as Error).message}`);
+      return true;
+    }
+    logger.info(`${this.deps.name()}: a track of ours it played on its own ${pause ? 'paused' : 'stopped'}`);
+    if (pause) {
+      this.onDevice = true;
+      this.status = 'paused';
+      this.position = where.position;
+      this.lastPosition = where.position;
+    }
+    return true;
+  }
+
+  /** Silenced now, else as soon as it answers, for a few minutes. */
+  private async silenceOrLater(how: 'pause' | 'stop'): Promise<void> {
+    this.hush = await this.silence(how) ? null : { how, until: this.now() + HUSH_WITHIN_MS };
   }
 
   /** A play kept for when the appliance answers: the page is told so. */
@@ -385,6 +458,7 @@ export class OutputSession {
       queue: this.queue,
       upcoming: this.queue === 'listenNext' && this.turn ? this.turn.upcoming() : [],
       error: this.error,
+      wanted: this.wantsPlay(),
     };
   }
 
@@ -420,10 +494,11 @@ export class OutputSession {
 
   /** How long until the next poll; null for none: nothing playing, or someone else's. */
   pollDelay(): number | null {
+    if (this.hush && this.now() <= this.hush.until && this.status !== 'unreachable') return POLL_WANTED_MS;
     if (!this.album) return null;
     if (this.status === 'playing') return POLL_PLAYING_MS;
     // Paused with nothing of ours on the appliance (after a restart): asked once whether it still plays our track.
-    if (this.status === 'paused') return this.onDevice || !this.probed ? POLL_PAUSED_MS : null;
+    if (this.status === 'paused') return this.onDevice || !this.probed ? POLL_PAUSED_MS : this.now() <= this.watchUntil ? POLL_WATCH_MS : null;
     if (this.status === 'unreachable') return this.wanted() ? POLL_WANTED_MS : POLL_AWAY_MS[Math.min(this.awayPolls, POLL_AWAY_MS.length - 1)];
     return null;
   }
@@ -529,6 +604,7 @@ export class OutputSession {
     this.announced = false;
     this.nextSet = -1;
     this.error = null;
+    this.hush = null;
     this.stillWanted();
     try {
       await this.call(renderer => renderer.setUri(this.urlOf(track), this.didlOf(track)));
@@ -675,17 +751,20 @@ export class OutputSession {
   private async cameBack(ours: number | null, playingNow: boolean): Promise<void> {
     if (ours === -1 && playingNow && !(this.wantedTrack && this.wanted())) return this.letGo();
     if (this.wanted()) {
-      // Unanswered again, it stays wanted as it was: tried again at the next poll.
-      const asked = this.wantedTrack;
+      // Unanswered again, it stays wanted as it was, its time not reset: tried again at the next poll.
+      const [asked, since] = [this.wantedTrack, this.wantedAt];
       try {
         await this.startTrack(this.index, this.position);
       } catch (error) {
         this.wantedTrack = asked;
+        this.wantedAt = since;
         throw error;
       }
       return;
     }
     this.wantedAt = null;
+    // Still asked a while whether it plays our track by itself: then it is followed, ⏸ and ✕ reach it.
+    this.watchUntil = this.now() + WATCH_FOR_MS;
     this.status = 'paused';
     this.at = this.now();
     this.save();
@@ -694,6 +773,23 @@ export class OutputSession {
 
   /** Where the appliance is: the track it plays, how far, whether it went on, ended, or plays someone else's. */
   private async poll(): Promise<void> {
+    if (this.hush) {
+      if (this.now() > this.hush.until) this.hush = null;
+      else {
+        if (!await this.silence(this.hush.how)) {
+          if (this.status === 'unreachable') this.awayPolls++;
+          return;
+        }
+        this.hush = null;
+        if (this.status === 'unreachable' && this.album) {
+          this.status = 'paused';
+          this.at = this.now();
+        }
+        this.save();
+        this.emit(true);
+        return;
+      }
+    }
     if (!this.album || this.status === 'stopped' || this.status === 'taken') return;
     const wasAway = this.status === 'unreachable';
     this.probed = true;
@@ -770,7 +866,11 @@ export class OutputSession {
 
   /** One poll, in turn with the commands. */
   tick(): Promise<void> {
-    return this.run(() => this.poll());
+    return this.run(() => this.poll()).catch(error => {
+      // Said, not swallowed: a play given back that the appliance refused left no trace.
+      if (!(error instanceof OutputUnreachableError)) logger.warn(`${this.deps.name()}, asked where it is: ${(error as Error).message}`);
+      throw error;
+    });
   }
 
   /** Its volume and mute asked, in turn with the commands: the Onkyo wants one call at a time. */
@@ -845,7 +945,17 @@ export class OutputSession {
       this.refuseTaken();
       if (!this.album) return;
       if (!this.onDevice) {
-        if (playing === false) return;
+        if (playing === false) {
+          // ⏸ while away or lost: the play kept is forgotten, and what of ours it plays paused.
+          this.wantedAt = null;
+          this.position = this.positionNow();
+          await this.silenceOrLater('pause');
+          this.at = this.now();
+          this.save();
+          this.emit(true);
+          return;
+        }
+        this.hush = null;
         await this.startTrack(this.index, this.position);
         return;
       }
@@ -941,16 +1051,20 @@ export class OutputSession {
     });
   }
 
-  /** ✕: stopped, the place kept for Resume. Someone else's play is left alone. */
+  /** ✕: stopped, the place kept for Resume. Someone else's play is left alone; any of ours stops, even one the session lost. */
   stop(): Promise<void> {
     return this.choose(async () => {
-      if (this.onDevice && this.status !== 'taken' && this.status !== 'unreachable') {
-        this.position = this.positionNow();
-        await this.call(renderer => renderer.stop()).catch(error => {
-          if (!(error instanceof OutputUnreachableError)) throw error;
-        });
-      }
+      const held = this.onDevice && this.status !== 'taken' && this.status !== 'unreachable';
+      this.position = this.positionNow();
+      this.wantedAt = null;
       this.status = 'stopped';
+      if (held) {
+        this.hush = null;
+        await this.call(renderer => renderer.stop()).catch(error => {
+          if (error instanceof OutputUnreachableError) this.hush = { how: 'stop', until: this.now() + HUSH_WITHIN_MS };
+          else throw error;
+        });
+      } else await this.silenceOrLater('stop');
       this.onDevice = false;
       this.nextSet = -1;
       this.at = this.now();
@@ -964,6 +1078,7 @@ export class OutputSession {
     return this.choose(async () => {
       if (!this.album) return;
       this.failures = 0;
+      this.hush = null;
       await this.startTrack(this.index, this.position);
     });
   }
@@ -971,7 +1086,13 @@ export class OutputSession {
   /** Paused, for a play carried over elsewhere: someone else's play is left alone. */
   pauseForTransfer(): Promise<void> {
     return this.run(async () => {
-      if (!this.onDevice || this.status !== 'playing') return;
+      if (!this.onDevice || this.status !== 'playing') {
+        // Away, or lost: the play kept goes elsewhere, and what of ours it plays is paused.
+        this.wantedAt = null;
+        await this.silenceOrLater('pause').catch(() => undefined);
+        this.emit(true);
+        return;
+      }
       this.position = this.positionNow();
       await this.call(renderer => renderer.pause()).catch(() => undefined);
       this.status = 'paused';

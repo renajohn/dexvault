@@ -187,6 +187,7 @@ class Outputs {
         const entry = this.entryOf(id);
         if (entry) await this.registry!.refresh(entry);
       },
+      reachable: () => Boolean(this.entryOf(id)?.reachable),
       mediaBase: options.mediaBaseUrl,
       name: () => this.nameOf(id),
       maxVolume: () => this.maxVolumeOf(id),

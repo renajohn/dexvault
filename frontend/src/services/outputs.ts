@@ -42,6 +42,8 @@ export interface OutputState {
   /** The entries of Listen Next still to come in this turn ("12:0"). */
   upcoming: EntryKey[];
   error: string | null;
+  /** Away, with a play kept for when it answers. */
+  wanted?: boolean;
 }
 
 export interface Output {

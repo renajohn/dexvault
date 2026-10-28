@@ -334,6 +334,9 @@ describe('an appliance taken by something else, or away', () => {
     await r.session.tick();
     expect(stateOf(r)).toMatchObject({ status: 'paused', index: 0, position: 10 });
     expect(r.fake.commands()).toEqual([]);
+    // Still asked a while whether it plays our track by itself, then left alone.
+    expect(r.session.pollDelay()).toBe(15000);
+    r.fake.advance(11 * 60);
     expect(r.session.pollDelay()).toBeNull();
     await r.session.toggle();
     expect(r.fake.uri).toBe(urlOf('a7t1'));
@@ -366,6 +369,152 @@ describe('an appliance taken by something else, or away', () => {
   });
 });
 
+describe('safety valves: the last thing asked wins', () => {
+  beforeEach(async () => { r = await rig('onkyo'); });
+
+  /** Off, asked to play: the play kept, the bar told so. */
+  const askedWhileOff = async () => {
+    r.fake.down = true;
+    await expect(r.session.playAlbum(albumOf(7), tracksOf(7), 0)).rejects.toBeInstanceOf(OutputUnreachableError);
+    expect(stateOf(r)).toMatchObject({ status: 'unreachable', wanted: true });
+  };
+
+  it('forgets a play asked of it while off once ⏸ is pressed: nothing given when it answers', async () => {
+    await askedWhileOff();
+    await r.session.toggle(false);
+    expect(stateOf(r).wanted).toBe(false);
+    r.fake.down = false;
+    r.fake.calls = [];
+    await r.session.tick();
+    await r.session.tick();
+    expect(r.fake.commands()).toEqual([]);
+    expect(r.fake.state).not.toBe('PLAYING');
+    expect(stateOf(r).status).toBe('paused');
+  });
+
+  it('forgets it once the play goes to another output', async () => {
+    await askedWhileOff();
+    await r.session.pauseForTransfer();
+    expect(stateOf(r).wanted).toBe(false);
+    r.fake.down = false;
+    r.fake.calls = [];
+    await r.session.tick();
+    expect(r.fake.commands()).toEqual([]);
+  });
+
+  it('gives a play asked while off only if it answers within two minutes', async () => {
+    await askedWhileOff();
+    r.fake.advance(3 * 60);
+    expect(stateOf(r).wanted).toBe(false);
+    r.fake.down = false;
+    r.fake.calls = [];
+    await r.session.tick();
+    expect(r.fake.commands()).toEqual([]);
+    expect(stateOf(r)).toMatchObject({ status: 'paused', index: 0 });
+  });
+
+  it('keeps the two minutes from the play asked, not from each try it half answered', async () => {
+    await askedWhileOff();
+    r.fake.advance(90);
+    // It answers the question, then refuses the track: tried again, its time not reset.
+    r.fake.down = false;
+    r.fake.refuse.set('SetAVTransportURI', 501);
+    await r.session.tick().catch(() => undefined);
+    r.fake.refuse.delete('SetAVTransportURI');
+    r.fake.advance(60);
+    r.fake.calls = [];
+    await r.session.tick().catch(() => undefined);
+    expect(r.fake.commands()).not.toContain('SetAVTransportURI');
+  });
+
+  it('stops a track of ours the appliance plays on its own, the session having lost it (this morning on the Salon)', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(10);
+    r.fake.down = true;
+    await r.playFor(3);
+    r.fake.advance(6 * 60);
+    // Back, stopped: given up for ▶. Then it plays our track again by itself.
+    r.fake.down = false;
+    r.fake.state = 'STOPPED';
+    await r.session.tick();
+    expect(stateOf(r).status).toBe('paused');
+    r.fake.state = 'PLAYING';
+    r.fake.calls = [];
+    await r.session.stop();
+    expect(r.fake.commands()).toContain('Stop');
+    expect(r.fake.state).not.toBe('PLAYING');
+    expect(stateOf(r).status).toBe('stopped');
+  });
+
+  it('follows a track of ours the appliance plays on its own after it was given up for ▶', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(10);
+    r.fake.down = true;
+    await r.playFor(3);
+    r.fake.advance(6 * 60);
+    r.fake.down = false;
+    r.fake.state = 'STOPPED';
+    await r.session.tick();
+    expect(r.session.pollDelay()).toBe(15000);
+    r.fake.state = 'PLAYING';
+    await r.session.tick();
+    expect(stateOf(r).status).toBe('playing');
+  });
+
+  it('stops an earlier track of ours, never someone else’s', async () => {
+    await r.close();
+    r = await rig('onkyo', { saved: { album: albumOf(7), tracks: tracksOf(7), index: 0, position: 0, duration: 200, status: 'paused', queue: null, token: TOKEN, turn: null } });
+    r.fake.uri = urlOf('old');
+    r.fake.state = 'PLAYING';
+    await r.session.stop();
+    expect(r.fake.commands()).toContain('Stop');
+
+    const other = await rig('onkyo', { saved: { album: albumOf(7), tracks: tracksOf(7), index: 0, position: 0, duration: 200, status: 'paused', queue: null, token: TOKEN, turn: null } });
+    other.fake.takeOver();
+    await other.session.stop();
+    expect(other.fake.commands()).not.toContain('Stop');
+    expect(other.fake.state).toBe('PLAYING');
+    await other.close();
+  });
+
+  it('pauses our track as ⏸ is pressed, the session having lost it: ours again, paused there', async () => {
+    await r.close();
+    r = await rig('onkyo', { saved: { album: albumOf(7), tracks: tracksOf(7), index: 1, position: 0, duration: 200, status: 'paused', queue: null, token: TOKEN, turn: null } });
+    r.fake.uri = urlOf('a7t2');
+    r.fake.state = 'PLAYING';
+    r.fake.position = 40;
+    await r.session.toggle(false);
+    expect(r.fake.commands()).toContain('Pause');
+    expect(stateOf(r)).toMatchObject({ status: 'paused', index: 1, position: 40 });
+  });
+
+  it('silences it once it answers when ✕ was pressed while it was away', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(10);
+    r.fake.down = true;
+    await r.playFor(3);
+    await r.session.stop();
+    expect(stateOf(r).status).toBe('stopped');
+    expect(r.session.pollDelay()).toBe(5000);
+    // It comes back playing our track, as the Onkyo does after its half minute.
+    r.fake.down = false;
+    r.fake.state = 'PLAYING';
+    r.fake.calls = [];
+    await r.session.tick();
+    expect(r.fake.commands()).toContain('Stop');
+    expect(stateOf(r).status).toBe('stopped');
+    expect(r.session.pollDelay()).toBeNull();
+  });
+
+  it('has the list read again when it answers while the list says it does not', async () => {
+    let reloads = 0;
+    await r.close();
+    r = await rig('onkyo', { deps: { reachable: () => false, reload: async () => { reloads++; } } });
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    expect(reloads).toBe(1);
+  });
+});
+
 describe('a restart of DexVault', () => {
   it('follows the appliance on if it still plays our track', async () => {
     const first = await rig('onkyo');
@@ -374,6 +523,7 @@ describe('a restart of DexVault', () => {
     const saved = first.session.saved();
     expect(saved).toMatchObject({ index: 1, position: 30, token: TOKEN, status: 'playing' });
 
+    await r.close();
     r = await rig('onkyo', { saved });
     r.fake.uri = first.fake.uri;
     r.fake.position = 31;
@@ -386,6 +536,7 @@ describe('a restart of DexVault', () => {
 
   it('stays paused where it was if the appliance plays nothing of ours', async () => {
     const saved = { album: albumOf(7), tracks: tracksOf(7), index: 2, position: 50, duration: 200, status: 'playing' as const, queue: null, token: TOKEN, turn: null };
+    await r.close();
     r = await rig('onkyo', { saved });
     await r.session.tick();
     expect(stateOf(r)).toMatchObject({ status: 'paused', index: 2, position: 50 });

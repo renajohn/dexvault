@@ -296,7 +296,8 @@ const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState 
     queue: session?.queue ?? null,
     tracks: session?.tracks ?? NO_TRACKS,
     index: session?.index ?? 0,
-    playing: session?.status === 'playing',
+    // Away with a play kept for when it answers: shown playing, ⏸ forgets it.
+    playing: session?.status === 'playing' || Boolean(session?.wanted),
     position: session ? positionAt(session) : 0,
     duration: session?.duration || track?.durationSec || 0,
     barShown: Boolean(session?.album) && session?.status !== 'stopped',
@@ -1132,7 +1133,8 @@ export const player = {
       player.playAlbum(session.album, session.tracks, session.index, positionAt(session),
         restore ? restore(session.album as PlayerAlbum & { id: number }) : { queue: session.queue ?? undefined });
     }
-    if (session?.status === 'playing') outputs.toggle(from.id, false).catch(() => undefined);
+    // Left while it plays, or while a play waits for it to answer: forgotten there, what of ours it plays paused.
+    if (session?.status === 'playing' || session?.wanted) outputs.toggle(from.id, false).catch(() => undefined);
   },
 
   getState: (): PlayerState => view,
