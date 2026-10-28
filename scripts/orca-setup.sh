@@ -44,3 +44,11 @@ for d in images thumbs ebooks; do
 done
 
 echo "orca-setup : $NAME prêt dans $WT"
+
+# succès : on ferme le terminal du setup (en cas d'échec, set -e l'arrête avant et il reste ouvert).
+# Différé et détaché pour laisser le runner d'Orca noter la fin du setup ; sans --tab pour
+# ne fermer que ce panneau quand le setup partage un onglet avec l'agent.
+if [[ -n "${ORCA_TERMINAL_HANDLE:-}" ]]; then
+  nohup sh -c 'sleep 2; "$0" terminal close --terminal "$1"' \
+    "${ORCA_CLI_COMMAND:-orca}" "$ORCA_TERMINAL_HANDLE" >/dev/null 2>&1 &
+fi
