@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReadingJournal from './ReadingJournal';
 import SeriesNotes from './SeriesNotes';
 import bookSectionsService, { ReadingEntry } from '../services/bookSectionsService';
@@ -119,5 +119,20 @@ describe('SeriesNotes', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove the note' })[0]);
     await waitFor(() => expect(screen.queryByText('Oriane a adoré cette série')).not.toBeInTheDocument());
+  });
+});
+
+describe('ReadingJournal sur un téléphone', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width: 575px'), addEventListener() {}, removeEventListener() {} }));
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('pose le choix de la vue au-dessus, puis le compte et + sur une ligne, sans tri', async () => {
+    const { container } = render(<ReadingJournal viewSwitch={<span>Library | Reading</span>} />);
+    expect(await screen.findByText('2 readings')).toBeInTheDocument();
+    expect(container.querySelector('.collection-header__leading')).toHaveTextContent('Library | Reading');
+    expect(screen.getByRole('button', { name: 'Add a reading' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sort' })).toBeNull();
   });
 });

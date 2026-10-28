@@ -15,6 +15,7 @@ import {
   BsFilm
 } from 'react-icons/bs';
 import './FilmDexPage.css';
+import { sortOptions } from './filmDexSort';
 import { readStored, writeStored } from '../utils/safeStorage';
 import { findById, shownIds, useDetailSteps, type Id } from '../utils/detailSteps';
 import { movieImages } from '../utils/detailImages';
@@ -34,11 +35,6 @@ interface FilmDexPageProps {
   onShowAlert?: (message: string, type: string) => void;
   onAddMovie?: (mode?: string) => void;
   onSearch?: (criteria: any) => void;
-}
-
-interface SortOption {
-  value: string;
-  label: string;
 }
 
 interface GroupOption {
@@ -560,18 +556,6 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
     }
   };
 
-  // Sort functions
-  const sortOptions: SortOption[] = [
-    { value: 'title', label: 'Title' },
-    { value: 'titleReverse', label: 'Title - reverse' },
-    { value: 'lastAddedFirst', label: 'Last acquired first' },
-    { value: 'lastAddedLast', label: 'Last acquired last' },
-    { value: 'rating', label: 'Highest rating first' },
-    { value: 'ratingLowest', label: 'Lowest rating first' },
-    { value: 'ageAsc', label: 'Age - youngest first' },
-    { value: 'ageDesc', label: 'Age - oldest first' }
-  ];
-
   const groupOptions: GroupOption[] = [
     { value: 'none', label: 'No grouping' },
     { value: 'collection', label: 'Group by Box Set' },
@@ -929,6 +913,7 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
             items={watchNextMovies}
             type="movie"
             title="Watch Next"
+            className="watch-next-banner"
             onItemClick={(id) => handleMovieClick(id, watchNextMovies.map((movie: any) => movie.id))}
             onRemove={handleWatchNextToggle}
             onReorder={keys => handleWatchNextReorder(keys as number[])}
@@ -936,7 +921,7 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
             getTitle={(movie: any) => movie.title}
             renderCover={(movie: any) => <MovieCover movie={allMovies.find(m => m.id === movie.id) ?? movie} />}
           />
-        ) : <NextBannerPending type="movie" title="Watch Next" />}
+        ) : <NextBannerPending type="movie" title="Watch Next" className="watch-next-banner" />}
       </NextBannerSlot>
 
       <div className="movies-results" ref={resultsRef}>

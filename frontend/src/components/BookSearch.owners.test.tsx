@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import BookSearch from './BookSearch';
 import bookService from '../services/bookService';
@@ -87,5 +87,38 @@ describe('BookSearch, ses boutons de propriétaires et la pastille owner', () =>
     const { container } = render(page('type:book has_ebook:yes'));
     await screen.findByRole('group', { name: 'Whose books' });
     expect(container.querySelector('.active-filters')).toBeNull();
+  });
+});
+
+describe('BookSearch sur un téléphone', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width: 575px'), addEventListener() {}, removeEventListener() {} }));
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  const menu = () => screen.findByRole('button', { name: 'Whose books' });
+
+  it("montre les propriétaires en un menu, pas en boutons, et un choix n'en prend qu'un", async () => {
+    const { rerender } = render(page('dune owner:Oriane'));
+    const trigger = await menu();
+    expect(screen.queryByRole('group', { name: 'Whose books' })).toBeNull();
+    expect(trigger.textContent).toContain('Oriane');
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /Alice/ }));
+    expect(searched).toBe('dune owner:Alice');
+
+    rerender(page('dune owner:Alice'));
+    fireEvent.click(await menu());
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /Everyone/ }));
+    expect(searched).toBe('dune');
+  });
+
+  it("plie le tri par clé : Title, Author, Series, Year, Added", async () => {
+    render(page(''));
+    await menu();
+    fireEvent.click(screen.getByRole('button', { name: 'Sort' }));
+    const entries = (await screen.findAllByRole('menuitemradio')).map(item => item.textContent);
+    expect(entries).toHaveLength(5);
+    expect(entries.join('|')).toMatch(/^Title.*\|Author.*\|Series\|Year.*\|Added/);
   });
 });

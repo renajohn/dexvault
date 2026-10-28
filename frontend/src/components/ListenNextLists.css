@@ -239,6 +239,34 @@
   }
 }
 
+@media (max-width: 575px) {
+  /*
+   * On a phone, one line: the title gone (its icon says it), the icon, the
+   * switch, then ▶ ▾ and Repeat at the right end. The streamed list's length
+   * heads ▾; the CDs', with no ▶, keeps its place beside the switch.
+   */
+  .listen-next-lists .next-banner__title-section {
+    flex-wrap: nowrap;
+  }
+  .listen-next-lists .next-banner__title-section::after {
+    content: none;
+  }
+  .listen-next-switch,
+  .listen-next-head__summary {
+    order: 0;
+  }
+  .listen-next-switch .ui-segmented__option {
+    padding: 0 9px;
+  }
+  .listen-next-lists:not(.next-banner--silver) .listen-next-head__summary {
+    display: none;
+  }
+  /* The other list's strip at the foot: the switch already names it and counts it, and takes a cover dropped. */
+  .listen-next-lists .next-banner-other {
+    display: none;
+  }
+}
+
 /* Tinted in the colour of the banner they lie in: gold under the streamed list, silver under the CDs. */
 .next-banner-other--cd .next-banner-other__cover img {
   filter: grayscale(1) sepia(1) saturate(2.4) hue-rotate(-10deg) brightness(0.8);

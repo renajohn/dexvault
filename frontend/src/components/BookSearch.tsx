@@ -11,14 +11,16 @@ import { CollectionHeader, EmptyState } from './shared';
 import { hasMatchScores, stacksMatchFirst, useBestMatch } from './shared/search/bestMatch';
 import { useOpenItem } from '../services/openItem';
 import { Modal, Form } from 'react-bootstrap';
-import { BsChevronDown, BsBook, BsX } from 'react-icons/bs';
+import { BsChevronDown, BsBook, BsX, BsPerson } from 'react-icons/bs';
 import './BookSearch.css';
 import { readStored, writeStored } from '../utils/safeStorage';
 import { findById, shownIds, useDetailSteps } from '../utils/detailSteps';
 import { bookImages } from '../utils/detailImages';
-import { chosenOwners, clickOwner as clickOwnerIn, isOwnerIn } from '../utils/bookOwners';
+import { chosenOwners, clickOwner as clickOwnerIn, isOwnerIn, withOwners } from '../utils/bookOwners';
+import useNarrow from '../utils/useNarrow';
 import Button from './shared/Button';
 import Chip from './shared/Chip';
+import Menu, { MenuChevron } from './shared/Menu';
 import Dialog from './shared/Dialog';
 import { ConfirmDialog } from './shared/ConfirmDialog';
 import { TextField } from './shared/TextField';
@@ -280,6 +282,7 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
   // Whose books: one of the family's, at a click, written into the search as owner:Alice,
   // so the buttons and the owner pill say the same thing whichever one changes. An Alt-click
   // adds a name or takes it away: owner:Alice,Oriane is either's (utils/bookOwners).
+  const narrow = useNarrow();
   const ownerFilter = chosenOwners(searchCriteria?.searchText || '');
   const isOwnerChosen = (owner: string) => isOwnerIn(ownerFilter, owner);
   const clickOwner = (owner: string, toggle: boolean) =>
@@ -1349,16 +1352,45 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
   };
 
   const sortOptions = [
-    { value: 'title', label: 'Title A-Z' },
-    { value: 'titleReverse', label: 'Title Z-A' },
-    { value: 'author', label: 'Author A-Z' },
-    { value: 'authorReverse', label: 'Author Z-A' },
-    { value: 'series', label: 'Series A-Z' },
-    { value: 'year', label: 'Year (Newest)' },
-    { value: 'yearReverse', label: 'Year (Oldest)' },
-    { value: 'lastAdded', label: 'Last Added' },
-    { value: 'lastAddedReverse', label: 'First Added' }
+    { value: 'title', label: 'Title A-Z', key: 'Title', direction: 'A-Z' },
+    { value: 'titleReverse', label: 'Title Z-A', key: 'Title', direction: 'Z-A' },
+    { value: 'author', label: 'Author A-Z', key: 'Author', direction: 'A-Z' },
+    { value: 'authorReverse', label: 'Author Z-A', key: 'Author', direction: 'Z-A' },
+    { value: 'series', label: 'Series A-Z', key: 'Series' },
+    { value: 'year', label: 'Year (Newest)', key: 'Year', direction: 'Newest' },
+    { value: 'yearReverse', label: 'Year (Oldest)', key: 'Year', direction: 'Oldest' },
+    { value: 'lastAdded', label: 'Last Added', key: 'Added', direction: 'Last' },
+    { value: 'lastAddedReverse', label: 'First Added', key: 'Added', direction: 'First' }
   ];
+
+  // On a phone the owners' chips would not hold on the header's one line: one menu, a choice per owner.
+  const ownerControls = owners.length > 1 && (narrow ? (
+    <Menu label="Whose books" align="end" trigger={(props, open) => (
+      <button type="button" {...props} title="Whose books" aria-label="Whose books"
+        className={`menu-pill book-owner-menu ${ownerFilter.length ? 'menu-pill--on' : 'menu-pill--icon'}`}>
+        {ownerFilter.length
+          ? <span className="book-owner-menu__names">{owners.filter(([owner]) => isOwnerChosen(owner)).map(([, , label]) => label).join(', ')}</span>
+          : <BsPerson />}
+        <MenuChevron open={open} />
+      </button>
+    )}>
+      <Menu.Choice selected={!ownerFilter.length} onSelect={() => updateSearchViaUrl(withOwners(searchCriteria?.searchText || '', [], { replace: true }))}>
+        Everyone's
+      </Menu.Choice>
+      <Menu.Separator />
+      {owners.map(([owner, count, label]) => (
+        <Menu.Choice key={owner} selected={isOwnerChosen(owner)} hint={count} onSelect={() => updateSearchViaUrl(withOwners(searchCriteria?.searchText || '', [owner], { replace: true }))}>
+          {label}
+        </Menu.Choice>
+      ))}
+    </Menu>
+  ) : (
+    <span className="book-owner-chips" role="group" aria-label="Whose books">
+      {owners.map(([owner, count, label]) => (
+        <Chip key={owner} active={isOwnerChosen(owner)} count={count} title="Alt-click to add or remove" onClick={event => clickOwner(owner, event.altKey)}>{label}</Chip>
+      ))}
+    </span>
+  ));
 
   const groupOptions = [
     { value: 'none', label: 'No grouping' },
@@ -1421,13 +1453,7 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
           onAdd={() => setShowAddDialog(true)}
           loading={loading}
           leading={viewSwitch}
-          extraControls={owners.length > 1 && (
-            <span className="book-owner-chips" role="group" aria-label="Whose books">
-              {owners.map(([owner, count, label]) => (
-                <Chip key={owner} active={isOwnerChosen(owner)} count={count} title="Alt-click to add or remove" onClick={event => clickOwner(owner, event.altKey)}>{label}</Chip>
-              ))}
-            </span>
-          )}
+          extraControls={ownerControls}
         />
 
         {renderBookGrid()}

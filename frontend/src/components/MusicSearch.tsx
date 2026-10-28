@@ -45,7 +45,7 @@ import Notice from './shared/Notice';
 import Spinner, { Loading } from './shared/Spinner';
 import { asksMixtapes, asksNavidrome } from '../utils/musicSearchWords';
 import { isKept, useKeptState } from '../utils/kept';
-import { useMedia } from '../utils/useNarrow';
+import { useMedia, useNarrow } from '../utils/useNarrow';
 import Progressive from './shared/Progressive';
 
 interface MusicSearchProps {
@@ -159,6 +159,7 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   const [selectedCdDetails, setSelectedCdDetails] = useState<any>(null);
   // On a phone, a cover opens the full screen player on its album, its card in ⋯.
   const phone = useMedia('(max-width: 767px)');
+  const narrow = useNarrow();
   const [, setLoadingDetails] = useState(false);
   const [cdDetailsBeforeEdit, setCdDetailsBeforeEdit] = useState<any>(null);
   const previousSearchTextRef = useRef('');
@@ -649,6 +650,9 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
 
   const dismissedCds = useMemo(() => (digitalOn && digitalFilter === 'buy'
     ? hybridCds.filter(cd => !hasCd(cd) && isDismissed(digitalOf(cd).album)) : []), [digitalOn, digitalFilter, hybridCds, digitalOf]);
+
+  // Buy on a phone: its count alone in the head, the sort and the grouping doing nothing to its list.
+  const buyOnPhone = narrow && digitalOn && digitalFilter === 'buy';
 
   const chooseFilter = (filter: DigitalFilter) => {
     setDigitalFilter(filter);
@@ -1286,14 +1290,14 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   // MusicBrainz search is now handled via the Add Album dialog
 
   const sortOptions = [
-    { value: 'title', label: 'Title A-Z' },
-    { value: 'titleReverse', label: 'Title Z-A' },
-    { value: 'artist', label: 'Artist A-Z' },
-    { value: 'artistReverse', label: 'Artist Z-A' },
-    { value: 'year', label: 'Year (Newest)' },
-    { value: 'yearReverse', label: 'Year (Oldest)' },
-    { value: 'lastAdded', label: 'Last Added' },
-    { value: 'lastAddedReverse', label: 'First Added' }
+    { value: 'title', label: 'Title A-Z', key: 'Title', direction: 'A-Z' },
+    { value: 'titleReverse', label: 'Title Z-A', key: 'Title', direction: 'Z-A' },
+    { value: 'artist', label: 'Artist A-Z', key: 'Artist', direction: 'A-Z' },
+    { value: 'artistReverse', label: 'Artist Z-A', key: 'Artist', direction: 'Z-A' },
+    { value: 'year', label: 'Year (Newest)', key: 'Year', direction: 'Newest' },
+    { value: 'yearReverse', label: 'Year (Oldest)', key: 'Year', direction: 'Oldest' },
+    { value: 'lastAdded', label: 'Last Added', key: 'Added', direction: 'Last' },
+    { value: 'lastAddedReverse', label: 'First Added', key: 'Added', direction: 'First' }
   ];
 
   const groupOptions = [
@@ -1351,7 +1355,10 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
                 <ListenNextSummary albums={listenNext.items.filter(album => mediumOf(album) === nextMedium && !listenNext.leavingState(keyOf(album)))} play={listenNext.play} />
               </span>
               <span className="listen-next-head__end">
-                {nextMedium === 'digital' && <ListenNextControls count={nextCounts.digital} play={listenNext.play} onRepeat={listenNext.setRepeat} />}
+                {nextMedium === 'digital' && (
+                  <ListenNextControls count={nextCounts.digital} play={listenNext.play} onRepeat={listenNext.setRepeat}
+                    albums={listenNext.items.filter(album => mediumOf(album) === 'digital' && !listenNext.leavingState(keyOf(album)))} />
+                )}
               </span>
             </span>
           )}
@@ -1475,17 +1482,18 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
       {/* Results Header with Controls */}
       <div className="cds-results">
         <CollectionHeader
-          filteredCount={digitalOn || mixtapesOn ? shownCds.length : cdCount.filtered}
-          totalCount={(digitalOn ? filterCounts.all : cdCount.total) + (mixtapesOn && !(digitalOn && digitalFilter === 'buy') ? mixtapes.length : 0)}
-          itemLabel="albums"
+          // On a phone the Buy list says how many there are to buy, and has no sort or grouping of its own to offer.
+          filteredCount={buyOnPhone ? filterCounts.buy : digitalOn || mixtapesOn ? shownCds.length : cdCount.filtered}
+          totalCount={buyOnPhone ? filterCounts.buy : (digitalOn ? filterCounts.all : cdCount.total) + (mixtapesOn && !(digitalOn && digitalFilter === 'buy') ? mixtapes.length : 0)}
+          itemLabel={buyOnPhone ? 'to buy' : 'albums'}
           sortBy={sortBy}
-          sortOptions={sortOptions}
+          sortOptions={buyOnPhone ? [] : sortOptions}
           onSortChange={handleSortChange}
           bestMatch={bestMatch.on && hasMatchScores(filteredCds)}
           onBestMatch={hasMatchScores(filteredCds) ? handleBestMatch : undefined}
           sortLoading={sortLoading}
           groupBy={groupBy}
-          groupOptions={groupOptions}
+          groupOptions={buyOnPhone ? [] : groupOptions}
           onGroupChange={handleGroupChange}
           groupLoading={groupLoading}
           expandAllGroups={expandAllGroups}
@@ -1494,28 +1502,18 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
           addButtonLabel="Add Album"
           onAdd={() => setShowAddDialog(true)}
           loading={loading}
-          extraControls={
-            <>
-              {/* The same switch as Stack in BookDex and FilmDex: gold when on. */}
-              <label className="stack-toggle-container"
-                title={digitalOn ? 'Hide the albums with no CD and what sets each album apart' : 'Show the albums with no CD, how good the files are, and what to buy'}>
-                <span className="stack-toggle-label">Digital</span>
-                <span className="stack-toggle-switch">
-                  <input type="checkbox" checked={digitalOn} onChange={toggleDigital} aria-label="Digital" />
-                  <span className="stack-toggle-slider"></span>
-                </span>
-              </label>
-              <label className="stack-toggle-container"
-                title={mixtapesOn ? 'Hide the mixtapes' : 'Show your mixtapes, your playlists in Navidrome, among the albums'}>
-                <span className="stack-toggle-label">Mixtapes</span>
-                <span className="stack-toggle-switch">
-                  <input type="checkbox" checked={mixtapesOn} onChange={toggleMixtapes} aria-label="Mixtapes" />
-                  <span className="stack-toggle-slider"></span>
-                </span>
-              </label>
-              {digitalOn && <DigitalChips filter={digitalFilter} onFilter={chooseFilter} counts={filterCounts} />}
-            </>
-          }
+          // The same switches as Stack in BookDex and FilmDex: gold when on.
+          toggles={[
+            {
+              label: 'Digital', checked: digitalOn, onChange: toggleDigital,
+              title: digitalOn ? 'Hide the albums with no CD and what sets each album apart' : 'Show the albums with no CD, how good the files are, and what to buy',
+            },
+            {
+              label: 'Mixtapes', checked: mixtapesOn, onChange: toggleMixtapes,
+              title: mixtapesOn ? 'Hide the mixtapes' : 'Show your mixtapes, your playlists in Navidrome, among the albums',
+            },
+          ]}
+          extraControls={digitalOn && <DigitalChips filter={digitalFilter} onFilter={chooseFilter} counts={filterCounts} />}
         />
 
         {digitalOn && <DigitalNotices library={digital.library} error={digital.error} editions={digital.editions} />}

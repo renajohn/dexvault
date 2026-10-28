@@ -80,3 +80,6 @@
 
 .digital-dismissed-toggle:hover { color: #ddd; }
 
+
+/* On a phone Buy is its cart and its count: no room kept for its word. */
+.digital-chip-buy .ui-chip__label:empty { display: none; }

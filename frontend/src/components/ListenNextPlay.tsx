@@ -7,6 +7,7 @@ import { listenNextQueue, playingKey } from '../services/listenNextQueue';
 import { entryKey, keyOf, type EntryKey } from '../utils/listenNextEntry';
 import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
 import { readStored, writeStored } from '../utils/safeStorage';
+import useNarrow from '../utils/useNarrow';
 import CoverButton from './shared/CoverButton';
 import Button from './shared/Button';
 import Menu, { MenuChevron } from './shared/Menu';
@@ -192,10 +193,14 @@ interface ControlsProps {
   count: number;
   play: ListenNextPlayState | null;
   onRepeat: (repeat: boolean) => void;
+  /** The list in sight: on a phone its length heads ▾, the line beside the switch having no room. */
+  albums?: ListAlbum[];
 }
 
 /** ▶ and Repeat, in the banner's header in place of its count. */
-export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRepeat }) => {
+export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRepeat, albums: list }) => {
+  const narrow = useNarrow();
+  const summary = useSummary(narrow ? list : undefined, play);
   const here = usePlayer(state => state.queue === 'listenNext' && state.album !== null);
   const playing = usePlayer(state => state.playing);
   const [starting, setStarting] = useState(false);
@@ -235,7 +240,7 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
   const where = output.kind === 'renderer' ? ` on ${output.name}` : '';
   const title = nothing ? 'Nothing ripped yet' : pause ? 'Pause Listen Next' : `Play Listen Next · ${albums}${where}`;
   // Its ▾: the other outputs; Amperfy on an iPhone.
-  const more = elsewhere.length > 0 || (appleMobile && Boolean(play?.playlistId));
+  const more = elsewhere.length > 0 || (appleMobile && Boolean(play?.playlistId)) || Boolean(summary);
   return (
     <span className="listen-next-controls">
       {/* Navidrome's own player, in a tab of its own: on an iPhone Amperfy is in ▾. Before ▶ and Repeat, so they
@@ -258,6 +263,12 @@ export const ListenNextControls: React.FC<ControlsProps> = ({ count, play, onRep
               <MenuChevron open={open} />
             </Button>
           )}>
+            {summary && (
+              <>
+                <Menu.Section title={summary} />
+                {(elsewhere.length > 0 || (appleMobile && play?.playlistId)) && <Menu.Separator />}
+              </>
+            )}
             {elsewhere.length > 0 && <Menu.Section title="Play on" />}
             {elsewhere.map(target => (
               <Menu.Choice key={target.kind === 'local' ? 'local' : target.id} selected={sameOutput(target, output)}
@@ -355,10 +366,15 @@ interface SummaryProps {
   play: ListenNextPlayState | null;
 }
 
-export const ListenNextSummary: React.FC<SummaryProps> = ({ albums, play }) => {
+/** The summary's words for these albums, the time left following the player; none without albums. */
+const useSummary = (albums: ListAlbum[] | undefined, play: ListenNextPlayState | null): string | null => {
   const remaining = usePlayer(remainingOf);
-  if (!play) return null;
+  if (!play || !albums) return null;
   const [key, leftSec] = remaining ? remaining.split('|') : [];
-  const text = summaryOf(albums, play.lengths, remaining ? { key, leftSec: Number(leftSec) } : null, play.repeat);
+  return summaryOf(albums, play.lengths, remaining ? { key, leftSec: Number(leftSec) } : null, play.repeat);
+};
+
+export const ListenNextSummary: React.FC<SummaryProps> = ({ albums, play }) => {
+  const text = useSummary(albums, play);
   return text ? <div className="listen-next-summary">{text}</div> : null;
 };

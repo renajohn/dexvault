@@ -1202,3 +1202,54 @@
 .next-banner--silver .next-banner__card--found .next-banner__image {
   outline-color: var(--dv-silver);
 }
+
+/* On a phone (CollectionHeader's NarrowHeader): one line, the count, then icons opening their menus. */
+.collection-header--narrow {
+  display: block;
+}
+
+.collection-header--narrow .collection-header__leading {
+  margin-bottom: 8px;
+}
+
+.collection-header--narrow .collection-controls {
+  flex-wrap: nowrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.collection-header--narrow .collection-count {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-header__icons {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+}
+
+.menu-pill--icon {
+  padding: 0 6px 0 8px;
+  gap: 2px;
+}
+
+/* A grouping chosen: gold means on. */
+.menu-pill--on {
+  color: var(--dv-gold);
+}
+
+/* On a phone the banner's name (Listen Next, Watch Next) gives its room to its controls: its icon says it; kept for screen readers. */
+@media (max-width: 575px) {
+  .next-banner__title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}

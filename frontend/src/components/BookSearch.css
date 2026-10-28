@@ -432,3 +432,15 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* On a phone, the owners' menu: the names chosen, cut short when they would push the icons off the line. */
+.book-owner-menu {
+  flex: none;
+  min-width: 0;
+}
+
+.book-owner-menu__names {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

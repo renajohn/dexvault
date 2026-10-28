@@ -3,6 +3,7 @@ import { BsCartFill } from 'react-icons/bs';
 import type { DigitalLibrary, EditionAdoption } from '../services/musicService';
 import './DigitalStrip.css';
 import Chip from './shared/Chip';
+import useNarrow from '../utils/useNarrow';
 
 /**
  * The head of MusicDex with Digital on, laid in the collection's own head:
@@ -26,17 +27,20 @@ interface DigitalChipsProps {
   counts: Record<DigitalFilter, number>;
 }
 
-/** Buy, a pill that a second click lets go; left out with nothing to buy, unless it is shown. */
-export const DigitalChips: React.FC<DigitalChipsProps> = ({ filter, onFilter, counts }) => (
-  counts.buy > 0 || filter === 'buy' ? (
+/** Buy, a pill that a second click lets go; left out with nothing to buy, unless it is shown. On a phone, its cart and its count alone. */
+export const DigitalChips: React.FC<DigitalChipsProps> = ({ filter, onFilter, counts }) => {
+  const narrow = useNarrow();
+  if (counts.buy === 0 && filter !== 'buy') return null;
+  return (
     <div className="digital-chips" role="group" aria-label="Show">
       <Chip active={filter === 'buy'} icon={<BsCartFill aria-hidden="true" />} count={counts.buy}
-        className="digital-chip-buy" onClick={() => onFilter(filter === 'buy' ? 'all' : 'buy')}>
-        Buy
+        className="digital-chip-buy" onClick={() => onFilter(filter === 'buy' ? 'all' : 'buy')}
+        {...(narrow ? { title: 'Buy', 'aria-label': `Buy, ${counts.buy}` } : {})}>
+        {narrow ? null : 'Buy'}
       </Chip>
     </div>
-  ) : null
-);
+  );
+};
 
 interface DigitalNoticesProps {
   library: DigitalLibrary | null;

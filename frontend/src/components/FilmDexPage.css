@@ -1229,3 +1229,10 @@
 .movie-search > .next-banner-slot--leaving {
   margin-top: 0;
 }
+
+/* On a phone Watch Next is its posters alone: its star and its count would take a line for little. */
+@media (max-width: 575px) {
+  .watch-next-banner .next-banner__header {
+    display: none;
+  }
+}
