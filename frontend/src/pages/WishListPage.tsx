@@ -1,6 +1,6 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BsTrash, BsCurrencyDollar, BsBookmarkCheck, BsClipboard, BsDisc, BsFilm, BsBook, BsFileEarmark, BsPlus, BsSearch } from 'react-icons/bs';
+import { BsTrash, BsCurrencyDollar, BsBookmarkCheck, BsClipboard, BsDisc, BsFilm, BsBook, BsFileEarmark, BsPlus, BsSearch, BsBoxArrowUp } from 'react-icons/bs';
 import apiService from '../services/api';
 import musicService from '../services/musicService';
 import { base64ToFile } from '../utils/downscaleImage';
@@ -32,6 +32,15 @@ import Spinner, { Loading } from '../components/shared/Spinner';
 import { thumbProps } from '../utils/thumb';
 import { openRicardo, ricardoSearchUrl } from '../utils/digitalLibrary';
 import { parseWishlistSearch } from '../utils/wishlistSearch';
+import SwipeRow, { type SwipeAction } from '../components/SwipeRow';
+import useNarrow from '../utils/useNarrow';
+import { toast } from '../components/shared/Toast';
+import { readStored, writeStored } from '../utils/safeStorage';
+import copyText from '../utils/copyText';
+
+/** Set once the first row has shown, on a phone, that the rows slide. */
+const SWIPE_HINT_KEY = 'dexvault-wishlist-swipe-hint';
+
 
 export interface WishListPageRef {
   refreshItems: () => Promise<void>;
@@ -533,8 +542,8 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
   // Movies come as their rows (spoken_for 0/1), albums and books formatted.
   const isSpokenFor = (item: any): boolean => item.spokenFor ?? item.spoken_for === 1;
 
-  const handleSpokenForClick = async (item: any, itemType: 'movie' | 'album' | 'book', e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleSpokenForClick = async (item: any, itemType: 'movie' | 'album' | 'book', e?: React.MouseEvent) => {
+    e?.stopPropagation();
     const spokenFor = !isSpokenFor(item);
     const mark = (on: boolean) => (list: any[]) => list.map(x => x.id !== item.id ? x
       : itemType === 'movie' ? { ...x, spoken_for: on ? 1 : 0 } : { ...x, spokenFor: on });
@@ -562,6 +571,59 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
     <CoverTag variant="muted" className="wl-spoken-for-tag">Spoken for</CoverTag>
   );
 
+  // On a phone a row slides: right, spoken for; left, Share, I bought it and Delete.
+  const narrow = useNarrow();
+  const [swipeHint] = useState(() => readStored(SWIPE_HINT_KEY) !== '1');
+  useEffect(() => { if (narrow && swipeHint) writeStored(SWIPE_HINT_KEY, '1'); }, [narrow, swipeHint]);
+  const hintKind = movies.length > 0 ? 'movie' : albums.length > 0 ? 'album' : 'book';
+
+  /** An item in a line, as the copied list says it. */
+  const referenceOf = (item: any, itemType: 'movie' | 'album' | 'book'): string => {
+    if (itemType === 'movie') return `${item.title} (${getYear(item)}) in ${item.format || 'Unspecified'}`;
+    if (itemType === 'album') {
+      const artist = Array.isArray(item.artist) ? item.artist.join(', ') : item.artist;
+      return `${item.title} by ${artist} (${item.releaseYear || 'Unknown'}) in ${item.format || 'CD'}`;
+    }
+    const authors = Array.isArray(item.authors) ? item.authors.join(', ') : item.authors;
+    return `${item.title} by ${authors || 'Unknown'} (${item.publishedYear || 'Unknown'}) in ${item.format || 'Hardcover'}`;
+  };
+
+  /** The system's sheet where there is one (an iPhone, Safari), the clipboard otherwise. */
+  const share = async (item: any, itemType: 'movie' | 'album' | 'book') => {
+    const text = referenceOf(item, itemType);
+    if (navigator.share) {
+      try { await navigator.share({ text }); } catch (err) {
+        if ((err as Error).name !== 'AbortError') toast('It could not be shared', { tone: 'danger' });
+      }
+      return;
+    }
+    if (await copyText(text)) toast(`Copied: ${text}`, { tone: 'success' });
+    else toast('It could not be copied', { tone: 'danger' });
+  };
+
+  const shareButton = (item: any, itemType: 'movie' | 'album' | 'book', boxed = false) => (
+    <IconButton label="Share" size={boxed ? 'md' : 'sm'} boxed={boxed} className="action-button share"
+      onClick={(e) => { e.stopPropagation(); share(item, itemType); }}
+    ><BsBoxArrowUp /></IconButton>
+  );
+
+  /** What a row slid to the left lays bare: Share, I bought it, Delete. */
+  const swipeActions = (item: any, itemType: 'movie' | 'album' | 'book'): SwipeAction[] => [
+    { label: 'Share', icon: <BsBoxArrowUp />, onSelect: () => share(item, itemType) },
+    {
+      label: 'Bought', icon: <BsCurrencyDollar />, tone: 'gold',
+      onSelect: () => itemType === 'movie' ? buyMovie(item) : itemType === 'album' ? setBuyingAlbum(item) : buyBook(item),
+    },
+    { label: 'Delete', icon: <BsTrash />, tone: 'danger', disabled: deletingId === item.id, onSelect: () => setShowDeleteModal({ show: true, itemId: item.id, itemType }) },
+  ];
+
+  const buyBook = (book: any) => setBuyingBooks({ books: [{
+    id: book.id, title: book.title, cover: book.cover || null, authors: book.authors || [],
+    year: book.publishedYear ? String(book.publishedYear) : null, series: book.series || null,
+    seriesNumber: book.seriesNumber || null, bookType: book.bookType || null, language: book.language || null,
+    format: book.format || null, owner: book.owner || null,
+  }] });
+
   const buyMovie = (movie: any) => {
     const asBuying = (m: any) => ({ id: m.id, tmdbId: m.tmdb_id, title: m.title, posterPath: m.poster_path || null, year: getYear(m) ? String(getYear(m)) : null, format: m.format || null });
     const box = movie.box_set_name ? allMovies.filter(m => m.box_set_name === movie.box_set_name) : [movie];
@@ -583,91 +645,23 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
 
     // Add movies
     allMovies.forEach(movie => {
-      const year = getYear(movie);
-      const format = movie.format || 'Unspecified';
-      markdown += ` - 🎬 ${movie.title} (${year}) in ${format}\n`;
+      markdown += ` - 🎬 ${referenceOf(movie, 'movie')}\n`;
     });
 
     // Add albums
     allAlbums.forEach(album => {
-      const year = album.releaseYear || 'Unknown';
-      const format = album.format || 'CD';
-      const artistString = Array.isArray(album.artist) ? album.artist.join(', ') : album.artist;
-      markdown += ` - 🎵 ${album.title} by ${artistString} (${year}) in ${format}\n`;
+      markdown += ` - 🎵 ${referenceOf(album, 'album')}\n`;
     });
 
     // Add books
     allBooks.forEach(book => {
-      const year = book.publishedYear || 'Unknown';
-      const format = book.format || 'Hardcover';
-      const authorsString = Array.isArray(book.authors) ? book.authors.join(', ') : book.authors;
-      markdown += ` - 📚 ${book.title} by ${authorsString || 'Unknown'} (${year}) in ${format}\n`;
+      markdown += ` - 📚 ${referenceOf(book, 'book')}\n`;
     });
 
-    try {
-      // Try modern clipboard API first
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(markdown);
-        if (onShowAlert) {
-          onShowAlert('Wishlist copied to clipboard!', 'success');
-        }
-        return;
-      }
-    } catch (err) {
-      console.log('Modern clipboard API failed, trying fallback method:', err);
-    }
-
-    // Fallback method for contexts where the Clipboard API is unavailable
-    try {
-      // Save the current active element to restore focus later
-      const activeElement = document.activeElement as HTMLElement;
-
-      const textArea = document.createElement('textarea');
-      textArea.value = markdown;
-      // Position off-screen to prevent any visual flickering
-      textArea.style.position = 'absolute';
-      textArea.style.left = '-9999px';
-      textArea.style.top = '-9999px';
-      textArea.style.width = '1px';
-      textArea.style.height = '1px';
-      textArea.style.padding = '0';
-      textArea.style.border = '0';
-      textArea.style.outline = '0';
-      textArea.style.boxShadow = 'none';
-      textArea.style.background = 'transparent';
-      textArea.style.pointerEvents = 'none';
-      textArea.setAttribute('readonly', '');
-      textArea.setAttribute('aria-hidden', 'true');
-      textArea.tabIndex = -1;
-
-      document.body.appendChild(textArea);
-
-      // Select the text
-      textArea.select();
-      textArea.setSelectionRange(0, textArea.value.length);
-
-      const successful = document.execCommand('copy');
-
-      // Clean up
-      document.body.removeChild(textArea);
-
-      // Restore focus to prevent flickering
-      if (activeElement && activeElement.focus) {
-        activeElement.focus();
-      }
-
-      if (successful) {
-        if (onShowAlert) {
-          onShowAlert('Wishlist copied to clipboard!', 'success');
-        }
-      } else {
-        throw new Error('execCommand failed');
-      }
-    } catch (err) {
-      console.error('Failed to copy:', err);
-      if (onShowAlert) {
-        onShowAlert('Failed to copy to clipboard', 'danger');
-      }
+    if (await copyText(markdown)) {
+      if (onShowAlert) onShowAlert('Wishlist copied to clipboard!', 'success');
+    } else if (onShowAlert) {
+      onShowAlert('Failed to copy to clipboard', 'danger');
     }
   };
 
@@ -866,12 +860,17 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                     </tr>
                   </thead>
                   <tbody>
-                    {movies.map((movie) => (
-                      <tr
+                    {movies.map((movie, index) => (
+                      <SwipeRow
                         key={`movie-${movie.id}`}
                         className={`clickable-row${isSpokenFor(movie) ? ' spoken-for' : ''}`}
                         onClick={() => handleItemClick(movie.id, 'movie')}
                         style={{ cursor: 'pointer' }}
+                        enabled={narrow}
+                        hint={swipeHint && index === 0 && hintKind === 'movie'}
+                        spokenFor={isSpokenFor(movie)}
+                        onSpokenFor={() => handleSpokenForClick(movie, 'movie')}
+                        actions={swipeActions(movie, 'movie')}
                       >
                         <td className="wl-cover">
                           <div className="table-poster">
@@ -889,7 +888,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                         <td className="wl-title">
                           <div className="movie-title-cell">
                             <strong>{movie.title}</strong>{spokenForTag(movie)}
-                            {movie.box_set_name && <div className="wl-box-set"><CoverTag variant="gold">Box set · {movie.box_set_name}</CoverTag></div>}
+                            {movie.box_set_name && <div className="wl-box-set"><CoverTag variant="gold" title={`Box set · ${movie.box_set_name}`}><span className="wl-box-set__name">Box set · {movie.box_set_name}</span></CoverTag></div>}
                             {movie.original_title && movie.original_title !== movie.title && (
                               <div className="original-title">{movie.original_title}</div>
                             )}
@@ -949,6 +948,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                                 openRicardo(ricardoSearchUrl(`${movie.title} ${movie.format || 'Blu-ray'}`));
                               }}
                             ><BsSearch /></IconButton>
+                            {!narrow && (<>
                             {spokenForButton(movie, 'movie')}
                             <IconButton label={movie.box_set_name ? 'I bought the box set' : 'I bought it'} size="sm" className="action-button mark-owned"
                               onClick={(e) => {
@@ -956,6 +956,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                                 buyMovie(movie);
                               }}
                             ><BsCurrencyDollar /></IconButton>
+                            {shareButton(movie, 'movie')}
                             <IconButton label="Delete movie" tone="danger" size="sm" className="action-button delete"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -964,9 +965,10 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                               disabled={deletingId === movie.id}
                               title="Delete movie"
                             ><BsTrash /></IconButton>
+                            </>)}
                           </div>
                         </td>
-                      </tr>
+                      </SwipeRow>
                     ))}
                   </tbody>
                 </table>
@@ -995,12 +997,17 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                     </tr>
                   </thead>
                   <tbody>
-                    {albums.map((album) => (
-                      <tr
+                    {albums.map((album, index) => (
+                      <SwipeRow
                         key={`album-${album.id}`}
                         className={`clickable-row${isSpokenFor(album) ? ' spoken-for' : ''}`}
                         onClick={() => handleItemClick(album.id, 'album')}
                         style={{ cursor: 'pointer' }}
+                        enabled={narrow}
+                        hint={swipeHint && index === 0 && hintKind === 'album'}
+                        spokenFor={isSpokenFor(album)}
+                        onSpokenFor={() => handleSpokenForClick(album, 'album')}
+                        actions={swipeActions(album, 'album')}
                       >
                         <td className="wl-cover">
                           <div className="album-poster">
@@ -1037,6 +1044,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                                 openRicardo(ricardoSearchUrl(`${Array.isArray(album.artist) ? album.artist.join(' ') : album.artist} ${album.title} ${album.format || 'CD'}`));
                               }}
                             ><BsSearch /></IconButton>
+                            {!narrow && (<>
                             {spokenForButton(album, 'album')}
                             <IconButton label="I bought the CD" size="sm" className="action-button mark-owned"
                               onClick={(e) => {
@@ -1044,6 +1052,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                                 setBuyingAlbum(album);
                               }}
                             ><BsCurrencyDollar /></IconButton>
+                            {shareButton(album, 'album')}
                             <IconButton label="Delete album" tone="danger" size="sm" className="action-button delete"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1052,9 +1061,10 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                               disabled={deletingId === album.id}
                               title="Delete album"
                             ><BsTrash /></IconButton>
+                            </>)}
                           </div>
                         </td>
-                      </tr>
+                      </SwipeRow>
                     ))}
                   </tbody>
                 </table>
@@ -1083,12 +1093,17 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                     </tr>
                   </thead>
                   <tbody>
-                    {books.map((book) => (
-                      <tr
+                    {books.map((book, index) => (
+                      <SwipeRow
                         key={`book-${book.id}`}
                         className={`clickable-row${isSpokenFor(book) ? ' spoken-for' : ''}`}
                         onClick={() => handleItemClick(book.id, 'book')}
                         style={{ cursor: 'pointer' }}
+                        enabled={narrow}
+                        hint={swipeHint && index === 0 && hintKind === 'book'}
+                        spokenFor={isSpokenFor(book)}
+                        onSpokenFor={() => handleSpokenForClick(book, 'book')}
+                        actions={swipeActions(book, 'book')}
                       >
                         <td className="wl-cover">
                           <div className="book-poster" style={{ position: 'relative' }}>
@@ -1141,18 +1156,15 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                         <td className="wl-added">{formatDate(book.createdAt)}</td>
                         <td className="wl-actions">
                           <div className="actions-cell">
+                            {!narrow && (<>
                             {spokenForButton(book, 'book')}
                             <IconButton label="I bought it" size="sm" className="action-button mark-owned"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setBuyingBooks({ books: [{
-                                  id: book.id, title: book.title, cover: book.cover || null, authors: book.authors || [],
-                                  year: book.publishedYear ? String(book.publishedYear) : null, series: book.series || null,
-                                  seriesNumber: book.seriesNumber || null, bookType: book.bookType || null, language: book.language || null,
-                                  format: book.format || null, owner: book.owner || null,
-                                }] });
+                                buyBook(book);
                               }}
                             ><BsCurrencyDollar /></IconButton>
+                            {shareButton(book, 'book')}
                             <IconButton label="Delete book" tone="danger" size="sm" className="action-button delete"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1161,9 +1173,10 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                               disabled={deletingId === book.id}
                               title="Delete book"
                             ><BsTrash /></IconButton>
+                            </>)}
                           </div>
                         </td>
-                      </tr>
+                      </SwipeRow>
                     ))}
                   </tbody>
                 </table>

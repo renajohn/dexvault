@@ -1,0 +1,146 @@
+/*
+ * A row a finger slides (SwipeRow.tsx). The row stays where it is and keeps
+ * what lies under it still against its edges; the plate, its ground (::before)
+ * and its cells, moves by --swipe, all of them alike. isolation keeps the
+ * plate's ground above what lies under and below its cells.
+ */
+.swipe-row {
+  --swipe: 0px;
+  --swipe-ease: transform 0.32s cubic-bezier(0.2, 0.9, 0.25, 1);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The plate's ground: the page's own, so nothing shows through it. */
+.swipe-row::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--dv-page);
+}
+
+.swipe-row::before,
+.swipe-row > td:not(.swipe-row__under) {
+  transform: translateX(var(--swipe));
+  transition: var(--swipe-ease);
+}
+
+/* Under the finger, the plate follows at once. */
+.swipe-row.swipe-row--moving::before,
+.swipe-row.swipe-row--moving > td:not(.swipe-row__under) {
+  transition: none;
+}
+
+/* td.: the tables' own cells (display, background, padding) give way. */
+.swipe-row > td.swipe-row__under {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: -2;
+  padding: 0;
+  display: none;
+}
+
+.swipe-row--right > td.swipe-row__under--deed,
+.swipe-row--left > td.swipe-row__under--actions {
+  display: flex;
+}
+
+/* Slid to the right: the deed in grey, gold past the threshold (gold means on). */
+.swipe-row > td.swipe-row__under--deed {
+  align-items: center;
+  background: #2a2a2a;
+  color: var(--dv-text-muted);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.swipe-row--armed > td.swipe-row__under--deed {
+  background: var(--dv-gold);
+  color: var(--dv-gold-ink);
+}
+
+.swipe-row__deed {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 88px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.swipe-row__deed svg {
+  font-size: 22px;
+}
+
+/* Slid to the left: large buttons, the whole height, against the right edge. */
+.swipe-row > td.swipe-row__under--actions {
+  justify-content: flex-end;
+  background: #2a2a2a;
+}
+
+.swipe-row__actions {
+  display: flex;
+  height: 100%;
+}
+
+.swipe-row__action {
+  width: 76px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-left: 1px solid rgba(0, 0, 0, 0.25);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.swipe-row__action svg {
+  font-size: 22px;
+}
+
+.swipe-row__action--plain {
+  background: #3a3a3c;
+  color: var(--dv-text);
+}
+
+.swipe-row__action--gold {
+  background: var(--dv-gold);
+  color: var(--dv-gold-ink);
+}
+
+.swipe-row__action--danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.swipe-row__action:disabled {
+  opacity: 0.5;
+}
+
+/* Once, the first row opens a little and closes, to say that it slides. */
+.swipe-row--hint > td.swipe-row__under--actions {
+  display: flex;
+}
+
+.swipe-row--hint::before,
+.swipe-row--hint > td:not(.swipe-row__under) {
+  animation: swipe-row-hint 1.2s cubic-bezier(0.2, 0.9, 0.25, 1) 0.6s 1;
+}
+
+@keyframes swipe-row-hint {
+  0%, 100% { transform: translateX(0); }
+  35%, 60% { transform: translateX(-64px); }
+}

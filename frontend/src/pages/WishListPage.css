@@ -685,3 +685,37 @@ label {
 .wl-box-set {
   margin-top: 4px;
 }
+
+/* A long box set's name stops at the column's edge (on a phone, the buttons'), whole in its tooltip. */
+.wl-box-set .cover-tag {
+  max-width: 100%;
+}
+.wl-box-set__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* On a phone the lists run from edge to edge, as an iPhone's own: no frame
+   around a section, its rows (and what a slid row lays bare) the screen's
+   width, their words kept off the edges by the rows' own padding. */
+@media (max-width: 575px) {
+  .wishlist-section {
+    margin: 0 -16px;
+    padding: 0 0 4px;
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .wishlist-section .wish-list-section-title {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .wishlist-table tbody tr {
+    padding: 10px 16px;
+  }
+}
