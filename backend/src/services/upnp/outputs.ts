@@ -75,6 +75,8 @@ class Outputs {
   private settings = new Map<string, Settings>();
   private saved = new Map<string, SavedSession>();
   private listeners = new Set<Response>();
+  /** Whether each appliance answers, as the pages were last told: a session that goes away or comes back tells them again. */
+  private told = new Map<string, boolean>();
   private server: http.Server | null = null;
   /** Writes to the base under way: a shutdown waits for them, so that the next start reads them. */
   private writes = new Set<Promise<unknown>>();
@@ -130,6 +132,7 @@ class Outputs {
       session.dispose();
     }
     this.sessions.clear();
+    this.told.clear();
     await Promise.allSettled([...this.writes]);
     for (const listener of this.listeners) listener.end();
     this.listeners.clear();
@@ -201,7 +204,10 @@ class Outputs {
         : this.write('DELETE FROM output_sessions WHERE id = ?', [id])),
       emit: (event, payload) => {
         this.broadcast(event, payload);
-        if (event === 'state') this.sessions.get(id)?.poller.wake();
+        if (event !== 'state') return;
+        this.sessions.get(id)?.poller.wake();
+        // Back from away (or gone) by a poll or a command: the list the pages hold says so at once, not at the next minute's read.
+        if (this.told.has(id) && this.told.get(id) !== this.reachableOf(id)) this.broadcast('outputs', null);
       },
       now: this.overrides.now,
       wait: this.overrides.wait,
@@ -265,7 +271,7 @@ class Outputs {
         deviceName: description?.name ?? settings?.deviceName ?? '',
         model: description?.model ?? settings?.model ?? '',
         manufacturer: description?.manufacturer ?? '',
-        reachable: Boolean(entry?.reachable) && session?.status !== 'unreachable',
+        reachable: this.reachableOf(id),
         gapless: Boolean(entry?.renderer?.gapless),
         volume: session?.volume ?? null,
         muted: session?.muted ?? false,
@@ -273,6 +279,11 @@ class Outputs {
         session: session ? session.state() : null,
       };
     });
+  }
+
+  /** Whether it answers: its description read, and its session not away. */
+  private reachableOf(id: string): boolean {
+    return Boolean(this.entryOf(id)?.reachable) && this.sessions.get(id)?.session.status !== 'unreachable';
   }
 
   /** The name shown and the volume's ceiling, as the owner sets them; null when no such appliance. */
@@ -296,6 +307,7 @@ class Outputs {
   /** Every page listening told: `state` (a session), `left` (an album leaving Listen Next), `outputs` (the list changed). */
   broadcast(event: 'state' | 'left' | 'outputs', payload: unknown): void {
     const data = event === 'outputs' ? this.list() : payload;
+    if (event === 'outputs') for (const output of data as OutputListed[]) this.told.set(output.id, output.reachable);
     const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const listener of this.listeners) listener.write(message);
   }
@@ -306,7 +318,9 @@ class Outputs {
     response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     response.write(': listening\n\n');
     // What plays now, at once: the page needs not wait for the next change.
-    response.write(`event: outputs\ndata: ${JSON.stringify(this.list())}\n\n`);
+    const listed = this.list();
+    for (const output of listed) this.told.set(output.id, output.reachable);
+    response.write(`event: outputs\ndata: ${JSON.stringify(listed)}\n\n`);
     this.listeners.add(response);
     const alive = setInterval(() => response.write('event: alive\ndata: 1\n\n'), KEEP_ALIVE_MS);
     alive.unref?.();

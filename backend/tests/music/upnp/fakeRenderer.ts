@@ -51,6 +51,10 @@ export class FakeRenderer {
   muted = false;
   /** No answer at all: the connection dropped, as an appliance switched off. */
   down = false;
+  /** The next this many commands go unanswered, as a slow Onkyo between two tracks; the rest answered. */
+  dropNext = 0;
+  /** Addresses it refuses as a format it cannot play (714). */
+  unplayable = new Set<string>();
   /** Actions refused with a UPnP error code. */
   refuse = new Map<string, number>();
   /** What each address lasts, in seconds; 200 when not said. */
@@ -145,6 +149,7 @@ export class FakeRenderer {
   private answer(action: string, args: Record<string, string>): Record<string, string | number> {
     switch (action) {
       case 'SetAVTransportURI':
+        if (this.unplayable.has(args.CurrentURI)) throw Object.assign(new Error('Illegal MIME-type'), { code: 714 });
         this.uri = args.CurrentURI;
         this.nextUri = '';
         this.position = 0;
@@ -211,7 +216,7 @@ export class FakeRenderer {
   }
 
   private handle(req: http.IncomingMessage, res: http.ServerResponse): void {
-    if (this.down) {
+    if (this.down || (req.method === 'POST' && this.dropNext > 0 && this.dropNext--)) {
       req.socket.destroy();
       return;
     }

@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { player, resetPlayer } from './player';
-import outputs, { resetOutputs, takeState, type Output, type OutputState } from './outputs';
+import { player, reportOutputError, resetPlayer } from './player';
+import toast from '../components/shared/Toast';
+import outputs, { knownOutputs, resetOutputs, takeState, type Output, type OutputState } from './outputs';
 import { listenNextQueue } from './listenNextQueue';
 import { playAlbumById } from '../utils/playAlbum';
+import { OutputError } from './outputs';
+
+vi.mock('../components/shared/Toast', async original => ({ ...(await original<object>()), default: vi.fn() }));
 
 const album = { id: 7, title: 'Come Away With Me', artist: 'Norah Jones', cover: null };
 const tracks = [
@@ -129,6 +133,141 @@ describe('the player on an output', () => {
     expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/play', body: { album: { id: 7 }, index: 1, position: 40 } });
   });
 
+  it('no longer greys Salon once it plays after an outage, whatever the last list said', async () => {
+    list = [listed('uuid:salon', 'Salon', { reachable: false }), listed('uuid:bureau', 'Bureau')];
+    await outputs.list();
+    player.setOutput(SALON);
+    takeState(session({ status: 'unreachable', wanted: true }));
+    expect(player.getState()).toMatchObject({ outputStatus: 'unreachable', playing: true });
+    // It answers and plays: the state alone says so, before the next list.
+    takeState(session({ status: 'playing' }));
+    expect(player.getState()).toMatchObject({ outputStatus: null, playing: true });
+    expect(knownOutputs().find(one => one.id === 'uuid:salon')!.reachable).toBe(true);
+  });
+
+  it('says a play kept for an appliance waking up quietly, not as a failure', async () => {
+    vi.mocked(fetch).mockImplementationOnce(() => Promise.resolve(new Response(JSON.stringify({
+      error: 'Salon is waking up: it plays as soon as it answers', status: 'unreachable', kept: true,
+    }), { status: 503 })));
+    const refused = await outputs.toggle('uuid:salon', true).catch(error => error);
+    expect(refused).toMatchObject({ status: 'unreachable', kept: true });
+  });
+
+  it('says what went wrong on an appliance in the right tone: a play kept quietly, away in orange, taken grey, the rest red', () => {
+    reportOutputError(new OutputError('Salon is waking up: it plays as soon as it answers', 503, 'unreachable', true));
+    reportOutputError(new OutputError('Salon does not answer: is it on?', 503, 'unreachable'));
+    reportOutputError(new OutputError('Salon is playing something else', 409, 'taken'));
+    reportOutputError(new OutputError('Play refused (701)', 502, null));
+    expect(vi.mocked(toast).mock.calls).toEqual([
+      ['Salon is waking up: it plays as soon as it answers', { tone: 'info' }],
+      ['Salon does not answer: is it on?', { tone: 'warning' }],
+      ['Salon is playing something else', { tone: 'info' }],
+      ['Play refused (701)', { tone: 'danger' }],
+    ]);
+  });
+
+describe('transfers, every source status', () => {
+  const other = { id: 9, title: 'Matters of the Heart', artist: 'Tracy Chapman', cover: null };
+
+  it('X4: carries the play here to Salon even while Salon plays something else, which it replaces', () => {
+    takeState(session({ album: other, status: 'playing' }));
+    player.setOutput({ kind: 'local' });
+    player.playAlbum(album, tracks, 1, 40);
+    player.setOutput(SALON);
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/play', body: { album: { id: 7 }, index: 1 } });
+  });
+
+  it('X11: carries nothing from Salon stopped by ✕: here plays nothing, sends nothing', () => {
+    player.setOutput(SALON);
+    takeState(session({ status: 'stopped' }));
+    const before = commands().length;
+    player.setOutput({ kind: 'local' });
+    expect(player.getState()).toMatchObject({ output: { kind: 'local' }, album: null, playing: false });
+    expect(commands()).toHaveLength(before);
+  });
+
+  it('X12: carries nothing from Salon playing someone else’s, and leaves it alone', () => {
+    player.setOutput(SALON);
+    takeState(session({ status: 'taken' }));
+    const before = commands().length;
+    player.setOutput({ kind: 'local' });
+    expect(player.getState()).toMatchObject({ output: { kind: 'local' }, album: null });
+    expect(commands()).toHaveLength(before);
+  });
+
+  it('X13: carries a play waiting for Salon to wake to Bureau by the server, which makes Salon forget it', () => {
+    player.setOutput(SALON);
+    takeState(session({ status: 'unreachable', wanted: true }));
+    player.setOutput(BUREAU);
+    // One command: the server pauses the one left, a play kept there forgotten (session.test: 'forgets it once the play goes to another output').
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Abureau/play', body: { from: 'uuid:salon' } });
+  });
+
+  it('X14: brings the album of Salon away, paused, along in hand here', () => {
+    player.setOutput(SALON);
+    takeState(session({ status: 'unreachable', position: 40 }));
+    player.setOutput({ kind: 'local' });
+    expect(player.getState()).toMatchObject({ output: { kind: 'local' }, album, index: 1, playing: false, position: 40 });
+  });
+
+  it('lets go of the album in hand once Salon plays: its first pause never brings the old album back, ▶ never plays it over', () => {
+    player.playAlbum(album, tracks, 1, 40);
+    player.toggle(false);
+    audios.forEach(audio => audio.dispatchEvent(new Event('pause')));
+    takeState(session({ album: other, status: 'playing' }));
+    player.setOutput(SALON);
+    expect(player.getState()).toMatchObject({ album: other, playing: true });
+    takeState(session({ album: other, status: 'paused' }));
+    expect(player.getState()).toMatchObject({ album: other, playing: false });
+    player.toggle();
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/toggle', body: { playing: true } });
+  });
+
+  it('lets go of it too when ▶ carried it to Salon waking up: the play waiting there is the bar’s', () => {
+    player.playAlbum(album, tracks, 1, 40);
+    player.toggle(false);
+    audios.forEach(audio => audio.dispatchEvent(new Event('pause')));
+    player.setOutput(SALON);
+    takeState(session({ status: 'unreachable', wanted: true, position: 40 }));
+    expect(player.getState()).toMatchObject({ album, outputStatus: 'unreachable', playing: true });
+    takeState(session({ status: 'paused', position: 40 }));
+    // Its pause shows Salon's own place, not the album here of before.
+    expect(player.getState().position).toBe(40);
+    player.toggle();
+    expect(commands().at(-1)!.url).toBe('/api/outputs/uuid%3Asalon/toggle');
+  });
+
+  it('keeps the album here, paused, when Salon refuses the play carried to it', async () => {
+    player.playAlbum(album, tracks, 1, 40);
+    vi.mocked(fetch).mockImplementationOnce(() => Promise.resolve(new Response(JSON.stringify({ error: 'Play refused (701)' }), { status: 502 })));
+    player.setOutput(SALON);
+    expect(player.getState()).toMatchObject({ album, playing: false, output: SALON });
+    await vi.waitFor(() => expect(vi.mocked(toast)).toHaveBeenCalledWith('Play refused (701)', { tone: 'danger' }));
+    expect(player.getState()).toMatchObject({ album, index: 1, playing: false, barShown: true });
+    // ▶ tries again there.
+    player.toggle();
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/play', body: { album: { id: 7 }, index: 1 } });
+  });
+
+  it('says Salon plays someone else’s while an album is in hand for it', () => {
+    player.playAlbum(album, tracks, 1, 40);
+    player.toggle(false);
+    audios.forEach(audio => audio.dispatchEvent(new Event('pause')));
+    takeState(session({ status: 'taken' }));
+    player.setOutput(SALON);
+    expect(player.getState()).toMatchObject({ album, outputStatus: 'taken' });
+  });
+
+  it('X15: shows what Bureau plays when chosen with an album paused in hand: what sounds in the room', () => {
+    player.playAlbum(album, tracks, 1, 40);
+    player.toggle(false);
+    audios.forEach(audio => audio.dispatchEvent(new Event('pause')));
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', album: other, status: 'playing' }));
+    player.setOutput(BUREAU);
+    expect(player.getState()).toMatchObject({ output: BUREAU, album: other, playing: true });
+  });
+});
+
   it('shows what plays on the appliance, and sends it the bar’s commands', async () => {
     player.setOutput(SALON);
     takeState(session());
@@ -148,10 +287,13 @@ describe('the player on an output', () => {
     player.setOutput(SALON);
     takeState(session());
     const before = commands().length;
+    // At the start of the track; the hand moves on as it plays, a loaded machine taking a few milliseconds between two lines.
     player.playTrack(0);
-    expect(player.getState()).toMatchObject({ index: 0, position: 0, playing: true });
+    expect(player.getState()).toMatchObject({ index: 0, playing: true });
+    expect(player.getState().position).toBeLessThan(1);
     player.playTrack(1);
-    expect(player.getState()).toMatchObject({ index: 1, position: 0 });
+    expect(player.getState().index).toBe(1);
+    expect(player.getState().position).toBeLessThan(1);
     player.playTrack(0);
     expect(commands()).toHaveLength(before);
     await vi.waitFor(() => expect(commands()).toHaveLength(before + 1));

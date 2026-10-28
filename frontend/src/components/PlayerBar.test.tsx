@@ -98,6 +98,38 @@ describe('PlayerBar on an appliance', () => {
     expect(document.querySelector('.player-bar-where')).toBeNull();
   });
 
+  it('shows a play waiting for Salon to wake as playing, greyed, ⏸ forgetting it; no longer greyed once it plays', async () => {
+    house = [listed({ reachable: false, session: session({ status: 'unreachable', wanted: true }) })];
+    await act(async () => { await outputs.list(); });
+    renderBar();
+    expect(document.querySelector('.player-bar')).toHaveClass('player-bar--away');
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/toggle', body: { playing: false } });
+
+    // It answers and plays: the state alone ungreys it, the last list still saying away.
+    act(() => { takeState(session({ status: 'playing' })); });
+    expect(document.querySelector('.player-bar')).not.toHaveClass('player-bar--away');
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeEnabled();
+  });
+
+  it('plays Salon on from its pause with ⏯', () => {
+    act(() => { takeState(session({ status: 'paused' })); });
+    renderBar();
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/toggle', body: { playing: true } });
+  });
+
+  it('U13: on an iPhone, the full screen of Salon is greyed while it wakes, and no longer once it plays', async () => {
+    // A phone's width, a finger.
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('767'), addEventListener() {}, removeEventListener() {} }));
+    house = [listed({ reachable: false, session: session({ status: 'unreachable', wanted: true }) })];
+    await act(async () => { await outputs.list(); });
+    renderBar();
+    expect(document.querySelector('.now-playing')).toHaveClass('now-playing--away');
+    act(() => { takeState(session({ status: 'playing' })); });
+    expect(document.querySelector('.now-playing')).not.toHaveClass('now-playing--away');
+  });
+
   it('is not there while Salon plays nothing', () => {
     act(() => { takeState(session({ status: 'stopped' })); });
     renderBar();

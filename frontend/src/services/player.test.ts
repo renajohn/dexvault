@@ -110,6 +110,46 @@ describe('player', () => {
     expect(player.getState()).toMatchObject({ album, index: 1, position: 42, resume: null });
   });
 
+  it('L2: pauses with ⏯ and plays on from the same place, the track not loaded again', () => {
+    player.playAlbum(album, tracks, 1);
+    const audio = playingAudio();
+    // Its data there, as a browser has it (jsdom's element has no source to load).
+    Object.defineProperty(audio, 'networkState', { value: HTMLMediaElement.NETWORK_IDLE, configurable: true });
+    Object.defineProperty(audio, 'error', { value: null, configurable: true });
+    audio.currentTime = 42;
+    const load = vi.mocked(HTMLMediaElement.prototype.load);
+    load.mockClear();
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    pause.mockClear();
+    Object.defineProperty(audio, 'paused', { value: false, configurable: true });
+    player.toggle();
+    expect(pause).toHaveBeenCalled();
+    Object.defineProperty(audio, 'paused', { value: true, configurable: true });
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    play.mockClear();
+    player.toggle();
+    expect(play.mock.contexts).toEqual([audio]);
+    // The track playing is not loaded again (the spare may load the next one).
+    expect(load.mock.contexts).not.toContain(audio);
+    expect(audio.currentTime).toBe(42);
+  });
+
+  it('L4: seeks within a track on a Mac, its data there: straight there, no reload, the bar at once', () => {
+    player.playAlbum(album, tracks, 0);
+    const audio = playingAudio();
+    Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
+    const load = vi.mocked(HTMLMediaElement.prototype.load);
+    load.mockClear();
+    player.seek(90);
+    expect(audio.currentTime).toBe(90);
+    expect(player.getState().position).toBe(90);
+    expect(load).not.toHaveBeenCalled();
+    // The element moves on from there: the bar follows it, no older place pulls it back.
+    audio.currentTime = 91;
+    audio.dispatchEvent(new Event('timeupdate'));
+    expect(player.getState().position).toBe(91);
+  });
+
   it('goes back to the start of a track, or to the one before in its first seconds', () => {
     player.playAlbum(album, tracks, 1);
     playingAudio().currentTime = 30;

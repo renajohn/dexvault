@@ -587,7 +587,17 @@ export class OutputSession {
     try {
       await this.giveTrack(index, at, skipped);
     } catch (error) {
-      if (error instanceof OutputUnreachableError) this.keepWanted();
+      if (!(error instanceof OutputUnreachableError)) throw error;
+      // One call unanswered while it was there (a slow Onkyo between two tracks): tried once more, not shown away at once.
+      if (this.failures < UNREACHABLE_AFTER && this.status !== 'unreachable') {
+        try {
+          await this.giveTrack(index, at, skipped);
+          return;
+        } catch (again) {
+          if (!(again instanceof OutputUnreachableError)) throw again;
+        }
+      }
+      this.keepWanted();
       throw error;
     }
   }
@@ -799,7 +809,15 @@ export class OutputSession {
       transport = await this.call(renderer => renderer.transportInfo());
       where = await this.call(renderer => renderer.positionInfo());
     } catch (error) {
-      if (wasAway) this.awayPolls++;
+      if (wasAway) {
+        this.awayPolls++;
+        // Its time to be given back over while it stayed away: the pages no longer show it waiting to play.
+        if (this.wantedAt != null && !this.wanted()) {
+          this.wantedAt = null;
+          this.save();
+          this.emit(true);
+        }
+      }
       if (!(error instanceof OutputUnreachableError)) logger.warn(`Asking ${this.deps.name()} where it is: ${(error as Error).message}`);
       return;
     }

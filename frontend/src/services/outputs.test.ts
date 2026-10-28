@@ -75,6 +75,18 @@ describe('outputs', () => {
     expect(knownOutputs().map(output => output.name)).toEqual(['Salon']);
   });
 
+  it('reads the list again later when the server did not answer as the app opened, then listens', async () => {
+    vi.useFakeTimers();
+    let up = false;
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(up ? answer([salon()]) : answer({ error: 'Bad gateway' }, 502))));
+    await connectOutputs();
+    expect(FakeSource.made).toHaveLength(0);
+    up = true;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(FakeSource.made).toHaveLength(1);
+    expect(knownOutputs().map(output => output.name)).toEqual(['Salon']);
+  });
+
   it('takes the list, the states and the departures as they come', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(answer([salon()]))));
     await connectOutputs();

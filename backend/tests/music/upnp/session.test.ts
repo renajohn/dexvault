@@ -506,12 +506,84 @@ describe('safety valves: the last thing asked wins', () => {
     expect(r.session.pollDelay()).toBeNull();
   });
 
+  it('tells the pages once a play asked while off is no longer to be given, though it stays away', async () => {
+    await askedWhileOff();
+    r.events.length = 0;
+    r.fake.advance(3 * 60);
+    await r.session.tick();
+    expect(stateOf(r)).toMatchObject({ status: 'unreachable', wanted: false });
+    expect(r.events.some(([event, payload]) => event === 'state' && (payload as OutputState).wanted === false)).toBe(true);
+  });
+
+  it('is not shown away for one call unanswered as a track is given: tried once more', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(5);
+    r.fake.dropNext = 1;
+    await r.session.next();
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 1 });
+    expect(r.fake.uri).toBe(urlOf('a7t2'));
+  });
+
   it('has the list read again when it answers while the list says it does not', async () => {
     let reloads = 0;
     await r.close();
     r = await rig('onkyo', { deps: { reachable: () => false, reload: async () => { reloads++; } } });
     await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
     expect(reloads).toBe(1);
+  });
+});
+
+describe('an appliance refusing a command', () => {
+  beforeEach(async () => { r = await rig('onkyo'); });
+
+  it('skips a file it cannot play (714) to the next track, and says so', async () => {
+    r.fake.unplayable.add(urlOf('a7t1'));
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 1, error: expect.stringContaining('cannot play “Track 1”') });
+    expect(r.fake.uri).toBe(urlOf('a7t2'));
+  });
+
+  it('pauses, saying so, on the last track when it cannot play it either', async () => {
+    r.fake.refuse.set('SetAVTransportURI', 716);
+    await r.session.playAlbum(albumOf(7), tracksOf(7, 1), 0);
+    expect(stateOf(r)).toMatchObject({ status: 'paused', error: expect.stringContaining('cannot play “Track 1”') });
+  });
+
+  it('plays on with a gap when it refuses the next track (SetNext), and on when it refuses a seek', async () => {
+    r.fake.refuse.set('SetNextAVTransportURI', 501);
+    r.fake.refuse.set('Seek', 501);
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0, 30);
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 0 });
+    await r.playFor(200);
+    expect(stateOf(r).index).toBe(1);
+  });
+});
+
+describe('commands and polls together', () => {
+  beforeEach(async () => { r = await rig('onkyo'); });
+
+  it('C6: a poll under way as ⏭ is pressed is not taken for the appliance going back: the next track holds', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(5);
+    const poll = r.session.tick();
+    const next = r.session.next();
+    await Promise.all([poll, next]);
+    await r.playFor(2);
+    expect(stateOf(r)).toMatchObject({ status: 'playing', index: 1 });
+    expect(r.fake.uri).toBe(urlOf('a7t2'));
+    expect(r.fake.maxInFlight).toBe(1);
+  });
+
+  it('C9: ⏸ and ▶ sent together by two pages are done one after the other, the last one wins', async () => {
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(3);
+    await Promise.all([r.session.toggle(false), r.session.toggle(true), r.session.tick()]);
+    expect(stateOf(r).status).toBe('playing');
+    expect(r.fake.state).toBe('PLAYING');
+    await Promise.all([r.session.toggle(true), r.session.toggle(false)]);
+    expect(stateOf(r).status).toBe('paused');
+    expect(r.fake.state).toBe('PAUSED_PLAYBACK');
+    expect(r.fake.maxInFlight).toBe(1);
   });
 });
 

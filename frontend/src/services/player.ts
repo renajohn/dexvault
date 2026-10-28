@@ -278,7 +278,8 @@ const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState 
       resume: null,
       error: null,
       output: lastOutput,
-      outputStatus: (outputsLoaded() && !listed?.reachable) || session?.status === 'unreachable' ? 'unreachable' : null,
+      outputStatus: (outputsLoaded() && !listed?.reachable) || session?.status === 'unreachable' ? 'unreachable'
+        : session?.status === 'taken' ? 'taken' : null,
       upcoming: null,
       light: false,
     };
@@ -317,8 +318,21 @@ const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState 
 let ticker: ReturnType<typeof setInterval> | null = null;
 const TICK_MS = 1000;
 
+/**
+ * The album in hand let go once the appliance chosen plays, or waits to play
+ * as it wakes: what plays there is the bar's from then on, and an album kept
+ * here would come back in its place at its first pause, ▶ playing it over
+ * what played there.
+ */
+const letGoUnderPlay = () => {
+  if (chosen.kind !== 'renderer' || !state.album || state.playing) return;
+  const session = sessionOf(chosen.id);
+  if (session?.status === 'playing' || session?.wanted) stopHere();
+};
+
 const refresh = () => {
   follow();
+  letGoUnderPlay();
   const output = effective();
   carrying = false;
   view = output.kind === 'local' ? state : rendererView(output);
@@ -337,7 +351,7 @@ const rendererId = (): string | null => (view.output.kind === 'renderer' ? view.
 /** What went wrong on an appliance, said: away in orange, the rest in red. */
 export const reportOutputError = (error: unknown): void => {
   const refused = error as OutputError;
-  if (refused?.status === 'unreachable') toast(refused.message, { tone: 'warning' });
+  if (refused?.status === 'unreachable') toast(refused.message, { tone: refused.kept ? 'info' : 'warning' });
   else if (refused?.status === 'taken') toast(refused.message, { tone: 'info' });
   else toast((error as Error)?.message || 'The command did not go through', { tone: 'danger' });
 };
@@ -1154,13 +1168,19 @@ export const player = {
       const carried = state.album ? {
         album: state.album, tracks: state.tracks, index: state.index, position: current()?.currentTime ?? state.position, queue: state.queue,
       } : null;
-      if (state.playing) stopHere();
-      refresh();
       if (moving && carried && next.kind === 'renderer') {
+        // Silent here at once, but kept in hand until the appliance has it: refused, it is still here, paused, to play again.
+        const was = state.album;
+        calm();
+        audios.forEach(audio => audio.pause());
+        set({ playing: false });
         const { from: _from, ...album } = carried.album;
         outputs.carry(next.id, { album, tracks: carried.tracks, index: carried.index, position: carried.position, listenNext: carried.queue === 'listenNext' })
-          .catch(reportOutputError);
+          .then(() => { if (state.album === was && !state.playing) stopHere(); }, reportOutputError);
+        return;
       }
+      if (state.playing) stopHere();
+      refresh();
       return;
     }
     const session = sessionOf(from.id);

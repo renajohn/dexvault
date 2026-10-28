@@ -173,11 +173,65 @@ describe('with it', () => {
     // A track asked of it while away is kept, and given once it answers.
     const away = await request(app).post(`/api/outputs/${ONKYO}/next`);
     expect(away.status).toBe(503);
-    expect(away.body).toEqual({ error: 'Salon does not answer: it will play once it is on', status: 'unreachable' });
+    expect(away.body).toEqual({ error: 'Salon is waking up: it plays as soon as it answers', status: 'unreachable', kept: true });
     expect((await request(app).get('/api/outputs')).body[0].session).toMatchObject({ status: 'unreachable', index: 1 });
     onkyo.down = false;
     await outputs.session(ONKYO)!.tick();
     expect((await request(app).get('/api/outputs')).body[0].session).toMatchObject({ status: 'playing', index: 1 });
+  });
+
+  it('tells the pages the appliance is back once a play asked while away plays there, not a minute later', async () => {
+    const lists: Array<Array<{ id: string; reachable: boolean }>> = [];
+    const broadcast = outputs.broadcast.bind(outputs);
+    const spy = jest.spyOn(outputs, 'broadcast').mockImplementation((event, payload) => {
+      if (event === 'outputs') lists.push(outputs.list());
+      broadcast(event, payload);
+    });
+    try {
+      onkyo.down = true;
+      const away = await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7 });
+      expect(away.status).toBe(503);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(lists.at(-1)!.find(one => one.id === ONKYO)!.reachable).toBe(false);
+
+      // Back: the poll gives it the play. The last list the pages were told says it answers.
+      onkyo.down = false;
+      await outputs.session(ONKYO)!.tick();
+      await outputs.session(ONKYO)!.idle();
+      for (let waited = 0; waited < 2000 && !lists.at(-1)!.find(one => one.id === ONKYO)!.reachable; waited += 20) await new Promise(resolve => setTimeout(resolve, 20));
+      expect(outputs.session(ONKYO)!.state().status).toBe('playing');
+      expect(lists.at(-1)!.find(one => one.id === ONKYO)!.reachable).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('carries a play over from where the first one fell silent, its place read after the pause', async () => {
+    await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7, index: 1, position: 30 }).expect(200);
+    const salon = outputs.session(ONKYO)!;
+    // The Onkyo's pause answered late: the place is read once it has fallen silent.
+    const pause = salon.pauseForTransfer.bind(salon);
+    jest.spyOn(salon, 'pauseForTransfer').mockImplementation(async () => {
+      onkyo.advance(4);
+      await salon.tick();
+      await pause();
+    });
+    await request(app).post(`/api/outputs/${WIIM}/play`).send({ from: ONKYO }).expect(200);
+    expect(outputs.session(WIIM)!.state()).toMatchObject({ index: 1 });
+    expect(outputs.session(WIIM)!.state().position).toBeGreaterThanOrEqual(34);
+  });
+
+  it('says a play is kept only for a command that asks one, not for the volume or a seek', async () => {
+    onkyo.down = true;
+    const played = await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7 });
+    expect(played.body).toMatchObject({ status: 'unreachable', kept: true });
+    const seek = await request(app).post(`/api/outputs/${ONKYO}/seek`).send({ position: 30 });
+    const volume = await request(app).put(`/api/outputs/${ONKYO}/volume`).send({ volume: 20 });
+    for (const answer of [seek, volume]) {
+      if (answer.status === 503) expect(answer.body).toEqual({ error: 'Salon does not answer: is it on?', status: 'unreachable' });
+      else expect(answer.body.kept).toBeUndefined();
+    }
+    expect(volume.status).toBe(503);
   });
 
   it('writes the play down, and takes it up again after a restart', async () => {
@@ -201,6 +255,30 @@ describe('with it', () => {
     await outputs.init(optionsWith([onkyo.location, wiim.location]), overrides);
     const listed = (await request(app).get('/api/outputs')).body;
     expect(listed.find((output: { id: string }) => output.id === WIIM)).toMatchObject({ name: 'Bureau', reachable: false });
+  });
+
+  it('M6: tells every page listening the same play: what the iPhone asks, the Mac sees', async () => {
+    const server = app.listen(0);
+    const port = (server.address() as AddressInfo).port;
+    const pages = await Promise.all([0, 1].map(async () => {
+      const received: string[] = [];
+      const response = await new Promise<http.IncomingMessage>(resolve => http.get(`http://127.0.0.1:${port}/api/outputs/events`, resolve));
+      response.setEncoding('utf8');
+      response.on('data', chunk => received.push(chunk));
+      return { received, response };
+    }));
+    try {
+      for (let waited = 0; waited < 3000 && pages.some(page => !page.received.length); waited += 20) await new Promise(resolve => setTimeout(resolve, 20));
+      await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7, index: 2 }).expect(200);
+      for (let waited = 0; waited < 3000 && pages.some(page => !page.received.join('').includes('event: state')); waited += 20) await new Promise(resolve => setTimeout(resolve, 20));
+      for (const page of pages) {
+        const state = /event: state\ndata: (.*)\n\n/.exec(page.received.join(''));
+        expect(JSON.parse(state![1])).toMatchObject({ id: ONKYO, status: 'playing', index: 2 });
+      }
+    } finally {
+      pages.forEach(page => page.response.destroy());
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
   });
 
   it('tells the pages listening what plays, as Server-Sent Events', async () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import OutputMenu, { throttled } from './OutputMenu';
-import outputs, { resetOutputs, type Output, type OutputState } from '../services/outputs';
+import outputs, { resetOutputs, takeState, type Output, type OutputState } from '../services/outputs';
 import { player, resetPlayer } from '../services/player';
 
 const session = (changes: Partial<OutputState> = {}): OutputState => ({
@@ -94,6 +94,17 @@ describe('OutputMenu', () => {
     expect(screen.getByRole('menuitemradio', { name: /Salon/ })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('slider', { name: 'Volume' })).toHaveAttribute('max', '70');
     expect(screen.getByRole('menuitem', { name: 'Output settings…' })).toBeInTheDocument();
+  });
+
+  it('greys the volume of an appliance away, and gives it back as soon as it plays again', () => {
+    render(<OutputMenu />);
+    open();
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Salon/ }));
+    act(() => { takeState(session({ status: 'unreachable', wanted: true })); });
+    open();
+    expect(screen.getByRole('slider', { name: 'Volume' })).toBeDisabled();
+    act(() => { takeState(session({ status: 'playing' })); });
+    expect(screen.getByRole('slider', { name: 'Volume' })).toBeEnabled();
   });
 
   it('says an appliance playing something else is in use', async () => {

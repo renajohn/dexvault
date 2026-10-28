@@ -62,13 +62,14 @@ const sessionOf = (req: Request, res: Response): OutputSession | null => {
 };
 
 /** What went wrong, as the page reads it: 409 taken, 503 away (the play kept for when it answers, if it is), 404 unknown album. */
-const fail = (res: Response, error: unknown, what: string, session?: OutputSession): void => {
+const fail = (res: Response, error: unknown, what: string, session?: OutputSession, plays = false): void => {
   const status = (error as { status?: number }).status;
   if (status) res.status(status).json({ error: (error as Error).message });
   else if (error instanceof OutputTakenError) res.status(409).json({ error: error.message, status: 'taken' });
   else if (error instanceof OutputUnreachableError) {
-    const kept = session?.wantsPlay() ? `${outputs.nameOf(session.id)} does not answer: it will play once it is on` : error.message;
-    res.status(503).json({ error: kept, status: 'unreachable' });
+    // A play kept for when it answers is no failure: the page says so quietly, and shows it waiting.
+    if (plays && session?.wantsPlay()) res.status(503).json({ error: `${outputs.nameOf(session.id)} is waking up: it plays as soon as it answers`, status: 'unreachable', kept: true });
+    else res.status(503).json({ error: error.message, status: 'unreachable' });
   }
   else if ((error as Error).message === 'Album not found') res.status(404).json({ error: 'Album not found' });
   else {
@@ -78,7 +79,7 @@ const fail = (res: Response, error: unknown, what: string, session?: OutputSessi
 };
 
 /** A command, answered with the session's state once the appliance has it. */
-const command = (what: string, work: (session: OutputSession, req: Request) => Promise<unknown>) =>
+const command = (what: string, work: (session: OutputSession, req: Request) => Promise<unknown>, { plays = false } = {}) =>
   async (req: Request, res: Response): Promise<void> => {
     const session = sessionOf(req, res);
     if (!session) return;
@@ -86,7 +87,7 @@ const command = (what: string, work: (session: OutputSession, req: Request) => P
       await work(session, req);
       res.json(session.state());
     } catch (error) {
-      fail(res, error, `${what} on ${outputs.nameOf(session.id)}`, session);
+      fail(res, error, `${what} on ${outputs.nameOf(session.id)}`, session, plays);
     }
   };
 
@@ -117,9 +118,11 @@ const outputController = {
     const body = (req.body || {}) as Record<string, unknown>;
     if (body.from != null) {
       const from = outputs.session(String(body.from));
-      const handed = from?.handOver();
-      if (!from || !handed) throw Object.assign(new Error('Nothing plays there'), { status: 400 });
+      if (!from?.handOver()) throw Object.assign(new Error('Nothing plays there'), { status: 400 });
+      // Paused first, its place read then: the one taking over starts where the other fell silent, not seconds before.
       await from.pauseForTransfer();
+      const handed = from.handOver();
+      if (!handed) throw Object.assign(new Error('Nothing plays there'), { status: 400 });
       await session.carryOver(handed.album, handed.tracks, handed.index, handed.position, handed.turn);
       return;
     }
@@ -142,7 +145,7 @@ const outputController = {
     if (tracks.length === 0) throw Object.assign(new Error('That album has no rip to play'), { status: 404 });
     if (body.shuffle === true) await session.playAlbum(album, shuffledTracks(tracks), 0);
     else await session.playAlbum(album, tracks, count(body.index), seconds(body.position));
-  }),
+  }, { plays: true }),
 
   // POST { key? } or { albumId?, disc? }: Listen Next played there, from that entry, else from the top
   listenNext: command('Playing Listen Next', async (session, req) => {
@@ -151,20 +154,20 @@ const outputController = {
       ? entryKey(parseEntryKey(body.key).albumId, parseEntryKey(body.key).disc)
       : count(body.albumId) ? entryKey(count(body.albumId), count(body.disc)) : null;
     if (!await session.playListenNext(key, count(body.index))) throw Object.assign(new Error('Nothing in Listen Next to play'), { status: 404 });
-  }),
+  }, { plays: true }),
 
-  toggle: command('Pausing', (session, req) => session.toggle(typeof req.body?.playing === 'boolean' ? req.body.playing : undefined)),
-  next: command('Next track', session => session.next()),
-  previous: command('Previous track', session => session.previous()),
+  toggle: command('Pausing', (session, req) => session.toggle(typeof req.body?.playing === 'boolean' ? req.body.playing : undefined), { plays: true }),
+  next: command('Next track', session => session.next(), { plays: true }),
+  previous: command('Previous track', session => session.previous(), { plays: true }),
   stop: command('Stopping', session => session.stop()),
-  resume: command('Resuming', session => session.resume()),
+  resume: command('Resuming', session => session.resume(), { plays: true }),
 
   // POST { index }
   track: command('Playing a track', (session, req) => {
     const index = Number(req.body?.index);
     if (!Number.isInteger(index) || index < 0) throw Object.assign(new Error('Which track?'), { status: 400 });
     return session.playTrack(index);
-  }),
+  }, { plays: true }),
 
   // POST { position } in seconds
   seek: command('Seeking', (session, req) => {

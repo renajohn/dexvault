@@ -78,10 +78,13 @@ export interface OutputLeft {
 export class OutputError extends Error {
   status: 'taken' | 'unreachable' | null;
   code: number;
-  constructor(message: string, code: number, status: 'taken' | 'unreachable' | null) {
+  /** Away, the play kept for when it answers: no failure. */
+  kept: boolean;
+  constructor(message: string, code: number, status: 'taken' | 'unreachable' | null, kept = false) {
     super(message);
     this.code = code;
     this.status = status;
+    this.kept = kept;
   }
 }
 
@@ -155,8 +158,10 @@ export const takeState = (state: OutputState, receivedAt = Date.now()): void => 
   if (at < 0) return;
   noteGap(state, receivedAt);
   const output = known[at];
+  // A session playing answers, one away does not: the list's word follows it at once, whatever the last list said.
+  const reachable = state.status === 'playing' ? true : state.status === 'unreachable' ? false : output.reachable;
   known = [...known.slice(0, at), {
-    ...output, name: state.name || output.name, volume: state.volume ?? output.volume, muted: state.muted,
+    ...output, reachable, name: state.name || output.name, volume: state.volume ?? output.volume, muted: state.muted,
     session: steady(output.session, state),
   }, ...known.slice(at + 1)];
   tell();
@@ -196,10 +201,10 @@ const send = async (method: 'POST' | 'PUT', path: string, body: unknown = {}): P
   const response = await fetch(`/api/outputs/${path}`, {
     method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
-  const answer = await response.json().catch(() => ({})) as { error?: string; status?: string };
+  const answer = await response.json().catch(() => ({})) as { error?: string; status?: string; kept?: boolean };
   if (!response.ok) {
     const status = answer.status === 'taken' || answer.status === 'unreachable' ? answer.status : null;
-    throw new OutputError(answer.error || 'The command did not go through', response.status, status);
+    throw new OutputError(answer.error || 'The command did not go through', response.status, status, answer.kept === true);
   }
   return answer;
 };
@@ -262,10 +267,13 @@ const playingFrom = (output: Output, album: PlayerAlbum | null, tracks: PlayerTr
 
 const outputs = {
   /** The appliances, with what plays on each; none when UPnP is off. */
-  list: async (): Promise<Output[]> => {
-    const response = await fetch('/api/outputs');
-    if (!response.ok) return [];
-    const list = await response.json() as Output[];
+  list: async (): Promise<Output[]> => (await outputs.read()) ?? [],
+
+  /** The outputs read once; null when the server did not answer (restarting, the network away), not that there are none. */
+  read: async (): Promise<Output[] | null> => {
+    const response = await fetch('/api/outputs').catch(() => null);
+    if (!response?.ok) return null;
+    const list = await response.json().catch(() => null) as Output[] | null;
     takeList(Array.isArray(list) ? list : []);
     return known;
   },
@@ -380,10 +388,21 @@ let stopListening: (() => void) | null = null;
  * Reads the outputs once and, when there are any, listens to them for as
  * long as the page lives: called once by the app. Without UPnP, nothing more.
  */
+/** The list not read (the server restarting as the app opened): asked again this long after, else the appliances never came. */
+const READ_AGAIN_MS = 10_000;
+let readAgain: ReturnType<typeof setTimeout> | null = null;
+
 export const connectOutputs = async (): Promise<void> => {
   if (stopListening) return;
-  const list = await outputs.list().catch(() => [] as Output[]);
-  if (list.length === 0 || stopListening) return;
+  if (readAgain) clearTimeout(readAgain);
+  readAgain = null;
+  const list = await outputs.read();
+  if (stopListening) return;
+  if (list === null) {
+    readAgain = setTimeout(() => { void connectOutputs(); }, READ_AGAIN_MS);
+    return;
+  }
+  if (list.length === 0) return;
   stopListening = outputs.listen({
     onOutputs: list => takeList(list),
     onState: state => takeState(state),
@@ -420,6 +439,8 @@ export const outputHint = (output: Output): string => {
 export const resetOutputs = (): void => {
   stopListening?.();
   stopListening = null;
+  if (readAgain) clearTimeout(readAgain);
+  readAgain = null;
   known = [];
   loaded = false;
   gaps.length = 0;
