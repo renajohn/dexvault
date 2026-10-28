@@ -292,6 +292,44 @@ describe('player', () => {
       expect(player.getState()).toMatchObject({ album: other, index: 0, position: 0, playing: true });
     });
 
+    it('on an iPhone, a place it let go of at the metadata is asked again as it plays, and the bar shows the truth if it never goes', () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        // A play carried over from Bureau, 2:03 into the track: loaded within the touch.
+        player.playAlbum(album, tracks, 1, 123);
+        const audio = playingAudio();
+        Object.defineProperty(audio, 'readyState', { value: 0, configurable: true });
+        audio.dispatchEvent(new Event('loadedmetadata'));
+        Object.defineProperty(audio, 'readyState', { value: 4, configurable: true });
+        // It plays from 0 all the same: the bar keeps 2:03, and the place is asked again a second later.
+        audio.currentTime = 1;
+        audio.dispatchEvent(new Event('timeupdate'));
+        expect(player.getState().position).toBe(123);
+        vi.advanceTimersByTime(1100);
+        audio.dispatchEvent(new Event('timeupdate'));
+        expect(audio.currentTime).toBe(123);
+        // There now: the bar follows the element.
+        audio.currentTime = 124;
+        audio.dispatchEvent(new Event('timeupdate'));
+        expect(player.getState().position).toBe(124);
+
+        // Another time it never goes there: after a few tries, the bar shows where it really is.
+        player.playAlbum(album, tracks, 0, 90);
+        const other = playingAudio();
+        Object.defineProperty(other, 'readyState', { value: 0, configurable: true });
+        other.dispatchEvent(new Event('loadedmetadata'));
+        Object.defineProperty(other, 'readyState', { value: 4, configurable: true });
+        for (let at = 1; at <= 8; at++) {
+          vi.advanceTimersByTime(1100);
+          other.currentTime = at;
+          other.dispatchEvent(new Event('timeupdate'));
+        }
+        expect(player.getState().position).toBe(8);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('brings nothing back after ✕: the album’s card still offers Resume', () => {
       player.playAlbum(album, tracks, 1);
       player.stop();

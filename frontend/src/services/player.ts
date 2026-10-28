@@ -436,11 +436,18 @@ const spare = (): HTMLAudioElement => audios[1 - active];
  * listener per element, set once in setUp(), goes there as the metadata comes,
  * if the source is still the one it was wanted for; a newer place wanted for
  * the same source (a seek before the data) takes the older one's place.
+ * Kept until the element is seen there as it plays: an iPhone may let the
+ * place set at the metadata go and play from 0 (a play carried over from
+ * Bureau did so, the bar still showing the place). Asked again a few times,
+ * a second apart; then the place shown is the element's own, never a lie.
  */
-const wanted = new WeakMap<HTMLAudioElement, { url: string; at: number }>();
+const wanted = new WeakMap<HTMLAudioElement, { url: string; at: number; tries: number; next: number }>();
+const SEEK_SLACK_SEC = 3;
+const SEEK_TRIES = 4;
+const SEEK_AGAIN_MS = 1000;
 const wantAt = (audio: HTMLAudioElement, at: number) => {
   // Its data there already (the spare, loaded beside the track before): straight there, no metadata to wait for.
-  if (at > 0 && audio.readyState < 1) wanted.set(audio, { url: audio.src, at });
+  if (at > 0 && audio.readyState < 1) wanted.set(audio, { url: audio.src, at, tries: 0, next: 0 });
   else wanted.delete(audio);
   audio.currentTime = at;
 };
@@ -799,13 +806,29 @@ const setUp = () => {
     audio.addEventListener('loadedmetadata', () => {
       const want = wanted.get(audio);
       if (!want) return;
-      wanted.delete(audio);
-      if (audio.src.endsWith(want.url)) audio.currentTime = want.at;
+      if (!audio.src.endsWith(want.url)) {
+        wanted.delete(audio);
+        return;
+      }
+      audio.currentTime = want.at;
+      want.next = Date.now() + SEEK_AGAIN_MS;
     });
     audio.addEventListener('timeupdate', () => {
       if (!mine()) return;
       // Still to go where it was wanted: the place shown stays, rather than a 0 of the first frames.
-      if (wanted.has(audio)) return;
+      const want = wanted.get(audio);
+      if (want) {
+        const there = Math.abs(audio.currentTime - want.at) <= SEEK_SLACK_SEC;
+        if (there || !audio.src.endsWith(want.url) || want.tries >= SEEK_TRIES) wanted.delete(audio);
+        else {
+          if (audio.readyState >= 1 && Date.now() >= want.next) {
+            want.tries++;
+            want.next = Date.now() + SEEK_AGAIN_MS;
+            audio.currentTime = want.at;
+          }
+          return;
+        }
+      }
       const position = audio.currentTime;
       const duration = Number.isFinite(audio.duration) ? audio.duration : state.duration;
       // ⏯ as the element is: a play refused or a pause told late never leaves Play shown while the sound goes on.
@@ -1024,10 +1047,7 @@ export const player = {
     if (carrying) {
       const at = Math.max(0, seconds);
       const audio = current();
-      if (audio?.src) {
-        if (audio.readyState < 1) wantAt(audio, at);
-        else audio.currentTime = at;
-      }
+      if (audio?.src) wantAt(audio, at);
       set({ position: at });
       return;
     }
@@ -1038,8 +1058,7 @@ export const player = {
     const at = Math.max(0, seconds);
     // The wait for the data there is the seek's, not the network's.
     settled = false;
-    if (audio.readyState < 1) wantAt(audio, at);
-    else audio.currentTime = at;
+    wantAt(audio, at);
     set({ position: at });
   },
 
