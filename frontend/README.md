@@ -275,6 +275,13 @@ const status = await apiService.getImportStatus(importId);
 - `npm test` - Run tests
 - `npm run eject` - Eject from Create React App
 
+### App Icons
+
+The selected Tonique artwork is kept in `assets/dexvault-icon.png`. From the
+repository root, run `node scripts/generate-icons.js` to regenerate the iPhone
+180 px icon, PWA icons, and SVG/ICO favicons. Keep the artwork square and opaque;
+the operating system applies its own rounded mask.
+
 ### Development Mode
 
 The frontend runs in development mode with:
