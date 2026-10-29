@@ -9,7 +9,7 @@ const FILL = 'M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.
 type Tone = 'given' | 'adding' | 'leaving' | 'seed' | null;
 
 /** A finger's way up or down for half a star, on the dial. */
-export const DIAL_STEP_PX = 20;
+export const DIAL_STEP_PX = 12;
 /** Where the dial starts on a record of no stars: up or down, never far. */
 const DIAL_SEED = 3;
 /** How long the dial shows after a mere touch, to say that it slides. */

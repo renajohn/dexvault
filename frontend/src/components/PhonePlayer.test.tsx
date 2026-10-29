@@ -129,6 +129,19 @@ describe('PhonePlayer, its tracks’ hearts and dots', () => {
     expect(stars).toBeInTheDocument();
   });
 
+  it('lets a finger drawn down on the album’s stars turn their dial, the full screen staying open', () => {
+    render(phone({ tracks, index: 0, starsOf: 25 }));
+    toTracks();
+    const sheet = document.querySelector('.now-playing')!;
+    const stars = screen.getByRole('group', { name: /Your stars for 21/ });
+    const at = (type: string, target: Element, y: number) =>
+      fireEvent(target, Object.assign(new Event(type, { bubbles: true }), { pointerType: 'touch', pointerId: 1, clientX: 0, clientY: y }));
+    at('pointerdown', stars, 100);
+    at('pointermove', stars, 400);
+    at('pointerup', stars, 400);
+    expect(sheet).toHaveClass('now-playing--open');
+  });
+
   it('plays a track touched, the one playing doing nothing', () => {
     const playTrack = vi.fn();
     render(phone({ tracks, index: 0, controls: { toggle: vi.fn(), next: vi.fn(), previous: vi.fn(), playTrack } }));

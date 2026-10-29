@@ -317,6 +317,12 @@
   font-size: 0.88rem;
 }
 
+/* The album's stars under the artist, over its tracks. */
+.now-playing-stars {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
 .player-bar-button.now-playing-favourite,
 .player-bar-button.now-playing-more {
   width: 40px;
@@ -435,8 +441,6 @@
 .now-playing-tracks__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   min-height: 22px;
   margin: 4px 8px 10px;
 }

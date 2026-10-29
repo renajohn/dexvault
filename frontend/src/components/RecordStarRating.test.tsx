@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AlbumStarRating, BookStarRating, resetStarSpreads, shareOf } from './RecordStarRating';
 import bookService from '../services/bookService';
+import { DIAL_STEP_PX } from './shared/StarRating';
 import musicService from '../services/musicService';
 
 vi.mock('../services/musicService', async original => ({
@@ -34,10 +35,10 @@ describe('AlbumStarRating and BookStarRating', () => {
     const stars = screen.getByRole('group');
 
     finger(stars, 'pointerdown', 300);
-    finger(stars, 'pointermove', 260);
+    finger(stars, 'pointermove', 300 - DIAL_STEP_PX * 2);
     expect(document.querySelector('.ui-star-dial__words')).toHaveTextContent('Love it');
     await waitFor(() => expect(document.querySelector('.ui-star-dial__hint')).toHaveTextContent('30 % of your rated albums'));
-    finger(stars, 'pointerup', 260);
+    finger(stars, 'pointerup', 300 - DIAL_STEP_PX * 2);
   });
 
   it('says the 3 of an album of no stars in grey, how to move under it', () => {
@@ -52,7 +53,7 @@ describe('AlbumStarRating and BookStarRating', () => {
     render(<BookStarRating value={2.5} onChange={() => undefined} />);
     await waitFor(() => expect(bookService.getRatingCounts).toHaveBeenCalled());
     finger(screen.getByRole('group'), 'pointerdown', 300);
-    finger(screen.getByRole('group'), 'pointermove', 280);
+    finger(screen.getByRole('group'), 'pointermove', 300 - DIAL_STEP_PX);
     expect(document.querySelector('.ui-star-dial__words')).toHaveTextContent('Glad I read it');
     await waitFor(() => expect(document.querySelector('.ui-star-dial__hint')).toHaveTextContent('25 % of your rated books'));
   });

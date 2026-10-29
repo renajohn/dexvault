@@ -444,7 +444,8 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
     });
   };
   const grab = (event: React.PointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest('input, [role="slider"], .output-volume, .now-playing-scroll, .lyrics-timing')) return;
+    // The stars turn their own dial under the finger: up and down are theirs.
+    if ((event.target as HTMLElement).closest('input, [role="slider"], .output-volume, .now-playing-scroll, .lyrics-timing, .ui-stars')) return;
     start.current = { y: event.clientY, at: event.timeStamp, dragging: false };
   };
   const pull = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -513,12 +514,17 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
     </Menu>
   );
 
-  const words = (
+  // Over the tracks, the album's stars under the artist; the track's ♥ is on each line there.
+  const wordsOf = (withStars: boolean) => (
     <div className="now-playing-words">
       <span className="now-playing-track">{props.title}</span>
       <span className="now-playing-artist">{props.subtitle}</span>
+      {withStars && starsOf != null && (
+        <AlbumStarRating className="now-playing-stars" value={stars} onChange={rate} size="sm" label={`Your stars for ${cover.title}`} />
+      )}
     </div>
   );
+  const words = wordsOf(false);
 
   // Once, the first time tracks are shown, their first line of Navidrome's opens a little to say that it slides.
   const [swipeHint] = useState(() => readStored(SWIPE_HINT_KEY) !== '1');
@@ -527,11 +533,10 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   useEffect(() => { if (tracksSeen && swipeHint) writeStored(SWIPE_HINT_KEY, '1'); }, [tracksSeen, swipeHint]);
   const tracksList = hasTracks && (
     <div className="now-playing-tracks now-playing-scroll">
-      {/* Always there, so the tracks do not move as the album starts: what is left, its stars. At rest the line
-          under the title says its length already: nothing more here. */}
+      {/* Always there, so the tracks do not move as the album starts: what is left. At rest the line under the
+          title says its length already: nothing more here. */}
       <div className="now-playing-tracks__head">
         <span className="now-playing-tracks__ahead">{props.left || (props.rest ? null : summary)}</span>
-        {starsOf != null && <AlbumStarRating value={stars} onChange={rate} size="sm" label={`Your stars for ${cover.title}`} />}
       </div>
       <ol>
         {props.tracks!.map((one, i) => (
@@ -573,7 +578,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
               <button type="button" className="now-playing-thumb" onClick={() => setView('cover')} aria-label="Back to the cover">
                 {cover.src ? <img src={cover.src} alt="" /> : <span className="now-playing-nocover" aria-hidden="true" />}
               </button>
-              {words}{heart}{wordsShown && lyrics?.status === 'found' && !fixing && !trying && <LyricsMenu timing={timing} canFix={canFix} className="output-menu" />}{more}
+              {wordsOf(view === 'tracks')}{view === 'tracks' && starsOf != null ? null : heart}{wordsShown && lyrics?.status === 'found' && !fixing && !trying && <LyricsMenu timing={timing} canFix={canFix} className="output-menu" />}{more}
             </div>
             {view === 'lyrics' && props.lyricsOf && <Lyrics lyrics={timing.shown} lines={timing.lines} position={position} seek={controls.seek} />}
             {view === 'guide' && guide && (
