@@ -190,3 +190,14 @@
   background: #48484a;
   color: var(--dv-text);
 }
+
+/* A deed that turns something on is gold past the threshold, on either side; one that does not, grey. */
+.swipe-row--armed > :is(td, div).swipe-row__under--deed.swipe-row__under--plain {
+  background: #48484a;
+  color: var(--dv-text);
+}
+
+.swipe-row--armed-left > :is(td, div).swipe-row__under--left-deed.swipe-row__under--gold {
+  background: var(--dv-gold);
+  color: var(--dv-gold-ink);
+}

@@ -148,19 +148,19 @@ describe('PhonePlayer, its tracks’ hearts and dots', () => {
     fireEvent.touchEnd(row);
   };
 
-  it('gives or takes a track’s ♥ slid to the right, and opens its mixtapes let go slid to the left, playing nothing', async () => {
+  it('opens a track’s mixtapes let go slid to the right, and gives or takes its ♥ slid to the left, playing nothing', async () => {
     const playTrack = vi.fn();
     render(phone({ tracks, index: 0, controls: { toggle: vi.fn(), next: vi.fn(), previous: vi.fn(), playTrack } }));
     toTracks();
     const rumour = screen.getByRole('button', { name: /Rumour Has It/ });
     expect(rumour.closest('li')).toHaveTextContent('Not favourite');
-    slide(rumour, 260);
+    slide(rumour, -60);
     expect(setFavourite).toHaveBeenCalledWith('s2', false);
 
     // Not far enough: back in place, nothing done.
-    slide(rumour, 40);
+    slide(rumour, 160);
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    slide(rumour, -20);
+    slide(rumour, 260);
     expect(await screen.findByRole('menuitem', { name: /New mixtape/ })).toBeInTheDocument();
     expect(playTrack).not.toHaveBeenCalled();
 
@@ -170,7 +170,7 @@ describe('PhonePlayer, its tracks’ hearts and dots', () => {
     fireEvent.click(rumour);
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     expect(playTrack).not.toHaveBeenCalled();
-    slide(rumour, -20);
+    slide(rumour, 260);
     await screen.findByRole('menu');
 
     // A touch anywhere else, a finger's: the menu closes.

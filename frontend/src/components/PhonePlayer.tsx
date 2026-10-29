@@ -234,9 +234,9 @@ const SWIPE_HINT_KEY = 'dexvault-player-tracks-swipe-hint';
 /**
  * A line of the player's tracks: a touch plays it, the track playing does
  * nothing; the grey dot of the Mac before the number of a track most listened
- * to, a small gold ♥ by its length when it is a favourite. Slid to the right
- * the line gives or takes its ♥; slid to the left, let go, it opens the
- * mixtapes (docs/superpowers/specs/2026-10-27-fav-et-populaire).
+ * to, a small gold ♥ by its length when it is a favourite. Slid to the right,
+ * let go, it opens the mixtapes; slid to the left, let go, it gives or takes
+ * its ♥ (docs/superpowers/specs/2026-10-27-fav-et-populaire).
  */
 const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing: boolean; play?: () => void; hint: boolean; onNewMixtape: () => void }> = ({ track, no, now, playing, play, hint, onNewMixtape }) => {
   const favourite = useFavourite(track.songId);
@@ -260,8 +260,8 @@ const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing
   if (!songId) return <li>{line()}</li>;
   return (
     <SwipeRow as="li" enabled hint={hint}
-      deed={{ label: favourite ? 'Not favourite' : 'Favourite', icon: favourite ? <BsHeart /> : <BsHeartFill />, onSelect: toggleFavourite }}
-      leftDeed={{ label: 'Mixtape', icon: <BsCassetteFill />, onSelect: () => setMenu(true) }}>
+      deed={{ label: 'Mixtape', icon: <BsCassetteFill />, onSelect: () => setMenu(true), tone: 'plain' }}
+      leftDeed={{ label: favourite ? 'Not favourite' : 'Favourite', icon: favourite ? <BsHeart /> : <BsHeartFill />, onSelect: toggleFavourite, tone: 'gold' }}>
       <Menu open={menu} onOpenChange={setMenu} label={track.title} trigger={props => line(props as unknown as React.ComponentProps<'button'>)}>
         <MixtapeEntries songIds={[songId]} title={track.title} onNew={onNewMixtape} />
       </Menu>

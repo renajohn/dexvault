@@ -27,6 +27,8 @@ export interface SwipeDeed {
   label: string;
   icon: React.ReactNode;
   onSelect: () => void;
+  /** Past the threshold: gold for what turns on (spoken for, a ♥), grey for the rest. Gold to the right, grey to the left unless said. */
+  tone?: 'gold' | 'plain';
 }
 
 /** Past it, a slide to the right does its deed. */
@@ -142,14 +144,14 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ as = 'tr', enabled, deed, actions =
     <Row ref={rowRef} className={`swipe-row${as === 'li' ? ' swipe-row--bare' : ''}${hint ? ' swipe-row--hint' : ''} ${className}`}
       onClickCapture={click} onClick={onClick} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} {...rest}>
       {children}
-      <Under className="swipe-row__under swipe-row__under--deed" aria-hidden="true">
+      <Under className={`swipe-row__under swipe-row__under--deed swipe-row__under--${deed.tone ?? 'gold'}`} aria-hidden="true">
         <span className="swipe-row__deed">
           {deed.icon}
           <span>{deed.label}</span>
         </span>
       </Under>
       {leftDeed ? (
-        <Under className="swipe-row__under swipe-row__under--actions swipe-row__under--left-deed" aria-hidden="true">
+        <Under className={`swipe-row__under swipe-row__under--actions swipe-row__under--left-deed swipe-row__under--${leftDeed.tone ?? 'plain'}`} aria-hidden="true">
           <span className="swipe-row__deed">
             {leftDeed.icon}
             <span>{leftDeed.label}</span>

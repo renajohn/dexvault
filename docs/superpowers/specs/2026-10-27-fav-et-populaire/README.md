@@ -72,3 +72,7 @@ et au toucher de sa propre ligne, sans la jouer. Pas d'infobulle sur sa premièr
 Play from here disparaît (c'est le toucher). Toucher la piste en cours ne fait rien. Une
 fois, la première ligne s'entrouvre pour dire qu'elle glisse. La fiche (`TrackHold`) garde
 l'appui long pour l'instant.
+
+Le 29.10.2026, les deux côtés sont inversés : à droite, lâché passé le seuil, Mixtape (gris) ;
+à gauche le ♥ (or, il allume quelque chose). `SwipeDeed.tone` dit la couleur d'un geste,
+de quelque côté qu'il soit.
