@@ -1,3 +1,4 @@
+import { BOOK_RATED_EVENT } from './ratedEvents';
 interface ExternalBookFilters {
   isbn?: string;
   asin?: string;
@@ -264,11 +265,22 @@ class BookService {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.json();
+      const saved = await response.json();
+      // Its stars perhaps changed: the books' spread is read again.
+      window.dispatchEvent(new Event(BOOK_RATED_EVENT));
+      return saved;
     } catch (error) {
       console.error('Error updating book:', error);
       throw error;
     }
+  }
+
+  /** How many books on the shelves hold each number of stars, halves apart. */
+  async getRatingCounts(): Promise<Array<{ stars: number; count: number }>> {
+    const baseUrl = await this.getBaseUrl();
+    const response = await fetch(`${baseUrl}/books/ratings/counts`);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return (await response.json()).counts;
   }
 
   async deleteBook(id: number | string): Promise<unknown> {

@@ -47,6 +47,21 @@ describe('TooltipHost', () => {
     expect(button).not.toHaveAttribute('title');
   });
 
+  it('shows none for a focus given after a finger touched (a menu opened by a slide), one for the keyboard’s', () => {
+    render(<><TooltipHost /><button title="Add to Running">Running</button><button>other</button></>);
+    const [entry, other] = screen.getAllByRole('button');
+    const press = (pointerType: string) => fireEvent(document, Object.assign(new Event('pointerdown', { bubbles: true }), { pointerType }));
+
+    press('touch');
+    act(() => { entry.focus(); vi.advanceTimersByTime(600); });
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    act(() => { other.focus(); });
+    fireEvent.keyDown(document, { key: 'Tab' });
+    act(() => { entry.focus(); vi.advanceTimersByTime(600); });
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Add to Running');
+  });
+
   it('puts it away when a key is typed, but not for Tab or a modifier', () => {
     render(<><TooltipHost /><button title="Sort">↕</button></>);
     const button = screen.getByRole('button');

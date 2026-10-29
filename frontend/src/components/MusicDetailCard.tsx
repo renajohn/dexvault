@@ -31,7 +31,7 @@ import type { DigitalTrack } from '../services/musicService';
 import { buyReason, formatLabel, isLossy, isSuggested, isToBuy, playsText, ricardoUrl, type AlbumDigital } from '../utils/digitalLibrary';
 import Button, { IconButton, LinkButton } from './shared/Button';
 import Spinner from './shared/Spinner';
-import StarRating from './shared/StarRating';
+import { AlbumStarRating } from './RecordStarRating';
 import toast from './shared/Toast';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
 import MixtapeMenu, { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
@@ -913,7 +913,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   /** One's own stars, the community's in a murmur beside them: one line, its end cut rather than wrapped. */
   const ratingRow = (
     <div className="album-head-rating">
-      <StarRating value={stars} onChange={rate} />
+      <AlbumStarRating value={stars} onChange={rate} />
       {(cd.musicbrainzReleaseId || cd.urls?.discogs) && (
         <span className="album-head-muted album-head-community-line">
           {typeof community.communityRating === 'number' ? (

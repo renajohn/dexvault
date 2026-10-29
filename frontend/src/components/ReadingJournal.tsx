@@ -9,7 +9,7 @@ import { BsPencil } from 'react-icons/bs';
 import Button, { IconButton } from './shared/Button';
 import { confirm } from './shared/ConfirmDialog';
 import CoverTag from './shared/CoverTag';
-import StarRating from './shared/StarRating';
+import { BookStarRating } from './RecordStarRating';
 import { Loading } from './shared/Spinner';
 import { TextArea, TextField } from './shared/TextField';
 import { CollectionHeader } from './shared';
@@ -162,7 +162,7 @@ const ReadingJournal: React.FC<ReadingJournalProps> = ({ viewSwitch, searchCrite
                     <button type="button" className="reading-journal__title" onClick={() => open(entry.id)}>{entry.title}</button>
                     <div className="reading-journal__by">{[(entry.authors || []).join(', '), entry.publishedYear].filter(Boolean).join(' · ')}</div>
                     <div className="reading-journal__meta">
-                      <StarRating value={entry.rating} onChange={stars => rate(entry, stars)} size="sm" label={`Your stars for ${entry.title}`} />
+                      <BookStarRating value={entry.rating} onChange={stars => rate(entry, stars)} size="sm" label={`Your stars for ${entry.title}`} />
                       {entry.readDate && (entry.readingId
                         ? <button type="button" className="reading-journal__date" title="Change the date"
                           onClick={() => setDating({ key: keyOf(entry), bookId: entry.id, readingId: entry.readingId, date: entry.readDate!.slice(0, 10) })}>

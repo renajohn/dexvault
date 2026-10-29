@@ -344,6 +344,7 @@ app.get('/api/music/albums/:id/navidrome-tracks', musicController.getNavidromeTr
 app.put('/api/music/albums/:id/rating', musicController.setUserRating);
 app.post('/api/music/albums/:id/rating/sync', musicController.syncUserRating);
 app.post('/api/music/ratings/sync', musicController.syncAllUserRatings);
+app.get('/api/music/ratings/counts', musicController.getRatingCounts);
 app.get('/api/music/albums/:id/notes', musicController.getAlbumNotes);
 app.get('/api/music/albums/:id/overlaps', musicController.getAlbumOverlaps);
 app.get('/api/music/albums/:id/scores', scorePiecesController.ofAlbum);
@@ -403,6 +404,7 @@ app.delete('/api/music/mixtapes/:albumId', mixtapeController.remove);
 // Book routes
 app.get('/api/books', bookController.getAllBooks);
 app.get('/api/books/search', bookController.searchBooks);
+app.get('/api/books/ratings/counts', bookController.getRatingCounts);
 app.get('/api/books/search/external', bookController.searchExternalBooks);
 // Finding a book as one types: Google Books, its series and its authors; adding it, several, buying
 app.get('/api/books/finder/search', bookFinderController.search);

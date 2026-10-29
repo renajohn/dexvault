@@ -70,6 +70,22 @@ afterEach(async () => {
 });
 
 describe('The phone’s full screen player, on an album a cover opened', () => {
+  it('opens on the tracks, the tracks button on: touched, back to the cover', async () => {
+    page();
+    act(() => { showAlbum(shown); });
+    const sheet = fullScreen('Kind of Blue');
+    expect(await within(sheet).findByRole('button', { name: /Freddie Freeloader/ })).toBeInTheDocument();
+    const tracks = within(sheet).getByRole('button', { name: 'Tracks' });
+    expect(tracks).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(tracks);
+    expect(tracks).toHaveAttribute('aria-pressed', 'false');
+    expect(within(sheet).queryByRole('button', { name: /Freddie Freeloader/ })).not.toBeInTheDocument();
+    // Its tracks read again, the owner's choice holds.
+    await act(async () => { await Promise.resolve(); });
+    expect(tracks).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('shows it at rest when nothing plays: its line, ▶ playing it, its tracks playing from one', async () => {
     const playAlbum = vi.spyOn(player, 'playAlbum').mockImplementation(() => undefined);
     page();
@@ -85,7 +101,8 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     fireEvent.click(within(sheet).getByRole('button', { name: 'Play' }));
     expect(playAlbum).toHaveBeenLastCalledWith(expect.objectContaining({ id: 12, title: 'Kind of Blue' }), expect.any(Array), 0);
 
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Tracks' }));
+    // Opened by its cover, it shows its tracks, the tracks button on.
+    expect(within(sheet).getByRole('button', { name: 'Tracks' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(within(sheet).getByRole('button', { name: /Freddie Freeloader/ }));
     expect(playAlbum).toHaveBeenLastCalledWith(expect.objectContaining({ id: 12 }), expect.any(Array), 1);
 
@@ -158,6 +175,7 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     act(() => { showAlbum({ ...playing, id: 7 }); });
     expect(fullScreen('Now playing')).toHaveTextContent('Don’t Know Why');
     expect(screen.getByTestId('full')).toHaveTextContent('true');
+    expect(within(fullScreen('Now playing')).getByRole('button', { name: 'Tracks' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('a CD with nothing ripped: no player, its card instead', async () => {

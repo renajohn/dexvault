@@ -420,7 +420,7 @@
   user-select: text;
 }
 
-/* The tracks of the album, in place of the cover; what comes after it first. */
+/* The tracks of the album, in place of the cover; what is left to hear first. */
 .now-playing-tracks {
   flex: 1;
   min-height: 0;
@@ -432,15 +432,22 @@
   touch-action: pan-y;
 }
 
-.now-playing-tracks__ahead {
+.now-playing-tracks__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 22px;
   margin: 4px 8px 10px;
-  font-size: 0.8rem;
-  color: var(--dv-text-muted);
 }
 
-.now-playing-tracks__ahead b {
-  color: var(--dv-text);
-  font-weight: 600;
+.now-playing-tracks__ahead {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.8rem;
+  color: var(--dv-text-muted);
 }
 
 .now-playing-tracks ol {
@@ -468,7 +475,24 @@
   background: var(--dv-veil);
 }
 
-/* A finger resting on a line opens its menu: iOS neither selects its words nor offers its own. */
+/* A line slides (SwipeRow): what it bares has its corners. */
+.now-playing-tracks .swipe-row {
+  border-radius: var(--dv-radius-md);
+}
+
+/* Slid, the line is a plate over what it bares: no veil of a press, no corners of its own against it. */
+.now-playing-tracks .swipe-row--left > .now-playing-tracks__track,
+.now-playing-tracks .swipe-row--right > .now-playing-tracks__track {
+  border-radius: 0;
+  background: none;
+}
+
+/* The track playing: a touch does nothing, nothing answers it. */
+.now-playing-tracks__track--now:active {
+  background: none;
+}
+
+/* A finger drawn along a line: iOS neither selects its words nor offers its own menu. */
 .now-playing-tracks__track {
   -webkit-user-select: none;
   user-select: none;

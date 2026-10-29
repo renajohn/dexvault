@@ -122,9 +122,13 @@ const MenuRoot: React.FC<MenuProps> = ({ trigger, align = 'start', drop = 'down'
 
   useEffect(() => {
     if (!open) return undefined;
-    const outside = (event: MouseEvent) => {
+    // A finger on an iPhone too: Safari sends no mousedown for a touch on what does nothing (the full screen
+    // player's ground), so the pointer's own is listened to as well, the first of the two closing it.
+    let closed = false;
+    const outside = (event: MouseEvent | PointerEvent) => {
       const target = event.target as Node;
-      if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      if (closed || panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      closed = true;
       close();
       // Opened by a finger held on a line, as iOS's own menus: the touch beside it only closes it, it plays no other line.
       if (held !== undefined) swallowNextClick();
@@ -133,11 +137,13 @@ const MenuRoot: React.FC<MenuProps> = ({ trigger, align = 'start', drop = 'down'
     // Entries that come after it opened (a list read then) move it as they come.
     const grows = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(follow);
     if (panelRef.current) grows?.observe(panelRef.current, { box: 'border-box' });
+    document.addEventListener('pointerdown', outside);
     document.addEventListener('mousedown', outside);
     window.addEventListener('resize', follow);
     window.addEventListener('scroll', follow, true);
     return () => {
       grows?.disconnect();
+      document.removeEventListener('pointerdown', outside);
       document.removeEventListener('mousedown', outside);
       window.removeEventListener('resize', follow);
       window.removeEventListener('scroll', follow, true);

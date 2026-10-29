@@ -9,7 +9,7 @@ import bookCommentService from '../services/bookCommentService';
 import bookSectionsService from '../services/bookSectionsService';
 import CoverModal from './CoverModal';
 import BookForm from './BookForm';
-import StarRating from './shared/StarRating';
+import { BookStarRating } from './RecordStarRating';
 import InlineCoverSelector from './InlineCoverSelector';
 import DetailSteps, { useScrollKeys, useStepKeys } from './shared/DetailSteps';
 import './BookDetailCard.css';
@@ -1527,7 +1527,7 @@ const BookDetailCard = ({ book, onClose, onEdit, onUpdateBook, onBookUpdated, on
             <div className="book-head-rest">
               {/* The owner's stars and whose book it is: one line. */}
               <div className="book-head-rating">
-                <StarRating value={currentBook.rating} onChange={stars => handleRatingChange(stars || null)} />
+                <BookStarRating value={currentBook.rating} onChange={stars => handleRatingChange(stars || null)} />
                 <span className="book-head-owner">
                   {editingOwner ? (
                     <div className="inline-edit-field">

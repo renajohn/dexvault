@@ -1,3 +1,5 @@
+import { ALBUM_RATED_EVENT } from './ratedEvents';
+
 /** Listen Next's two lists: streamed (digital), and CDs to put on the player. */
 export type ListenNextMedium = 'digital' | 'cd';
 /** What a draw for Listen Next takes: everything but classical (pop), classical alone, or both. */
@@ -900,8 +902,16 @@ class MusicService {
   }
 
   /** The owner's stars, 0 to take them away; Navidrome gets them too when the CD is ripped. */
-  setAlbumRating(albumId: number | string, rating: number): Promise<{ userRating: number | null; navidrome: RatingSync }> {
-    return this.send(`/music/albums/${albumId}/rating`, 'PUT', { rating });
+  async setAlbumRating(albumId: number | string, rating: number): Promise<{ userRating: number | null; navidrome: RatingSync }> {
+    const result = await this.send<{ userRating: number | null; navidrome: RatingSync }>(`/music/albums/${albumId}/rating`, 'PUT', { rating });
+    window.dispatchEvent(new Event(ALBUM_RATED_EVENT));
+    return result;
+  }
+
+  /** How many albums of the collection hold each number of stars, halves apart. */
+  async getRatingCounts(): Promise<Array<{ stars: number; count: number }>> {
+    const { counts } = await this.send<{ counts: Array<{ stars: number; count: number }> }>('/music/ratings/counts', 'GET');
+    return counts;
   }
 
   /** The covers the album can take for that side: its other editions', Discogs', Deezer's. */

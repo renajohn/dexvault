@@ -356,6 +356,24 @@ toast('“Heat” left your Watch Next.', { action: { label: 'Undo', onClick: pu
   faint outline. Under the pointer the stars given stay gold, those a click
   would add are **white**, those it would take away a **pale gold**.
 - Never the focus and no keys: the arrows go from one record to the next.
+- **Under a finger** (iPhone, iPad) the stars are too small to aim at: the
+  finger on them opens a **dial**, the menus' glass in the middle of the
+  screen, large stars alone (no number: the stars say it). Up for more,
+  down for less, by halves (`DIAL_STEP_PX`), 0 to 5, no wrapping; from the
+  stars given, or from a **grey 3** on a record of none, gold once the
+  finger moves (3 is a choice too). Let go, they are given; back on the
+  stars given, or down to none on a record of none, nothing. Its line of
+  words stays, empty or not: the glass never changes size.
+- An **album's** stars are `AlbumStarRating`, a **book's** `BookStarRating`
+  (`RecordStarRating.tsx`; its words: Glad I read it at 3, A good read,
+  Loved it…), never a bare `StarRating`. The dial says what they mean,
+  what one does with the album rather than how good it is, so that they
+  spread (Not for me, Not really, Barely, Has its moments, Now and then,
+  **Glad I have it** at 3, the usual, Often, Love it, A favourite,
+  **Outstanding** at 5, a handful), and under it what share of the rated
+  albums or books holds as many (`GET /api/music/ratings/counts`,
+  `GET /api/books/ratings/counts`). A mere touch shows the dial a
+  moment with "↑ ↓ Slide up or down". The mouse keeps its click.
 - An album's stars go to Navidrome rounded (3.5 is 4 in Amperfy) and stay a
   half here; the prototype is `2026-10-18-etoiles/etoiles-prototype.html`.
 

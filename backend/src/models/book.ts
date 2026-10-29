@@ -484,6 +484,19 @@ const Book = {
     });
   },
 
+  /** How many books on the shelves (not wished) hold each number of stars, halves apart. */
+  countRatings: (): Promise<Array<{ stars: number; count: number }>> => {
+    return new Promise((resolve, reject) => {
+      getDatabase().all(
+        `SELECT rating AS stars, COUNT(*) AS count FROM books
+          WHERE rating > 0 AND COALESCE(title_status, 'owned') != 'wish'
+          GROUP BY rating ORDER BY rating`,
+        [],
+        (err: Error | null, rows: Array<{ stars: number; count: number }>) => (err ? reject(err) : resolve(rows)),
+      );
+    });
+  },
+
   findAll: (): Promise<BookFormatted[]> => {
     return new Promise((resolve, reject) => {
       const db = getDatabase();

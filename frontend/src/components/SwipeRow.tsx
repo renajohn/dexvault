@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { BsBookmarkCheck } from 'react-icons/bs';
 import './SwipeRow.css';
 
 /**
- * A table's row a finger slides, as in Mail: the row is a plate that follows
- * the finger, what lies under it stays in place. To the right lies the deed
- * (spoken for, or no longer), done when the plate is let go past a threshold;
- * to the left, large buttons, the plate stopping open on them. A touch on a
- * row open closes it; one row open at a time. Off (a wide screen), a plain row.
+ * A row a finger slides, as in Mail: the row is a plate that follows the
+ * finger, what lies under it stays in place. To the right lies the deed
+ * (spoken for, or no longer; a favourite, or no longer), done when the plate
+ * is let go past a threshold; to the left, large buttons, the plate stopping
+ * open on them, or a deed of its own, done as the one to the right (the
+ * mixtapes, their menu opening as the plate is let go). A touch on a row open closes it; one row open at a time. Off
+ * (a wide screen), a plain row. A table's row (`tr`, the default), or a
+ * list's line (`li`) on a ground of its own, the full screen player's light:
+ * its plate has none, what lies under shows only where the plate bares it.
  */
 
 export interface SwipeAction {
@@ -19,6 +22,13 @@ export interface SwipeAction {
   disabled?: boolean;
 }
 
+/** What a slide to the right does, its words saying what it will do. */
+export interface SwipeDeed {
+  label: string;
+  icon: React.ReactNode;
+  onSelect: () => void;
+}
+
 /** Past it, a slide to the right does its deed. */
 const THRESHOLD = 88;
 /** Each button under the plate. */
@@ -27,18 +37,20 @@ const ACTION_WIDTH = 76;
 /** The row open, closed when another opens. */
 let closeOpen: (() => void) | null = null;
 
-interface SwipeRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
+interface SwipeRowProps extends React.HTMLAttributes<HTMLElement> {
+  as?: 'tr' | 'li';
   enabled: boolean;
-  spokenFor: boolean;
-  onSpokenFor: () => void;
+  deed: SwipeDeed;
   /** The buttons a slide to the left lays bare, left to right. */
-  actions: SwipeAction[];
+  actions?: SwipeAction[];
+  /** In place of the buttons: what a slide to the left does, let go past the threshold. */
+  leftDeed?: SwipeDeed;
   /** Opens a little and closes, once, to show that it slides. */
   hint?: boolean;
 }
 
-const SwipeRow: React.FC<SwipeRowProps> = ({ enabled, spokenFor, onSpokenFor, actions, hint = false, className = '', onClick, children, ...rest }) => {
-  const rowRef = useRef<HTMLTableRowElement>(null);
+const SwipeRow: React.FC<SwipeRowProps> = ({ as = 'tr', enabled, deed, actions = [], leftDeed, hint = false, className = '', onClick, children, ...rest }) => {
+  const rowRef = useRef<HTMLElement>(null);
   const offset = useRef(0);
   const drag = useRef<{ x: number; y: number; from: number; way: 'h' | 'v' | null } | null>(null);
   const moved = useRef(false);
@@ -60,12 +72,15 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ enabled, spokenFor, onSpokenFor, ac
       }, 340);
     }
     row.classList.toggle('swipe-row--armed', x >= THRESHOLD);
+    row.classList.toggle('swipe-row--armed-left', Boolean(leftDeed) && x <= -THRESHOLD);
     row.style.setProperty('--swipe', `${x}px`);
-  }, []);
+  }, [leftDeed]);
   const close = useCallback(() => place(0, true), [place]);
   useEffect(() => () => { if (closeOpen === close) closeOpen = null; }, [close]);
 
-  if (!enabled) return <tr className={className} onClick={onClick} {...rest}>{children}</tr>;
+  const Row = as as React.ElementType;
+  const Under = as === 'tr' ? 'td' : 'div';
+  if (!enabled) return <Row className={className} onClick={onClick} {...rest}>{children}</Row>;
 
   const onTouchStart = (event: React.TouchEvent) => {
     const touch = event.touches[0];
@@ -92,7 +107,7 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ enabled, spokenFor, onSpokenFor, ac
     moved.current = true;
     let next = at.from + touch.clientX - at.x;
     // Beyond its buttons the plate resists, by half.
-    if (next < -width) next = -width + (next + width) / 2;
+    if (!leftDeed && next < -width) next = -width + (next + width) / 2;
     place(next, false);
   };
   const onTouchEnd = () => {
@@ -101,7 +116,10 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ enabled, spokenFor, onSpokenFor, ac
     if (at?.way !== 'h') return;
     const x = offset.current;
     if (x >= THRESHOLD) {
-      onSpokenFor();
+      deed.onSelect();
+      close();
+    } else if (leftDeed) {
+      if (x <= -THRESHOLD) leftDeed.onSelect();
       close();
     } else if (x < -width / 2) {
       place(-width, true);
@@ -109,35 +127,48 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ enabled, spokenFor, onSpokenFor, ac
     } else close();
   };
 
-  const click = (event: React.MouseEvent<HTMLTableRowElement>) => {
-    // A slide ends without a click; a touch on a row open closes it.
-    if (moved.current) { moved.current = false; return; }
-    if (offset.current !== 0) { close(); return; }
-    onClick?.(event);
+  // Caught on its way down, so a button on the plate (a track that plays) does nothing either:
+  // a slide ends without a click, a touch on a row open closes it. Its own buttons stay theirs.
+  const click = (event: React.MouseEvent<HTMLElement>) => {
+    if ((event.target as Element).closest('.swipe-row__under')) return;
+    if (!moved.current && offset.current === 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    if (moved.current) moved.current = false;
+    else close();
   };
 
   return (
-    <tr ref={rowRef} className={`swipe-row${hint ? ' swipe-row--hint' : ''} ${className}`}
-      onClick={click} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} {...rest}>
+    <Row ref={rowRef} className={`swipe-row${as === 'li' ? ' swipe-row--bare' : ''}${hint ? ' swipe-row--hint' : ''} ${className}`}
+      onClickCapture={click} onClick={onClick} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} {...rest}>
       {children}
-      <td className="swipe-row__under swipe-row__under--deed" aria-hidden="true">
+      <Under className="swipe-row__under swipe-row__under--deed" aria-hidden="true">
         <span className="swipe-row__deed">
-          <BsBookmarkCheck />
-          <span>{spokenFor ? 'Not spoken for' : 'Spoken for'}</span>
+          {deed.icon}
+          <span>{deed.label}</span>
         </span>
-      </td>
-      <td className="swipe-row__under swipe-row__under--actions" onClick={event => event.stopPropagation()}>
-        <span className="swipe-row__actions">
-          {actions.map(action => (
-            <button key={action.label} type="button" className={`swipe-row__action swipe-row__action--${action.tone ?? 'plain'}`}
-              disabled={action.disabled} onClick={() => { close(); action.onSelect(); }}>
-              {action.icon}
-              <span>{action.label}</span>
-            </button>
-          ))}
-        </span>
-      </td>
-    </tr>
+      </Under>
+      {leftDeed ? (
+        <Under className="swipe-row__under swipe-row__under--actions swipe-row__under--left-deed" aria-hidden="true">
+          <span className="swipe-row__deed">
+            {leftDeed.icon}
+            <span>{leftDeed.label}</span>
+          </span>
+        </Under>
+      ) : (
+        <Under className="swipe-row__under swipe-row__under--actions" onClick={(event: React.MouseEvent) => event.stopPropagation()}>
+          <span className="swipe-row__actions">
+            {actions.map(action => (
+              <button key={action.label} type="button" className={`swipe-row__action swipe-row__action--${action.tone ?? 'plain'}`}
+                disabled={action.disabled} onClick={() => { close(); action.onSelect(); }}>
+                {action.icon}
+                <span>{action.label}</span>
+              </button>
+            ))}
+          </span>
+        </Under>
+      )}
+    </Row>
   );
 };
 

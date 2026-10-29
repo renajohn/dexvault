@@ -58,3 +58,17 @@ fiche comme double visible.
   `utils/useLongPress.ts` fait l'appui long (annulé par un mouvement de plus de 10 px,
   le clic qui suit est avalé, iOS ne sélectionne pas les mots).
 - Les chansons d'une mixtape n'ont pas de point : leur popularité est celle de leur album, non jointe.
+
+## Le lecteur glisse au lieu de l'appui long (29.10.2026)
+
+Dans la vue Tracks du lecteur, l'appui long était trop caché : la ligne glisse maintenant
+comme celles de la wish list (`SwipeRow`, en `li`, sans fond propre : ce qu'elle découvre
+n'apparaît que là où elle s'est écartée). À droite, le ♥ (Favourite / Not favourite), fait
+au lâcher passé le seuil ; à gauche, de même, Mixtape : lâché passé le seuil, le `Menu` des
+mixtapes s'ouvre aussitôt, sans bouton intermédiaire. Le menu se ferme au toucher ailleurs
+(`Menu` écoute aussi `pointerdown` : Safari n'envoie pas de `mousedown` sur ce qui ne fait rien),
+et au toucher de sa propre ligne, sans la jouer. Pas d'infobulle sur sa première entrée : le
+`TooltipHost` ignore un focus donné après un toucher, que Safari dit pourtant `:focus-visible`.
+Play from here disparaît (c'est le toucher). Toucher la piste en cours ne fait rien. Une
+fois, la première ligne s'entrouvre pour dire qu'elle glisse. La fiche (`TrackHold`) garde
+l'appui long pour l'instant.

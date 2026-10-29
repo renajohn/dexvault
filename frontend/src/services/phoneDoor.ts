@@ -27,9 +27,11 @@ interface PhoneDoorState {
   shown: ShownAlbum | null;
   /** The album at rest left for what plays by its disc: a disc in the same place goes back to it. */
   left: ShownAlbum | null;
+  /** A cover just touched: the full screen opens on the tracks, once they are read. */
+  tracksAsked: boolean;
 }
 
-let state: PhoneDoorState = { covered: 0, full: false, shown: null, left: null };
+let state: PhoneDoorState = { covered: 0, full: false, shown: null, left: null, tracksAsked: false };
 const listeners = new Set<() => void>();
 
 const set = (changes: Partial<PhoneDoorState>) => {
@@ -44,17 +46,25 @@ const subscribe = (listener: () => void) => {
 
 /** The full screen player opened (true) or back to the pill or the disc (false), the album shown at rest, or left, let go. */
 export const setFullPlayer = (full: boolean) => {
-  if (state.full !== full || (!full && (state.shown || state.left))) set(full ? { full } : { full, shown: null, left: null });
+  if (state.full !== full || (!full && (state.shown || state.left || state.tracksAsked))) {
+    set(full ? { full } : { full, shown: null, left: null, tracksAsked: false });
+  }
 };
 
-/** A cover touched on a phone: the full screen player, on that album (at rest, unless it is the one playing). */
-export const showAlbum = (album: ShownAlbum) => set({ full: true, shown: album, left: null });
+/** A cover touched on a phone: the full screen player, on that album (at rest, unless it is the one playing), its tracks shown. */
+export const showAlbum = (album: ShownAlbum) => set({ full: true, shown: album, left: null, tracksAsked: true });
 
 /** Back to what plays, the full screen staying open: the album shown played. */
 export const showPlaying = () => { if (state.shown || state.left) set({ shown: null, left: null }); };
 
 /** The disc of what plays touched: back to what plays, the album at rest kept to go back to (`useLeftAlbum`). */
-export const leaveForPlaying = () => { if (state.shown) set({ shown: null, left: state.shown }); };
+export const leaveForPlaying = () => { if (state.shown) set({ shown: null, left: state.shown, tracksAsked: false }); };
+
+/** Whether a cover asked the tracks the full screen has not shown yet. */
+export const useTracksAsked = (): boolean => useSyncExternalStore(subscribe, () => state.tracksAsked);
+
+/** The tracks asked by a cover are shown: the full screen is the owner's again. */
+export const tracksShownAsAsked = () => { if (state.tracksAsked) set({ tracksAsked: false }); };
 
 /** The album a cover opened in the full screen player, at rest; null for what plays. */
 export const useShownAlbum = (): ShownAlbum | null => useSyncExternalStore(subscribe, () => state.shown);
@@ -78,4 +88,4 @@ export const useCoversPlayer = (active = true) => {
 };
 
 /** For tests: nothing covered, the full screen closed. */
-export const resetPhoneDoor = () => set({ covered: 0, full: false, shown: null, left: null });
+export const resetPhoneDoor = () => set({ covered: 0, full: false, shown: null, left: null, tracksAsked: false });

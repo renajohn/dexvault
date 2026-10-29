@@ -991,6 +991,19 @@ const Album = {
     });
   },
 
+  /** How many albums of the collection (bought, CD or digital) hold each number of stars, halves apart. */
+  countRatings: (): Promise<Array<{ stars: number; count: number }>> => {
+    return new Promise((resolve, reject) => {
+      getDatabase().all(
+        `SELECT user_rating AS stars, COUNT(*) AS count FROM albums
+          WHERE user_rating > 0 AND COALESCE(title_status, 'owned') IN ('owned', 'digital')
+          GROUP BY user_rating ORDER BY user_rating`,
+        [],
+        (err: Error | null, rows: Array<{ stars: number; count: number }>) => (err ? reject(err) : resolve(rows)),
+      );
+    });
+  },
+
   /** The stars of every album with what was last agreed with Navidrome. */
   findRatings: (): Promise<Array<{ id: number; userRating: number | null; synced: number | null }>> => {
     return new Promise((resolve, reject) => {

@@ -106,18 +106,25 @@ export const TooltipHost: React.FC = () => {
       if (to && lifted.contains(to)) return;
       putBack();
     };
+    // Since a finger last touched, and no key since: a focus given then (a menu opened by a slide, its first
+    // entry focused) is no keyboard's, even when the browser says it is visible.
+    let touched = false;
     // A click, a key or a scroll puts the tooltip away; the title stays off until the pointer leaves.
-    const onAct = () => hide();
+    const onAct = (event?: Event) => {
+      if (event?.type === 'pointerdown') touched = (event as PointerEvent).pointerType !== 'mouse';
+      hide();
+    };
 
     const onFocus = (event: FocusEvent) => {
       const target = event.target as Element | null;
-      if (!target?.matches?.(':focus-visible')) return;
+      if (touched || !target?.matches?.(':focus-visible')) return;
       const text = target.getAttribute('title');
       if (text?.trim()) schedule(target, text);
     };
     const onBlur = () => { if (!lifted) hide(); };
     // A key typed puts it away (one writes, a menu may open under it); Tab and the modifiers leave it, Tab to show the next.
     const onKey = (event: KeyboardEvent) => {
+      touched = false;
       if (!['Shift', 'Control', 'Alt', 'Meta', 'Tab'].includes(event.key)) hide();
     };
 

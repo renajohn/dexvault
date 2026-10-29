@@ -7,6 +7,11 @@
 .ui-stars {
   --star-size: 16px;
   display: inline-flex;
+  /* A finger on them turns the dial: the page neither scrolls nor offers its own menu. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   flex: none;
   gap: 2px;
 }
@@ -42,3 +47,51 @@
 .ui-star__given { fill: var(--dv-gold); }
 .ui-star__adding { fill: var(--dv-text); }
 .ui-star__leaving { fill: var(--dv-gold); opacity: 0.3; }
+.ui-star__seed { fill: var(--dv-text-muted); }
+
+/*
+ * The dial under a finger (StarDial): the menus' glass in the middle of the
+ * screen, above all, never in the way of a touch; large stars alone, grey
+ * while it stands on the 3 of a record of no stars.
+ */
+.ui-star-dial {
+  position: fixed;
+  z-index: 100002;
+  top: 50%;
+  left: 50%;
+  margin: -60px 0 0 -130px;
+  width: 260px;
+  padding: 22px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  animation: menu-in 0.14s ease-out;
+}
+
+.ui-star-dial__stars {
+  display: flex;
+  gap: 6px;
+}
+
+.ui-star-dial__stars svg {
+  display: block;
+  width: 36px;
+  height: 36px;
+}
+
+.ui-star-dial__words {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--dv-gold);
+}
+
+.ui-star-dial__words--seed {
+  color: var(--dv-text-muted);
+}
+
+.ui-star-dial__hint {
+  font-size: 0.8rem;
+  color: var(--dv-text-muted);
+}

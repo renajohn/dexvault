@@ -203,7 +203,7 @@ const PlayerBar: React.FC = () => {
           controls={{ toggle: () => atRest.playFrom(0), next: () => undefined, previous: () => undefined, playTrack: atRest.playFrom }}
           guideOf={Number(restAlbum.id)} tracks={atRest.tracks} index={-1} from=""
           onOpen={() => navigate(`/musicdex?album=${restAlbum.id}`)}
-          rest={{ albumId: restAlbum.id, line: atRest.line, menu: atRest.menu }}
+          rest={{ albumId: restAlbum.id, line: atRest.line, menu: atRest.menu }} starsOf={restAlbum.id}
           door={out ? <NowPlayingDisc exceptAlbumId={restAlbum.id} onOpen={leaveForPlaying} className="now-playing-door" /> : null}
           out />
       ) : last.current && (() => {
@@ -223,7 +223,8 @@ const PlayerBar: React.FC = () => {
                 playTrack: at => player.playTrack(at),
               }}
               lyricsOf={album.id != null ? { albumId: album.id, disc: track.disc, no: track.no } : null} timingSongId={track.songId}
-              guideOf={track.albumId ?? album.id} heartsOf={track.artist == null ? album.id ?? null : null} mixtape={{ songId: track.songId, title: track.title }}
+              guideOf={track.albumId ?? album.id} heartsOf={track.artist == null ? album.id ?? null : null}
+              starsOf={track.artist == null ? album.id ?? null : null} mixtape={{ songId: track.songId, title: track.title }}
               tracks={tracks} index={index} onAllTracks={fromListenNext ? () => setTracksOpen(true) : null}
               onAmperfy={isAppleMobile() && album.navidromeId ? () => {
                 // Not both at once: DexVault's player pauses, and Amperfy starts the album.
@@ -231,7 +232,7 @@ const PlayerBar: React.FC = () => {
                 window.location.href = amperfyUrl(album.navidromeId!);
               } : null}
               favourite={{ on: favourite, toggle: () => { void toggleFavourite(); } }}
-              away={away} taken={taken ? outputName : null} following={following}
+              away={away} taken={taken ? outputName : null}
               left={left > 0 ? `${leftText(left)} left of ${fromListenNext ? 'Listen Next' : album.title}` : null}
               from={fromListenNext ? 'Listen Next' : album.title} onOpen={open} format={format}
               onOpenMixtape={track.artist != null && album.id != null ? { title: album.title, open: () => navigate(`/musicdex?album=${album.id}`) } : null}

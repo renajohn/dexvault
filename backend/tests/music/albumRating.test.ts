@@ -177,3 +177,18 @@ describe('listening notes', () => {
     expect((await request(app).post(`/api/music/albums/${id}/notes`).send({ note: '  ' })).status).toBe(400);
   });
 });
+
+describe('how the stars spread', () => {
+  it('counts the albums of the collection at each half, neither the wished nor the mixtapes', async () => {
+    const before = (await request(app).get('/api/music/ratings/counts').expect(200)).body.counts as Array<{ stars: number; count: number }>;
+    const at = (counts: Array<{ stars: number; count: number }>, stars: number) => counts.find(one => one.stars === stars)?.count ?? 0;
+    const kept = await insertAlbum(`Spread ${Math.random()}`);
+    await Album.setUserRating(kept, 3.5);
+    const wished = await insertAlbum(`Spread wished ${Math.random()}`);
+    await new Promise<void>((resolve, reject) => getDatabase().run(`UPDATE albums SET title_status = 'wish' WHERE id = ?`, [wished], (err: Error | null) => (err ? reject(err) : resolve())));
+    await Album.setUserRating(wished, 3.5);
+
+    const after = (await request(app).get('/api/music/ratings/counts').expect(200)).body.counts;
+    expect(at(after, 3.5)).toBe(at(before, 3.5) + 1);
+  });
+});

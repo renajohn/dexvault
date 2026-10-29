@@ -2,17 +2,23 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PhonePlayer from './PhonePlayer';
 import musicService from '../services/musicService';
+import { setFavourite } from '../services/favourites';
 
 const mocks = vi.hoisted(() => ({ state: {} as Record<string, unknown> }));
 
 vi.mock('../services/musicService', () => ({
-  default: { getMixtapes: vi.fn(async () => []), getLyrics: vi.fn(), getAlbumGuide: vi.fn(async () => null), fixLyricsTiming: vi.fn(), resetLyricsTiming: vi.fn(), getLyricsVersions: vi.fn(async () => ({ durationSec: 229, versions: [] })) },
+  default: { getMixtapes: vi.fn(async () => ({ configured: true, mixtapes: [] })), getLyrics: vi.fn(), getAlbumGuide: vi.fn(async () => null), fixLyricsTiming: vi.fn(), resetLyricsTiming: vi.fn(), getLyricsVersions: vi.fn(async () => ({ durationSec: 229, versions: [] })),
+    syncAlbumRating: vi.fn(async () => ({ userRating: 4 })), setAlbumRating: vi.fn(async (_id: number, rating: number) => ({ userRating: rating, navidrome: 'synced' })) },
 }));
 vi.mock('../services/player', () => ({
   usePlayer: (select: (state: Record<string, unknown>) => unknown) => select(mocks.state),
   player: { currentTime: () => 8, seek: vi.fn(), toggle: vi.fn(), setRate: vi.fn(), getState: () => mocks.state },
   localOutputName: () => 'iPhone',
   streamUrl: (id: string) => `/api/music/navidrome/stream/${id}`,
+}));
+vi.mock('../services/favourites', async original => ({
+  ...(await original<typeof import('../services/favourites')>()),
+  setFavourite: vi.fn(async () => undefined),
 }));
 vi.mock('../utils/audioPeaks', () => ({ peaksOf: vi.fn(async () => ({ bin: 0.02, levels: new Float32Array(15000) })) }));
 
@@ -110,24 +116,65 @@ describe('PhonePlayer, its tracks’ hearts and dots', () => {
     expect(within(second).getByLabelText('Favourite')).toBeInTheDocument();
   });
 
-  it('opens a track’s menu under a long press, and its click plays nothing', () => {
-    vi.useFakeTimers();
-    try {
-      const playTrack = vi.fn();
-      render(phone({ tracks, index: 0, controls: { toggle: vi.fn(), next: vi.fn(), previous: vi.fn(), playTrack } }));
-      toTracks();
-      const line = screen.getByRole('button', { name: /Rolling in the Deep/ });
+  it('says over the tracks their count and length, what is left once it plays, and the album’s stars', async () => {
+    const { rerender } = render(phone({ tracks, index: 0, starsOf: 25 }));
+    toTracks();
+    expect(screen.getByText('2 tracks · 8 min')).toBeInTheDocument();
+    const stars = await screen.findByRole('group', { name: 'Your stars for 21: 4 stars' });
+    expect(musicService.syncAlbumRating).toHaveBeenCalledWith(25);
 
-      fireEvent.pointerDown(line, { pointerType: 'touch', clientX: 10, clientY: 10 });
-      act(() => { vi.advanceTimersByTime(500); });
-      fireEvent.pointerUp(line);
-      fireEvent.click(line);
+    rerender(phone({ tracks, index: 0, starsOf: 25, left: '7 min left of 21' }));
+    expect(screen.getByText('7 min left of 21')).toBeInTheDocument();
+    expect(screen.queryByText('2 tracks · 8 min')).not.toBeInTheDocument();
+    expect(stars).toBeInTheDocument();
+  });
 
-      expect(playTrack).not.toHaveBeenCalled();
-      expect(screen.getByRole('menuitem', { name: /Add to the favourites/ })).toBeInTheDocument();
-      expect(screen.getByRole('menuitem', { name: /Play from here/ })).toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
+  it('plays a track touched, the one playing doing nothing', () => {
+    const playTrack = vi.fn();
+    render(phone({ tracks, index: 0, controls: { toggle: vi.fn(), next: vi.fn(), previous: vi.fn(), playTrack } }));
+    toTracks();
+    fireEvent.click(screen.getByRole('button', { name: /Rolling in the Deep/ }));
+    expect(playTrack).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /Rumour Has It/ }));
+    expect(playTrack).toHaveBeenCalledWith(1);
+  });
+
+  /** A finger drawn across a line, from x 100 to `to`. */
+  const slide = (line: HTMLElement, to: number) => {
+    const row = line.closest('li')!;
+    fireEvent.touchStart(row, { touches: [{ clientX: 100, clientY: 100 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: 100 + Math.sign(to - 100) * 20, clientY: 101 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: to, clientY: 102 }] });
+    fireEvent.touchEnd(row);
+  };
+
+  it('gives or takes a track’s ♥ slid to the right, and opens its mixtapes let go slid to the left, playing nothing', async () => {
+    const playTrack = vi.fn();
+    render(phone({ tracks, index: 0, controls: { toggle: vi.fn(), next: vi.fn(), previous: vi.fn(), playTrack } }));
+    toTracks();
+    const rumour = screen.getByRole('button', { name: /Rumour Has It/ });
+    expect(rumour.closest('li')).toHaveTextContent('Not favourite');
+    slide(rumour, 260);
+    expect(setFavourite).toHaveBeenCalledWith('s2', false);
+
+    // Not far enough: back in place, nothing done.
+    slide(rumour, 40);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    slide(rumour, -20);
+    expect(await screen.findByRole('menuitem', { name: /New mixtape/ })).toBeInTheDocument();
+    expect(playTrack).not.toHaveBeenCalled();
+
+    // A touch on its line closes it, and plays nothing.
+    fireEvent.touchStart(rumour.closest('li')!, { touches: [{ clientX: 100, clientY: 100 }] });
+    fireEvent.touchEnd(rumour.closest('li')!);
+    fireEvent.click(rumour);
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(playTrack).not.toHaveBeenCalled();
+    slide(rumour, -20);
+    await screen.findByRole('menu');
+
+    // A touch anywhere else, a finger's: the menu closes.
+    fireEvent.pointerDown(screen.getByRole('dialog', { hidden: true }));
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
   });
 });

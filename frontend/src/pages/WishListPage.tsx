@@ -32,7 +32,7 @@ import Spinner, { Loading } from '../components/shared/Spinner';
 import { thumbProps } from '../utils/thumb';
 import { openRicardo, ricardoSearchUrl } from '../utils/digitalLibrary';
 import { parseWishlistSearch } from '../utils/wishlistSearch';
-import SwipeRow, { type SwipeAction } from '../components/SwipeRow';
+import SwipeRow, { type SwipeAction, type SwipeDeed } from '../components/SwipeRow';
 import useNarrow from '../utils/useNarrow';
 import { toast } from '../components/shared/Toast';
 import { readStored, writeStored } from '../utils/safeStorage';
@@ -608,6 +608,11 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
   );
 
   /** What a row slid to the left lays bare: Share, I bought it, Delete. */
+  const swipeDeed = (item: any, itemType: 'movie' | 'album' | 'book'): SwipeDeed => ({
+    label: isSpokenFor(item) ? 'Not spoken for' : 'Spoken for', icon: <BsBookmarkCheck />,
+    onSelect: () => handleSpokenForClick(item, itemType),
+  });
+
   const swipeActions = (item: any, itemType: 'movie' | 'album' | 'book'): SwipeAction[] => [
     { label: 'Share', icon: <BsBoxArrowUp />, onSelect: () => share(item, itemType) },
     {
@@ -868,8 +873,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                         style={{ cursor: 'pointer' }}
                         enabled={narrow}
                         hint={swipeHint && index === 0 && hintKind === 'movie'}
-                        spokenFor={isSpokenFor(movie)}
-                        onSpokenFor={() => handleSpokenForClick(movie, 'movie')}
+                        deed={swipeDeed(movie, 'movie')}
                         actions={swipeActions(movie, 'movie')}
                       >
                         <td className="wl-cover">
@@ -1005,8 +1009,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                         style={{ cursor: 'pointer' }}
                         enabled={narrow}
                         hint={swipeHint && index === 0 && hintKind === 'album'}
-                        spokenFor={isSpokenFor(album)}
-                        onSpokenFor={() => handleSpokenForClick(album, 'album')}
+                        deed={swipeDeed(album, 'album')}
                         actions={swipeActions(album, 'album')}
                       >
                         <td className="wl-cover">
@@ -1101,8 +1104,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
                         style={{ cursor: 'pointer' }}
                         enabled={narrow}
                         hint={swipeHint && index === 0 && hintKind === 'book'}
-                        spokenFor={isSpokenFor(book)}
-                        onSpokenFor={() => handleSpokenForClick(book, 'book')}
+                        deed={swipeDeed(book, 'book')}
                         actions={swipeActions(book, 'book')}
                       >
                         <td className="wl-cover">

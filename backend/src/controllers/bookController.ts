@@ -275,6 +275,16 @@ const bookController = {
   },
 
   // Search books
+  /** How the books' stars spread: how many at each half, for the dial to say where a rating stands. */
+  getRatingCounts: async (_req: Request, res: Response): Promise<void> => {
+    try {
+      res.json({ counts: await Book.countRatings() });
+    } catch (error) {
+      logger.error('Error counting the books\' stars:', error);
+      res.status(500).json({ error: 'Failed to count the stars' });
+    }
+  },
+
   searchBooks: async (req: Request, res: Response): Promise<void> => {
     try {
       const { q } = req.query;

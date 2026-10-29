@@ -2,7 +2,8 @@
  * A row a finger slides (SwipeRow.tsx). The row stays where it is and keeps
  * what lies under it still against its edges; the plate, its ground (::before)
  * and its cells, moves by --swipe, all of them alike. isolation keeps the
- * plate's ground above what lies under and below its cells.
+ * plate's ground above what lies under and below its cells. A list's line
+ * (swipe-row--bare) has no ground: what lies under is cut to what the plate bares.
  */
 .swipe-row {
   --swipe: 0px;
@@ -25,19 +26,19 @@
 }
 
 .swipe-row::before,
-.swipe-row > td:not(.swipe-row__under) {
+.swipe-row > :not(.swipe-row__under) {
   transform: translateX(var(--swipe));
   transition: var(--swipe-ease);
 }
 
 /* Under the finger, the plate follows at once. */
 .swipe-row.swipe-row--moving::before,
-.swipe-row.swipe-row--moving > td:not(.swipe-row__under) {
+.swipe-row.swipe-row--moving > :not(.swipe-row__under) {
   transition: none;
 }
 
 /* td.: the tables' own cells (display, background, padding) give way. */
-.swipe-row > td.swipe-row__under {
+.swipe-row > :is(td, div).swipe-row__under {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -48,20 +49,20 @@
   display: none;
 }
 
-.swipe-row--right > td.swipe-row__under--deed,
-.swipe-row--left > td.swipe-row__under--actions {
+.swipe-row--right > :is(td, div).swipe-row__under--deed,
+.swipe-row--left > :is(td, div).swipe-row__under--actions {
   display: flex;
 }
 
 /* Slid to the right: the deed in grey, gold past the threshold (gold means on). */
-.swipe-row > td.swipe-row__under--deed {
+.swipe-row > :is(td, div).swipe-row__under--deed {
   align-items: center;
   background: #2a2a2a;
   color: var(--dv-text-muted);
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.swipe-row--armed > td.swipe-row__under--deed {
+.swipe-row--armed > :is(td, div).swipe-row__under--deed {
   background: var(--dv-gold);
   color: var(--dv-gold-ink);
 }
@@ -82,7 +83,7 @@
 }
 
 /* Slid to the left: large buttons, the whole height, against the right edge. */
-.swipe-row > td.swipe-row__under--actions {
+.swipe-row > :is(td, div).swipe-row__under--actions {
   justify-content: flex-end;
   background: #2a2a2a;
 }
@@ -131,16 +132,61 @@
 }
 
 /* Once, the first row opens a little and closes, to say that it slides. */
-.swipe-row--hint > td.swipe-row__under--actions {
+.swipe-row--hint > :is(td, div).swipe-row__under--actions {
   display: flex;
 }
 
 .swipe-row--hint::before,
-.swipe-row--hint > td:not(.swipe-row__under) {
+.swipe-row--hint > :not(.swipe-row__under) {
   animation: swipe-row-hint 1.2s cubic-bezier(0.2, 0.9, 0.25, 1) 0.6s 1;
 }
 
 @keyframes swipe-row-hint {
   0%, 100% { transform: translateX(0); }
   35%, 60% { transform: translateX(-64px); }
+}
+
+/* A list's line on a light of its own: no ground, what lies under bared only, at the plate's pace. */
+.swipe-row--bare::before {
+  content: none;
+}
+
+.swipe-row--bare > div.swipe-row__under {
+  transition: width 0.32s cubic-bezier(0.2, 0.9, 0.25, 1), background 0.15s ease, color 0.15s ease;
+}
+
+.swipe-row--bare > div.swipe-row__under--deed {
+  right: auto;
+  width: max(0px, var(--swipe));
+  overflow: hidden;
+}
+
+.swipe-row--bare > div.swipe-row__under--actions {
+  left: auto;
+  width: max(0px, calc(-1 * var(--swipe)));
+  overflow: hidden;
+}
+
+.swipe-row--bare.swipe-row--moving > div.swipe-row__under {
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.swipe-row--bare.swipe-row--hint > div.swipe-row__under--actions {
+  animation: swipe-row-hint-bare 1.2s cubic-bezier(0.2, 0.9, 0.25, 1) 0.6s 1;
+}
+
+@keyframes swipe-row-hint-bare {
+  0%, 100% { width: 0; }
+  35%, 60% { width: 64px; }
+}
+
+/* A deed to the left (the mixtapes): grey, lighter past the threshold, never gold (nothing turns on). */
+.swipe-row > :is(td, div).swipe-row__under--left-deed {
+  align-items: center;
+  color: var(--dv-text-muted);
+}
+
+.swipe-row--armed-left > :is(td, div).swipe-row__under--left-deed {
+  background: #48484a;
+  color: var(--dv-text);
 }

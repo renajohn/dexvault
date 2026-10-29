@@ -877,6 +877,16 @@ const musicController = {
     }
   },
 
+  /** How the collection's stars spread: how many albums at each half, for the dial to say where a rating stands. */
+  getRatingCounts: async (_req: Request, res: Response): Promise<void> => {
+    try {
+      res.json({ counts: await Album.countRatings() });
+    } catch (error) {
+      logger.error('Error counting the stars:', error);
+      res.status(500).json({ error: 'Failed to count the stars' });
+    }
+  },
+
   syncAllUserRatings: async (_req: Request, res: Response): Promise<void> => {
     try {
       res.json(await albumRatingService.syncAll());

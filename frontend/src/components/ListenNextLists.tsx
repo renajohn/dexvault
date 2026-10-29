@@ -2,7 +2,7 @@ import React from 'react';
 import { BsDisc, BsHeadphones } from 'react-icons/bs';
 import Segmented from './shared/Segmented';
 import CoverButton from './shared/CoverButton';
-import StarRating from './shared/StarRating';
+import { AlbumStarRating } from './RecordStarRating';
 import { NextBannerDrop } from './shared/NextBanner';
 import { toast } from './shared/Toast';
 import musicService, { type ListenNextMedium } from '../services/musicService';
@@ -78,7 +78,7 @@ export const askStars = (album: { id: number; title?: string }, onUndo: () => vo
     return (
       <span className="listen-next-rate">
         <span className="listen-next-rate__words">{stars ? `${stars} ★ kept` : 'Rate it'} <b>{album.title}</b></span>
-        <StarRating value={stars} size="lg" label={`Stars for ${album.title}`} onChange={value => {
+        <AlbumStarRating value={stars} size="lg" label={`Stars for ${album.title}`} onChange={value => {
           setStars(value || null);
           musicService.setAlbumRating(album.id, value).catch(() => toast('The stars were not kept', { tone: 'danger' }));
         }} />

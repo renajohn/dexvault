@@ -1,15 +1,17 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  BsBoxArrowUpRight, BsChatQuote, BsChatQuoteFill, BsInfoCircle, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
+  BsBoxArrowUpRight, BsCassetteFill, BsChatQuote, BsChatQuoteFill, BsInfoCircle, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
   BsSkipBackwardFill, BsSkipForwardFill, BsSpeaker, BsThreeDots, BsX,
 } from 'react-icons/bs';
-import { setFullPlayer, useFullPlayer } from '../services/phoneDoor';
+import { setFullPlayer, tracksShownAsAsked, useFullPlayer, useTracksAsked } from '../services/phoneDoor';
 import musicService, { type TrackLyrics } from '../services/musicService';
 import { useOutputs } from '../services/outputs';
 import { localOutputName } from '../services/player';
 import Button from './shared/Button';
 import Menu from './shared/Menu';
+import { AlbumStarRating } from './RecordStarRating';
+import { playingTime } from '../utils/albumHead';
 import NowPlayingBars from './shared/NowPlayingBars';
 import { Loading } from './shared/Spinner';
 import OutputMenu, { OutputVolume } from './OutputMenu';
@@ -19,7 +21,8 @@ import { useLyricsTiming } from './useLyricsTiming';
 import { GuideText, readingOf } from './AlbumGuide';
 import { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
-import { useLongPress } from '../utils/useLongPress';
+import { readStored, writeStored } from '../utils/safeStorage';
+import SwipeRow from './SwipeRow';
 import toast from './shared/Toast';
 import './PhonePlayer.css';
 
@@ -70,9 +73,10 @@ export interface PhonePlayerProps {
   away?: boolean;
   /** The appliance plays something else: its name, and Resume. */
   taken?: string | null;
-  /** The track after this one, and what is left to hear, with what of. */
-  following?: { title: string; artist: string } | null;
+  /** What is left to hear, with what of: over the tracks, in place of their count and length. */
   left?: string | null;
+  /** The album whose owner's stars show over its tracks; none for a mixtape or a computer far away. */
+  starsOf?: number | string | null;
   from: string;
   /** The words of the track, for an album DexVault holds. */
   lyricsOf?: { albumId: number; disc: number; no: number } | null;
@@ -85,7 +89,7 @@ export interface PhonePlayerProps {
    * tracks are shown, those the tracks came with being of the moment it started.
    */
   heartsOf?: number | null;
-  /** The album's tracks, the one playing at `index`; a song of Navidrome's has its ♥ and a menu under a long press. */
+  /** The album's tracks, the one playing at `index`; a song of Navidrome's slides: its ♥, its mixtapes. */
   tracks?: PhoneTrack[];
   index?: number;
   onOpen?: (() => void) | null;
@@ -224,23 +228,26 @@ export interface PhoneTrack {
   popular?: boolean;
 }
 
+/** Set once the first line has shown, on a phone, that the tracks slide. */
+const SWIPE_HINT_KEY = 'dexvault-player-tracks-swipe-hint';
+
 /**
- * A line of the player's tracks: a touch plays it; the grey dot of the Mac
- * before the number of a track most listened to, a small gold ♥ by its length
- * when it is a favourite. Half a second's press opens its menu: the ♥, Play
- * from here, the mixtapes (docs/superpowers/specs/2026-10-27-fav-et-populaire).
+ * A line of the player's tracks: a touch plays it, the track playing does
+ * nothing; the grey dot of the Mac before the number of a track most listened
+ * to, a small gold ♥ by its length when it is a favourite. Slid to the right
+ * the line gives or takes its ♥; slid to the left, let go, it opens the
+ * mixtapes (docs/superpowers/specs/2026-10-27-fav-et-populaire).
  */
-const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing: boolean; play?: () => void; onNewMixtape: () => void }> = ({ track, no, now, playing, play, onNewMixtape }) => {
+const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing: boolean; play?: () => void; hint: boolean; onNewMixtape: () => void }> = ({ track, no, now, playing, play, hint, onNewMixtape }) => {
   const favourite = useFavourite(track.songId);
   const [menu, setMenu] = useState(false);
   const songId = track.songId;
-  const press = useLongPress(songId ? () => setMenu(true) : null);
   const toggleFavourite = () => {
     if (songId) setFavourite(songId, !favourite).catch(error => toast(`Could not change the favourite: ${(error as Error).message}`, { tone: 'danger' }));
   };
   const line = (props?: React.ComponentProps<'button'>) => (
-    <button type="button" {...props} {...press} className={`now-playing-tracks__track${now ? ' now-playing-tracks__track--now' : ''}${menu ? ' now-playing-tracks__track--held' : ''}`}
-      disabled={!play} onClick={play} aria-current={now ? 'true' : undefined}>
+    <button type="button" {...props} className={`now-playing-tracks__track${now ? ' now-playing-tracks__track--now' : ''}${menu ? ' now-playing-tracks__track--held' : ''}`}
+      disabled={!play} onClick={menu ? () => setMenu(false) : now ? undefined : play} aria-current={now ? 'true' : undefined}>
       <span className="now-playing-tracks__no">
         {track.popular && <span className="now-playing-tracks__popular" title="One of the album's most listened tracks"><span className="visually-hidden">Popular: </span></span>}
         {now ? <NowPlayingBars playing={playing} /> : no}
@@ -250,16 +257,15 @@ const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing
       <span className="now-playing-tracks__time">{track.durationSec ? time(track.durationSec) : ''}</span>
     </button>
   );
-  if (!songId) return line();
+  if (!songId) return <li>{line()}</li>;
   return (
-    <Menu open={menu} onOpenChange={setMenu} label={track.title} trigger={props => line(props as unknown as React.ComponentProps<'button'>)}>
-      <Menu.Item icon={favourite ? <BsHeart /> : <BsHeartFill />} onSelect={toggleFavourite}>
-        {favourite ? 'Remove from the favourites' : 'Add to the favourites'}
-      </Menu.Item>
-      {play && <Menu.Item icon={<BsPlayFill />} onSelect={play}>Play from here</Menu.Item>}
-      <Menu.Separator />
-      <MixtapeEntries songIds={[songId]} title={track.title} onNew={onNewMixtape} />
-    </Menu>
+    <SwipeRow as="li" enabled hint={hint}
+      deed={{ label: favourite ? 'Not favourite' : 'Favourite', icon: favourite ? <BsHeart /> : <BsHeartFill />, onSelect: toggleFavourite }}
+      leftDeed={{ label: 'Mixtape', icon: <BsCassetteFill />, onSelect: () => setMenu(true) }}>
+      <Menu open={menu} onOpenChange={setMenu} label={track.title} trigger={props => line(props as unknown as React.ComponentProps<'button'>)}>
+        <MixtapeEntries songIds={[songId]} title={track.title} onNew={onNewMixtape} />
+      </Menu>
+    </SwipeRow>
   );
 };
 
@@ -312,6 +318,31 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
       .catch(() => undefined);
     return () => { current = false; };
   }, [tracksShown, heartsOf]);
+  // The album's stars over its tracks: read again from Navidrome as they are shown (given in Amperfy since).
+  const starsOf = props.starsOf ?? null;
+  const [stars, setStars] = useState<number | null>(null);
+  useEffect(() => { setStars(null); }, [starsOf]);
+  useEffect(() => {
+    if (!tracksShown || starsOf == null) return undefined;
+    let current = true;
+    musicService.syncAlbumRating(starsOf)
+      .then(({ userRating }) => { if (current) setStars(userRating ?? null); })
+      .catch(() => undefined);
+    return () => { current = false; };
+  }, [tracksShown, starsOf]);
+  const rate = (next: number) => {
+    if (starsOf == null) return;
+    const before = stars;
+    setStars(next || null);
+    musicService.setAlbumRating(starsOf, next)
+      .then(({ userRating }) => setStars(userRating ?? null))
+      .catch(error => { setStars(before); toast(`The stars were not kept: ${(error as Error).message}`, { tone: 'danger' }); });
+  };
+  const trackCount = props.tracks?.length ?? 0;
+  const summary = [
+    trackCount > 0 ? `${trackCount} ${trackCount === 1 ? 'track' : 'tracks'}` : null,
+    playingTime(props.tracks?.reduce((sum, one) => sum + (one.durationSec || 0), 0) ?? 0) || null,
+  ].filter(Boolean).join(' · ');
   // The album's listening guide, read as the album starts: its button shows only when there is one.
   const [guide, setGuide] = useState<string | null>(null);
   // The words of the track, read as they are shown; fixing their timing works on them in place of the controls.
@@ -350,13 +381,22 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   }, [guideOf]);
 
   useEffect(() => { if (!props.out) setFull(false); }, [props.out]);
-  // An album opened at rest shows its cover first; played from its tracks, it stays on them.
+  // Another album at rest starts on its cover (its tracks once read, below, when a cover opened it); played from its tracks, it stays on them.
   const restId = props.rest?.albumId ?? null;
-  useEffect(() => { if (restId != null) setView('cover'); }, [restId]);
-  // A view the track playing has not (no words for a computer far away): back to the cover.
+  const tracksAsked = useTracksAsked();
+  useEffect(() => { if (restId != null && !tracksAsked) setView('cover'); }, [restId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A cover touched opens straight on its tracks, before it is first painted, never on the cover first:
+  // they fill in as they are read. The tracks button, on, takes them away.
+  useLayoutEffect(() => {
+    if (!full || !tracksAsked) return;
+    setView('tracks');
+    if (hasTracks) tracksShownAsAsked();
+  }, [full, tracksAsked, hasTracks, restId]);
+  // A view the track playing has not (no words for a computer far away): back to the cover. Tracks asked
+  // by a cover wait for theirs.
   useEffect(() => {
-    if ((view === 'lyrics' && !hasLyrics) || (view === 'tracks' && !hasTracks) || (view === 'guide' && !guide)) setView('cover');
-  }, [view, hasLyrics, hasTracks, guide]);
+    if ((view === 'lyrics' && !hasLyrics) || (view === 'tracks' && !hasTracks && !tracksAsked) || (view === 'guide' && !guide)) setView('cover');
+  }, [view, hasLyrics, hasTracks, guide, tracksAsked]);
 
   // A finger drawn on the pill or the full screen never scrolls the page under them: iOS's Safari scrolls it
   // through a fixed layer whatever its touch-action, unless the move is refused. A slider and a list keep their own.
@@ -480,22 +520,25 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
     </div>
   );
 
+  // Once, the first time tracks are shown, their first line of Navidrome's opens a little to say that it slides.
+  const [swipeHint] = useState(() => readStored(SWIPE_HINT_KEY) !== '1');
+  const hintSongId = props.tracks?.find(one => one.songId)?.songId;
+  const tracksSeen = full && view === 'tracks' && hintSongId != null;
+  useEffect(() => { if (tracksSeen && swipeHint) writeStored(SWIPE_HINT_KEY, '1'); }, [tracksSeen, swipeHint]);
   const tracksList = hasTracks && (
     <div className="now-playing-tracks now-playing-scroll">
-      {(props.following || props.left) && (
-        <p className="now-playing-tracks__ahead">
-          {props.following && <>Up next: <b>{props.following.title}</b>{props.following.artist && <> · {props.following.artist}</>}</>}
-          {props.following && props.left && <br />}
-          {props.left}
-        </p>
-      )}
+      {/* Always there, so the tracks do not move as the album starts: what is left, its stars. At rest the line
+          under the title says its length already: nothing more here. */}
+      <div className="now-playing-tracks__head">
+        <span className="now-playing-tracks__ahead">{props.left || (props.rest ? null : summary)}</span>
+        {starsOf != null && <AlbumStarRating value={stars} onChange={rate} size="sm" label={`Your stars for ${cover.title}`} />}
+      </div>
       <ol>
         {props.tracks!.map((one, i) => (
-          <li key={i}>
-            <TrackLine track={one} no={i + 1} now={i === props.index} playing={playing}
-              play={controls.playTrack ? () => controls.playTrack!(i) : undefined}
-              onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })} />
-          </li>
+          <TrackLine key={i} track={one} no={i + 1} now={i === props.index} playing={playing}
+            play={controls.playTrack ? () => controls.playTrack!(i) : undefined}
+            hint={swipeHint && one.songId === hintSongId}
+            onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })} />
         ))}
       </ol>
       {props.onAllTracks && (
