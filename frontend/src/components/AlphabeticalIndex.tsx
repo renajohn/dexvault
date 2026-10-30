@@ -225,12 +225,13 @@ const AlphabeticalIndex = ({
       // The letters of the cards on screen, read in one pass over the cards
       // rather than a query per letter, and only told when they change
       const nowVisible = new Set<string>();
+      const under = Math.max(60, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sticky-search-bottom')) || 0);
       searchRoot.querySelectorAll<HTMLElement>('[data-first-letter]').forEach(element => {
         const letter = element.dataset.firstLetter!;
         if (nowVisible.has(letter) || !availableLetters.has(letter)) return;
         const rect = element.getBoundingClientRect();
-        // Partly in sight, below the sticky header's 60px
-        if (rect.bottom > viewportTop + 60 && rect.top < viewportBottom) nowVisible.add(letter);
+        // Partly in sight, below the sticky header (60px, or on a phone the search held at the top)
+        if (rect.bottom > viewportTop + under && rect.top < viewportBottom) nowVisible.add(letter);
       });
 
       setVisibleLetters(previous =>
@@ -279,7 +280,9 @@ const AlphabeticalIndex = ({
     if (element) {
       // Get the element's position relative to the document
       const elementRect = element.getBoundingClientRect();
-      const offset = 120; // Account for sticky headers
+      // Under the sticky headers: on a phone, the search held at the top of the screen.
+      const stuck = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sticky-search-bottom')) || 0;
+      const offset = Math.max(120, stuck + 16);
 
       if (scrollContainer === document.documentElement) {
         // For window scrolling, use window.scrollTo with absolute position

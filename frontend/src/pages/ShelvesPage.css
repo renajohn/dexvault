@@ -39,6 +39,27 @@
 .shelves-tabs {
   flex-wrap: wrap}
 
+/*
+ * On a phone the tabs scroll away but for the search, which holds under the
+ * status bar (utils/useStickySearch.ts), the full width of the screen. Held
+ * there it wears the menus' glass, and the shelves' headings stick under it.
+ */
+@media (max-width: 767px) {
+  .shelves-controls.sticky-search {
+    z-index: 30;
+    margin: 0 -16px 12px;
+    padding: 0 16px 8px;
+    transition: background-color 0.2s ease;
+  }
+
+  .shelves-controls.sticky-search--stuck {
+    background: var(--dv-surface);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    backdrop-filter: blur(20px) saturate(1.4);
+    box-shadow: 0 1px 0 rgba(251, 191, 36, 0.2);
+  }
+}
+
 .shelves-link {
   padding: 0;
   border: none;
@@ -204,7 +225,7 @@
  */
 .shelf-rail {
   position: fixed;
-  top: 96px;
+  top: max(96px, calc(var(--sticky-search-bottom, 0px) + 8px));
   bottom: 80px;
   right: max(4px, calc((100vw - 960px) / 2 - 22px));
   z-index: 3;
@@ -247,13 +268,13 @@
 }
 
 .shelf-letter {
-  /* Reached from the strip, the heading lands below the top of the page. */
-  scroll-margin-top: 8px;
+  /* Reached from the strip, the heading lands below the top of the page, and the search held there on a phone. */
+  scroll-margin-top: calc(var(--sticky-search-bottom, 0px) + 8px);
 }
 
 .shelf-letter-heading {
   position: sticky;
-  top: 0;
+  top: var(--sticky-search-bottom, 0px);
   z-index: 1;
   display: flex;
   flex-wrap: wrap;

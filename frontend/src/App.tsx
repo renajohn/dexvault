@@ -39,6 +39,8 @@ import RemoteReporter from './components/RemoteReporter';
 import RemoteBar from './components/RemoteBar';
 import { connectOutputs } from './services/outputs';
 import { isComputer } from './services/remote';
+import { useMedia } from './utils/useNarrow';
+import { useStickySearch } from './utils/useStickySearch';
 
 interface SearchCriteria {
   searchText: string;
@@ -91,6 +93,9 @@ function AppContent() {
   const musicDexRef = useRef<any>(null);
   const bookDexRef = useRef<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // On a phone, the header scrolls away but for its search, which holds at the top.
+  const headerRef = useRef<HTMLElement>(null);
+  const searchRowRef = useRef<HTMLDivElement>(null);
 
   // The appliances of the house the player can play on (Salon), and what plays there, as it changes.
   useEffect(() => { void connectOutputs(); }, []);
@@ -166,6 +171,9 @@ function AppContent() {
 
   // Check if we should show the search bar (filmdex, musicdex, bookdex, wishlist)
   const showSearchBar = location.pathname === '/filmdex' || location.pathname === '/musicdex' || location.pathname === '/bookdex' || location.pathname === '/scores' || location.pathname === '/wishlist';
+
+  const phone = useMedia('(max-width: 767px)');
+  useStickySearch(headerRef, searchRowRef, phone && showSearchBar && Boolean(searchSchema), location.pathname);
 
   // Check if we should show the navigation pills (all main sections)
   const showNavigationPills = location.pathname === '/filmdex' || location.pathname === '/musicdex' || location.pathname === '/bookdex' || location.pathname === '/scores' || location.pathname === '/wishlist' || location.pathname === '/shelves' || location.pathname === '/analytics' || location.pathname === '/backup';
@@ -596,7 +604,7 @@ function AppContent() {
 
   return (
     <div className="App">
-      <header className="App-header">
+      <header ref={headerRef} className="App-header">
         <div className={`App-header-content ${!showSearchBar ? 'no-search' : ''} ${isSearchFocused ? 'search-focused' : ''}`}>
           {/* First row: Navigation and toolbar */}
           <div className="App-header-top">
@@ -639,7 +647,7 @@ function AppContent() {
 
           {/* Second row on a phone: the search, in pills (components/shared/search). */}
           {showSearchBar && searchSchema && (
-            <div className="App-search">
+            <div ref={searchRowRef} className="App-search">
               <SearchPills
                 schema={searchSchema}
                 value={searchCriteria.searchText}

@@ -17,6 +17,8 @@ interface Props {
   current: number;
   onGo: (index: number) => void;
   placeOf: (item: ShelvedItem) => Place | undefined;
+  /** Its box, for the page to hold it at the top of a phone's screen. */
+  boxRef?: React.Ref<HTMLDivElement>;
 }
 
 /**
@@ -25,7 +27,7 @@ interface Props {
  * list to it, or to the first when none is chosen; once there, ▲ ▼ and ↵ go
  * from one to the next. ⌘F lands in it.
  */
-const ShelfSearch: React.FC<Props> = ({ query, onQuery, hits, current, onGo, placeOf }) => {
+const ShelfSearch: React.FC<Props> = ({ query, onQuery, hits, current, onGo, placeOf, boxRef }) => {
   const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -69,7 +71,7 @@ const ShelfSearch: React.FC<Props> = ({ query, onQuery, hits, current, onGo, pla
   const count = !query.trim() ? null : !hits.length ? 'None' : current < 0 ? `${hits.length} found` : `${current + 1} / ${hits.length}`;
 
   return (
-    <div className="shelves-search">
+    <div ref={boxRef} className="shelves-search">
       <TextField
         ref={input}
         size="sm"

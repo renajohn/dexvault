@@ -16,6 +16,8 @@ import { TextField } from '../components/shared/TextField';
 import Notice from '../components/shared/Notice';
 import ShelfSearch from './ShelfSearch';
 import ShelfRail from './ShelfRail';
+import { useMedia } from '../utils/useNarrow';
+import { useStickySearch } from '../utils/useStickySearch';
 import Chip from '../components/shared/Chip';
 import { highlight, keyOf, matches, normalize, ordinal, placesOf, thumbnail, type Place } from './shelfFind';
 
@@ -290,6 +292,11 @@ const ShelvesPage: React.FC = () => {
   // The object a shelf code elsewhere was clicked on, shown as a search's result is, until the list is searched or changed.
   const [arrived, setArrived] = useState<string | null>(null);
   const list = useRef<HTMLDivElement>(null);
+  // On a phone, the tabs scroll away but for the search, which holds at the top of the screen.
+  const controls = useRef<HTMLDivElement>(null);
+  const searchBox = useRef<HTMLDivElement>(null);
+  const phone = useMedia('(max-width: 767px)');
+  useStickySearch(controls, searchBox, phone && tab !== 'places' && tab !== 'furniture', tab);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -483,7 +490,7 @@ const ShelvesPage: React.FC = () => {
 
       {error && <Notice tone="danger" className="mb-3">{error}</Notice>}
 
-      <div className="shelves-controls">
+      <div ref={controls} className="shelves-controls">
         <Segmented<Tab>
           label="Shelves"
           kind="tabs"
@@ -497,7 +504,7 @@ const ShelvesPage: React.FC = () => {
           ]}
         />
         {tab !== 'places' && tab !== 'furniture' && (
-          <ShelfSearch query={query} onQuery={changeQuery} hits={hits} current={current} onGo={goTo} placeOf={placeOf} />
+          <ShelfSearch query={query} onQuery={changeQuery} hits={hits} current={current} onGo={goTo} placeOf={placeOf} boxRef={searchBox} />
         )}
       </div>
 

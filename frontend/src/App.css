@@ -23,6 +23,29 @@
   z-index: 10000;
 }
 
+/*
+ * On a phone a box holding a search (this header, the shelves' tabs and search)
+ * scrolls away but for its search, which holds under the status bar
+ * (utils/useStickySearch.ts pulls the box up by --sticky-tuck). Held there,
+ * the header wears the menus' glass, the covers passing under it.
+ */
+@media (max-width: 767px) {
+  .sticky-search {
+    position: sticky;
+    top: calc(var(--safe-top) + 8px - var(--sticky-tuck, 0px));
+  }
+
+  .App-header.sticky-search {
+    transition: background-color 0.2s ease;
+  }
+
+  .App-header.sticky-search--stuck {
+    background: var(--dv-surface);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    backdrop-filter: blur(20px) saturate(1.4);
+  }
+}
+
 .App-header-content {
   display: flex;
   flex-direction: column;
