@@ -177,10 +177,14 @@ export interface AlbumAtRest {
   title: string;
   artist: string;
   cover: string | null;
-  /** Under the title, where the place in the track would be: CD · 12 tracks · 45 min · 2012. */
-  line: string;
+  /** Under the title, where the place in the track would be: CD · 12 tracks · 45 min · 2012; "On CD only" first when nothing plays. */
+  line: React.ReactNode;
+  /** Whether ▶ has anything to play: a rip in Navidrome. */
+  playable: boolean;
   /** Its tracks as the player would play them, their ♥ and their dot with them; empty until the rip is read. */
   tracks: PlayerTrack[];
+  /** The tracks to show: the player's, or for a CD with no rip the CD's own, which play nothing. */
+  shownTracks: PhoneTrackLike[];
   /** ▶, or a track touched: the album played from there, the full screen then showing it playing. */
   playFrom: (index: number) => void;
   /** Listen Next, the mixtapes, Amperfy: the album's own entries of ⋯, and its discs' heads. */
@@ -189,13 +193,16 @@ export interface AlbumAtRest {
   dialog: React.ReactNode;
 }
 
+/** A line of the player's tracks (PhonePlayer.PhoneTrack), for a CD with no rip: no song to play. */
+export interface PhoneTrackLike { title: string; durationSec: number | null; disc?: number; songId?: string; starred?: boolean; popular?: boolean }
+
 /**
  * The album a cover opened in the phone's full screen player, while another
  * plays or nothing does: its rip read for ▶ and its tracks, its place in
- * Listen Next for ⋯. A CD with no rip has nothing to play: its card opens
- * instead (`onNoRip`).
+ * Listen Next for ⋯. A CD with no rip has nothing to play: ▶ is grey, the
+ * line says so, its tracks are the CD's own.
  */
-export const useAlbumAtRest = (album: ShownAlbum | null, onNoRip: (albumId: number | string) => void): AlbumAtRest | null => {
+export const useAlbumAtRest = (album: ShownAlbum | null): AlbumAtRest | null => {
   // Undefined while Navidrome is asked for the rip, null when it could not be read.
   const [rip, setRip] = useState<RipTracks | null | undefined>(undefined);
   const albumId = album?.id ?? null;
@@ -212,23 +219,30 @@ export const useAlbumAtRest = (album: ShownAlbum | null, onNoRip: (albumId: numb
 
   const playerTracks = album ? playerTracksOf(album, rip) : [];
   const actions = useAlbumActions(albumId, album, playerTracks);
-  // Read, and nothing to play: its card says why (on CD only, not ripped yet).
-  const noRip = album != null && rip !== undefined && playerTracks.length === 0;
-  useEffect(() => { if (noRip) onNoRip(album!.id); }, [noRip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!album || !actions) return null;
+  // Read, and nothing to play: on CD only, not ripped yet.
+  const noRip = rip !== undefined && playerTracks.length === 0;
 
   const discs = album.discs || [];
   const trackCount = discs.reduce((count, disc) => count + disc.tracks.length, 0) || playerTracks.length;
   const seconds = discs.reduce((total, disc) => total + disc.tracks.reduce((sum, track) => sum + (track.durationSec || 0), 0), 0)
     || playerTracks.reduce((sum, track) => sum + (track.durationSec || 0), 0);
-  const line = [
-    album.format,
+  const shape = [
+    noRip ? null : album.format,
     discs.length > 1 ? `${discs.length} discs` : null,
     trackCount > 0 ? `${trackCount} ${trackCount === 1 ? 'track' : 'tracks'}` : null,
     playingTime(seconds) || null,
     album.releaseYear ? String(album.releaseYear) : null,
   ].filter(Boolean).join(' · ');
+  // Nothing to play: a CD not ripped, or an album wished or gone from Navidrome.
+  const hasCd = album.titleStatus !== 'digital' && album.titleStatus !== 'wish';
+  const line = noRip ? (
+    hasCd ? <><span className="now-playing-rest__cd" title="Put the CD on, or rip it">On CD only</span>{shape && ` · ${shape}`}</>
+      : <>{album.titleStatus === 'wish' ? 'Wished' : 'No files'}{shape && ` · ${shape}`}</>
+  ) : shape;
+  const shownTracks: PhoneTrackLike[] = playerTracks.length > 0 ? playerTracks
+    : discs.flatMap(disc => disc.tracks.map(track => ({ title: track.title, durationSec: track.durationSec ?? null, disc: disc.number })));
 
   const menu = (
     <>
@@ -249,7 +263,9 @@ export const useAlbumAtRest = (album: ShownAlbum | null, onNoRip: (albumId: numb
     artist: Array.isArray(album.artist) ? album.artist.join(', ') : album.artist || '',
     cover: musicService.getImageUrl(album.cover),
     line,
+    playable: playerTracks.length > 0,
     tracks: playerTracks,
+    shownTracks,
     playFrom: index => { if (playerTracks.length > 0) player.playAlbum(playerAlbumOf(album, rip), playerTracks, index); },
     actions: { ...actions, menu },
     dialog: actions.dialog,

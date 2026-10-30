@@ -29,9 +29,11 @@ interface PhoneDoorState {
   left: ShownAlbum | null;
   /** A cover just touched: the full screen opens on the tracks, once they are read. */
   tracksAsked: boolean;
+  /** An album without a CD opened from Buy or the wish list: the full screen opens on its info. */
+  infoAsked: boolean;
 }
 
-let state: PhoneDoorState = { covered: 0, full: false, shown: null, left: null, tracksAsked: false };
+let state: PhoneDoorState = { covered: 0, full: false, shown: null, left: null, tracksAsked: false, infoAsked: false };
 const listeners = new Set<() => void>();
 
 const set = (changes: Partial<PhoneDoorState>) => {
@@ -47,12 +49,13 @@ const subscribe = (listener: () => void) => {
 /** The full screen player opened (true) or back to the pill or the disc (false), the album shown at rest, or left, let go. */
 export const setFullPlayer = (full: boolean) => {
   if (state.full !== full || (!full && (state.shown || state.left || state.tracksAsked))) {
-    set(full ? { full } : { full, shown: null, left: null, tracksAsked: false });
+    set(full ? { full } : { full, shown: null, left: null, tracksAsked: false, infoAsked: false });
   }
 };
 
-/** A cover touched on a phone: the full screen player, on that album (at rest, unless it is the one playing), its tracks shown. */
-export const showAlbum = (album: ShownAlbum) => set({ full: true, shown: album, left: null, tracksAsked: true });
+/** A cover touched on a phone: the full screen player, on that album (at rest, unless it is the one playing), its tracks shown; or its info. */
+export const showAlbum = (album: ShownAlbum, view: 'tracks' | 'info' = 'tracks') =>
+  set({ full: true, shown: album, left: null, tracksAsked: view === 'tracks', infoAsked: view === 'info' });
 
 /** Back to what plays, the full screen staying open: the album shown played. */
 export const showPlaying = () => { if (state.shown || state.left) set({ shown: null, left: null }); };
@@ -65,6 +68,35 @@ export const useTracksAsked = (): boolean => useSyncExternalStore(subscribe, () 
 
 /** The tracks asked by a cover are shown: the full screen is the owner's again. */
 export const tracksShownAsAsked = () => { if (state.tracksAsked) set({ tracksAsked: false }); };
+
+/** Whether an album was opened on its info, not shown yet. */
+export const useInfoAsked = (): boolean => useSyncExternalStore(subscribe, () => state.infoAsked);
+export const infoShownAsAsked = () => { if (state.infoAsked) set({ infoAsked: false }); };
+
+/**
+ * What the page under the player can do to an album, for the full screen's
+ * info view: Edit, Delete, I bought the CD, the wish list, Not interested, a
+ * side of the cover found, a filter of the grid. MusicDex says its own while
+ * it shows, the wish list its own; none on another page.
+ */
+export interface AlbumManagement {
+  edit?: (albumId: number) => void;
+  delete?: (albumId: number) => Promise<void>;
+  bought?: (albumId: number) => void;
+  wish?: (albumId: number) => Promise<void>;
+  dismiss?: (albumId: number, dismissed: boolean) => void;
+  coverChange?: (albumId: number, side: 'front' | 'back', coverPath: string) => void;
+  search?: (predicate: string) => void;
+}
+let management: AlbumManagement | null = null;
+const managementListeners = new Set<() => void>();
+export const setAlbumManagement = (next: AlbumManagement | null) => {
+  management = next;
+  managementListeners.forEach(listener => listener());
+};
+/** Said by a page while it shows (in an effect, cleared as it goes). */
+export const useAlbumManagement = (): AlbumManagement | null =>
+  useSyncExternalStore(listener => { managementListeners.add(listener); return () => { managementListeners.delete(listener); }; }, () => management);
 
 /** The album a cover opened in the full screen player, at rest; null for what plays. */
 export const useShownAlbum = (): ShownAlbum | null => useSyncExternalStore(subscribe, () => state.shown);
@@ -88,4 +120,4 @@ export const useCoversPlayer = (active = true) => {
 };
 
 /** For tests: nothing covered, the full screen closed. */
-export const resetPhoneDoor = () => set({ covered: 0, full: false, shown: null, left: null, tracksAsked: false });
+export const resetPhoneDoor = () => { set({ covered: 0, full: false, shown: null, left: null, tracksAsked: false, infoAsked: false }); setAlbumManagement(null); };

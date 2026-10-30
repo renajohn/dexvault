@@ -4,7 +4,8 @@ import {
   BsBoxArrowUpRight, BsCassetteFill, BsChatQuote, BsChatQuoteFill, BsHeadphones, BsInfoCircle, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
   BsSkipBackwardFill, BsSkipForwardFill, BsSpeaker, BsThreeDots, BsX,
 } from 'react-icons/bs';
-import { setFullPlayer, tracksShownAsAsked, useFullPlayer, useTracksAsked } from '../services/phoneDoor';
+import { infoShownAsAsked, setFullPlayer, tracksShownAsAsked, useFullPlayer, useInfoAsked, useTracksAsked, type ShownAlbum } from '../services/phoneDoor';
+import AlbumInfo from './AlbumInfo';
 import musicService, { type TrackLyrics } from '../services/musicService';
 import { useOutputs } from '../services/outputs';
 import { localOutputName } from '../services/player';
@@ -93,7 +94,8 @@ export interface PhonePlayerProps {
   /** The album's tracks, the one playing at `index`; a song of Navidrome's slides: its ♥, its mixtapes. */
   tracks?: PhoneTrack[];
   index?: number;
-  onOpen?: (() => void) | null;
+  /** The album DexVault holds, for the info view the (i) opens in place of the tracks; none for a computer far away. */
+  infoOf?: { albumId: number; known?: ShownAlbum | null } | null;
   onOpenMixtape?: { title: string; open: () => void } | null;
   /** The track playing, to put in a mixtape from ⋯; none for a computer far away. */
   mixtape?: { songId: string; title: string } | null;
@@ -110,9 +112,9 @@ export interface PhonePlayerProps {
   /**
    * An album a cover opened, at rest while another plays or nothing does: its
    * line (CD · 12 tracks · 45 min) where the place in the track would be, ▶
-   * alone.
+   * alone; grey when there is nothing to play (a CD not ripped).
    */
-  rest?: { albumId: number | string; line: string } | null;
+  rest?: { albumId: number | string; line: React.ReactNode; playable?: boolean } | null;
   /** The album's own entries of ⋯ (Listen Next, mixtapes) and its discs' heads, at rest or playing; none for a mixtape or a computer far away. */
   album?: AlbumActions | null;
   /** At the left of the foot: the disc of what plays, the album shown being another; or, back on what plays, the album left. */
@@ -316,7 +318,7 @@ const DiscHeadLine: React.FC<{ number: number; tracks: PhoneTrack[]; head: DiscH
   );
 };
 
-type View = 'cover' | 'lyrics' | 'guide' | 'tracks';
+type View = 'cover' | 'lyrics' | 'guide' | 'tracks' | 'info';
 
 /**
  * The player on a phone, as the phone's own music player has it: a pill
@@ -431,7 +433,15 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   // Another album at rest starts on its cover (its tracks once read, below, when a cover opened it); played from its tracks, it stays on them.
   const restId = props.rest?.albumId ?? null;
   const tracksAsked = useTracksAsked();
-  useEffect(() => { if (restId != null && !tracksAsked) setView('cover'); }, [restId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const infoAsked = useInfoAsked();
+  useEffect(() => { if (restId != null && !tracksAsked && !infoAsked) setView('cover'); }, [restId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // An album opened on its info (one with no CD, from Buy or the wish list).
+  const hasInfo = Boolean(props.infoOf);
+  useLayoutEffect(() => {
+    if (!full || !infoAsked || !hasInfo) return;
+    setView('info');
+    infoShownAsAsked();
+  }, [full, infoAsked, hasInfo, restId]);
   // A cover touched opens straight on its tracks, before it is first painted, never on the cover first:
   // they fill in as they are read. The tracks button, on, takes them away.
   useLayoutEffect(() => {
@@ -442,8 +452,8 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   // A view the track playing has not (no words for a computer far away): back to the cover. Tracks asked
   // by a cover wait for theirs.
   useEffect(() => {
-    if ((view === 'lyrics' && !hasLyrics) || (view === 'tracks' && !hasTracks && !tracksAsked) || (view === 'guide' && !guide)) setView('cover');
-  }, [view, hasLyrics, hasTracks, guide, tracksAsked]);
+    if ((view === 'lyrics' && !hasLyrics) || (view === 'tracks' && !hasTracks && !tracksAsked) || (view === 'guide' && !guide) || (view === 'info' && !hasInfo)) setView('cover');
+  }, [view, hasLyrics, hasTracks, guide, tracksAsked, hasInfo]);
 
   // A finger drawn on the pill or the full screen never scrolls the page under them: iOS's Safari scrolls it
   // through a fixed layer whatever its touch-action, unless the move is refused. A slider and a list keep their own.
@@ -477,7 +487,13 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   }, [full]);
 
   const leave = (then: () => void) => { setFull(false); then(); };
-  const toggleView = (next: View) => setView(current => (current === next ? 'cover' : next));
+  // The info closed goes back to the view it opened over (the tracks, say), the others to the cover.
+  const before = useRef<View>('cover');
+  const toggleView = (next: View) => setView(current => {
+    if (current === next) return next === 'info' ? (before.current === 'info' ? 'cover' : before.current) : 'cover';
+    if (next === 'info') before.current = current;
+    return next;
+  });
 
   // A finger drawn down from anywhere, the cover and the buttons too, but the scrubber, the volume and a list.
   // The sheet follows it straight, frame by frame, without React: a render at each move made it lag.
@@ -522,9 +538,9 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
 
   const share = length > 0 ? Math.min(100, (position / length) * 100) : 0;
 
-  const playButton = (big: boolean) => (
+  const playButton = (big: boolean, disabled = false) => (
     <button type="button" className={`player-bar-button${big ? ' now-playing-play' : ' player-pill-play'}`}
-      onClick={controls.toggle} aria-label={playing ? 'Pause' : 'Play'}>
+      onClick={controls.toggle} aria-label={playing ? 'Pause' : 'Play'} disabled={disabled}>
       {playing ? <BsPauseFill aria-hidden="true" /> : <BsPlayFill aria-hidden="true" />}
     </button>
   );
@@ -649,6 +665,9 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
               <div className="now-playing-guide now-playing-scroll"><GuideText text={guide} /></div>
             )}
             {view === 'tracks' && tracksList}
+            {view === 'info' && props.infoOf && (
+              <div className="now-playing-info now-playing-scroll"><AlbumInfo albumId={props.infoOf.albumId} known={props.infoOf.known} /></div>
+            )}
           </>
         )}
 
@@ -660,13 +679,14 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
           <TryBar timing={timing} touch className="now-playing-timing" />
         ) : (
           <>
-          {props.rest ? (
+          {/* The info takes the room of the place in the track, the buttons and the output: the foot alone stays. */}
+          {view !== 'info' && props.rest ? (
             // At rest: what the album is, where the place in the track would be.
             <p className="now-playing-rest">{props.rest.line}</p>
-          ) : <Scrubber position={position} length={length} playing={playing} seek={controls.seek} format={props.format} />}
+          ) : view !== 'info' && <Scrubber position={position} length={length} playing={playing} seek={controls.seek} format={props.format} />}
 
-          {props.rest ? (
-            <div className="now-playing-transport now-playing-transport--rest">{playButton(true)}</div>
+          {view === 'info' ? null : props.rest ? (
+            <div className="now-playing-transport now-playing-transport--rest">{playButton(true, props.rest.playable === false)}</div>
           ) : taken ? (
             // The appliance plays something else: Resume takes it back at the same place.
             <div className="now-playing-taken">
@@ -686,10 +706,10 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
           )}
 
           {/* An appliance's volume, under its ceiling. This iPhone's is its own buttons': a page cannot set it. */}
-          {renderer && <div className="now-playing-volume"><OutputVolume output={renderer} slim /></div>}
+          {renderer && view !== 'info' && <div className="now-playing-volume"><OutputVolume output={renderer} slim /></div>}
 
           {/* Where it plays, over the buttons: "Playing on" and the output's name, which opens the outputs to change it. */}
-          {!props.foot && outputs.length > 0 && (
+          {!props.foot && outputs.length > 0 && view !== 'info' && (
             <p className="now-playing-where">
               {props.rest ? 'Plays on' : 'Playing on'}{' '}
               <OutputMenu drop="up" align="start" volume={false} trigger={(triggerProps, open) => (
@@ -723,9 +743,10 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
                 <BsMusicNoteList aria-hidden="true" />
               </button>
             )}
-            {/* The album's card, its details: the full screen goes back to the pill under it. */}
-            {props.onOpen && (
-              <button type="button" className="player-bar-button now-playing-tool" onClick={() => leave(props.onOpen!)} aria-label="Album details">
+            {/* The album's info, in place of the tracks: everything its card said that the player does not. */}
+            {props.infoOf && (
+              <button type="button" className={`player-bar-button now-playing-tool${view === 'info' ? ' now-playing-tool--on' : ''}`}
+                onClick={() => toggleView('info')} aria-pressed={view === 'info'} aria-label="Album info">
                 <BsInfoCircle aria-hidden="true" />
               </button>
             )}

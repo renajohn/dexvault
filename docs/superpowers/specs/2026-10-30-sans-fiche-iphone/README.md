@@ -224,3 +224,29 @@ les albums (`RecordInfo`, dans `shared/`), et la règle « rien deux fois ».
 7. Le ▶ et le casque de la vignette ne changent pas.
 8. **Deux commits** : (a) têtes de disque et ⋯ de l'album en lecture ; (b) la vue Infos et la
    fin de la fiche sous 768 px.
+
+## Livré (30.10.2026, commit b)
+
+- `AlbumInfo` (`frontend/src/components/AlbumInfo.tsx`) : la vue `info` du `PhonePlayer`, que le (i)
+  bascule (allumé ; refermé, retour à la vue d'où l'on venait). Elle prend aussi la place de la
+  bande (ligne ou curseur, ▶ ⏮ ⏯ ⏭, volume, « Plays on ») : le pied seul reste, l'iPhone n'a pas
+  la place. Pas de boîte dans la boîte : le bloc To buy est une section comme les autres, les
+  codes du texte monospace sans fond, « Find the back… » un lien discret sous l'édition. Communauté sous la tête ; To buy
+  pour un album sans CD ; Files and CD avec le code d'étagère ; Edition avec le dos (ou « Find the
+  back… », `CoverFinder` à 12000 par-dessus le lecteur) ; Genres (filtre la grille, le lecteur
+  se replie) ; rangées dépliables Notes / Wikipedia / Also on (ouvre l'autre album dans le
+  lecteur) / Scores / Credits / Owned / Codes ; Links ; Edit… et Delete au pied. Sans note, la
+  rangée s'appelle « Write a listening note… ». Les écoutes sur 90 jours ne s'affichent que
+  s'il y en a.
+- Ce que la page peut faire à l'album passe par `phoneDoor.setAlbumManagement` : MusicDex dit
+  Edit, Delete, Bought, Wish, Not interested, le dos, le filtre ; la Wish List dit Delete,
+  Bought, le dos. Edit, Bought et Not interested replient le lecteur (leurs dialogues sont
+  sous lui) ; Delete demande (`confirm()`, 12000) puis replie.
+- Sur iPhone, **plus aucune porte vers `MusicDetailCard`** : `handleCdClick` et `?album=`
+  ouvrent le lecteur (sur Infos pour un album sans CD), la Wish List aussi ; un CD sans rip
+  ouvre le lecteur au repos, ▶ gris, « On CD only · 2 discs · … », ses pistes propres qui ne
+  jouent pas. La fiche n'est plus rendue sous 768 px.
+- **Reste à faire** : retirer de `MusicDetailCard` la mise en page iPhone devenue morte
+  (`phoneBody`, puces, feuilles, `phoneFoot`, `useCoversPlayer`, son CSS) et ses tests phone ;
+  les crédits et paroles par piste dans la liste du lecteur (question 4) ; une recette sur
+  l'iPhone.

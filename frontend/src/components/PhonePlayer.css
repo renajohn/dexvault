@@ -846,3 +846,21 @@
 .now-playing-disc-head__mark--cd {
   color: var(--dv-silver);
 }
+
+/* The info view: the album's details, scrolling in the tracks' place. */
+.now-playing-info {
+  flex: 1;
+  min-height: 0;
+  margin: 6px -10px 0;
+  padding: 0 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* ▶ grey: nothing to play (a CD not ripped). */
+.player-bar-button.now-playing-play:disabled {
+  opacity: 0.35;
+}
+.now-playing-rest__cd { color: var(--dv-silver); }

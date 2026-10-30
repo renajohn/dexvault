@@ -5,7 +5,7 @@ import { base64ToFile } from '../utils/downscaleImage';
 import MusicForm from './MusicForm';
 import MusicThumbnail from './MusicThumbnail';
 import MusicDetailCard from './MusicDetailCard';
-import { showAlbum, type ShownAlbum } from '../services/phoneDoor';
+import { setAlbumManagement, showAlbum, type ShownAlbum } from '../services/phoneDoor';
 import { LISTEN_NEXT_CHANGED_EVENT } from './useAlbumAtRest';
 import AddMusicDialog from './AddMusicDialog';
 import AlphabeticalIndex from './AlphabeticalIndex';
@@ -203,7 +203,8 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     refresh: loadCds,
     search: performSearch,
     openAddDialog: () => setShowAddDialog(true),
-    openAlbumDetails: (album: any) => setSelectedCdDetails(album),
+    // On a phone, the full screen player on the album: its info for one with no CD, its tracks else.
+    openAlbumDetails: (album: any) => (phone && !isMixtape(album) ? showAlbum(album as ShownAlbum, hasCd(album) ? 'tracks' : 'info') : setSelectedCdDetails(album)),
     setSearchQuery: (query: string) => {
       // Update the URL with the new search query
       navigate(`${location.pathname}?search=${encodeURIComponent(query)}`);
@@ -659,6 +660,22 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     setShowDismissed(false);
   };
 
+  // What the phone's full screen player may do to an album from its info view, while MusicDex shows.
+  useEffect(() => {
+    if (!phone) return undefined;
+    const albumOf = async (albumId: number): Promise<Album> => findById(albumId, allCds, extraCds, listenNextAlbums) ?? await musicService.getAlbumById(albumId) as Album;
+    setAlbumManagement({
+      edit: albumId => { void albumOf(albumId).then(handleEditCd); },
+      delete: async albumId => { await onDeleteCd(albumId); await loadCds(); },
+      bought: albumId => { void albumOf(albumId).then(setBuying); },
+      wish: digitalOn ? async albumId => { await toggleWish(await albumOf(albumId)); } : undefined,
+      dismiss: digitalOn ? (albumId, dismissed) => { void albumOf(albumId).then(cd => setDismissed(cd, dismissed)); } : undefined,
+      coverChange: (albumId, side, coverPath) => setCover(albumId, side, coverPath),
+      search: updateSearchViaUrl,
+    });
+    return () => setAlbumManagement(null);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+
   /** The bookmark of an album with no CD: on the wish list or off it, the same album either way. */
   const toggleWish = async (cd: Album) => {
     const album = digitalOf(cd).album;
@@ -1030,11 +1047,11 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     try {
       setLoadingDetails(true);
       const details = await musicService.getAlbumById(cdId);
-      // On a phone a ripped album's cover opens the full screen player on it, not its card; a card open (Also on…)
-      // gives way to it. A CD with no rip, a mixtape, has its card: there is nothing to play, or it is played from there.
-      if (phone && !isMixtape(details as { titleStatus?: string }) && (details as { fileQuality?: string }).fileQuality !== 'none') {
+      // On a phone an album's cover opens the full screen player on it, never its card: a CD with no rip too, ▶ grey
+      // there, and one with no CD on its info. A mixtape has its own dialog, played from there.
+      if (phone && !isMixtape(details as { titleStatus?: string })) {
         setSelectedCdDetails(null);
-        showAlbum(details as ShownAlbum);
+        showAlbum(details as ShownAlbum, hasCd(details as Album) ? 'tracks' : 'info');
         return;
       }
       setSelectedCdDetails(details);
@@ -1600,7 +1617,7 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
         />
       )}
 
-      {selectedCdDetails && !isMixtape(selectedCdDetails) && (
+      {selectedCdDetails && !isMixtape(selectedCdDetails) && !phone && (
         <MusicDetailCard
           cd={selectedCdDetails}
           onClose={() => setSelectedCdDetails(null)}

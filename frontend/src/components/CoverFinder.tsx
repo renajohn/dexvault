@@ -16,6 +16,9 @@ interface CoverFinderProps {
   onClose: () => void;
   /** The cover chosen is kept: its path. */
   onFound: (coverPath: string) => void;
+  /** Over the phone's full screen player: 12000 and its backdrop. */
+  zIndex?: number;
+  backdropClassName?: string;
 }
 
 /**
@@ -23,7 +26,7 @@ interface CoverFinderProps {
  * Deezer hold, to choose from as when a CD is added. This edition's own
  * comes first, then the largest; the first is chosen until another is.
  */
-const CoverFinder: React.FC<CoverFinderProps> = ({ albumId, side, title, artist, onClose, onFound }) => {
+const CoverFinder: React.FC<CoverFinderProps> = ({ albumId, side, title, artist, onClose, onFound, zIndex = 10150, backdropClassName }) => {
   const [covers, setCovers] = useState<CoverChoice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
@@ -72,7 +75,7 @@ const CoverFinder: React.FC<CoverFinderProps> = ({ albumId, side, title, artist,
   };
 
   return (
-    <Dialog show onClose={onClose} size="lg" scrollable zIndex={10150} icon={<BsDisc />}
+    <Dialog show onClose={onClose} size="lg" scrollable zIndex={zIndex} backdropClassName={backdropClassName} icon={<BsDisc />}
       title={side === 'front' ? 'Choose a cover' : 'Choose a back cover'}
       aside={<span className="dialog-head__meta">{title}</span>}>
       <Dialog.Body>

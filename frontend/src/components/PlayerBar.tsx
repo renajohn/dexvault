@@ -144,8 +144,7 @@ const PlayerBar: React.FC = () => {
   // The album at rest left for what plays by its disc: a disc in the same place goes back to it, unless it plays now.
   const leftAlbum = useLeftAlbum();
   const backTo = phone && leftAlbum && !(album?.id != null && Number(leftAlbum.id) === album.id) ? leftAlbum : null;
-  // A CD with nothing to play: its card, which says why.
-  const atRest = useAlbumAtRest(restAlbum, albumId => { setFullPlayer(false); navigate(`/musicdex?album=${albumId}`); });
+  const atRest = useAlbumAtRest(restAlbum);
   // On a phone, what ⋯ and the discs' heads do for the album playing (Listen Next, mixtapes); a mixtape's songs have their own.
   const nowActions = useAlbumActions(phone && album?.id != null && track?.artist == null ? album.id : null, null, usePlayer(state => state.tracks));
   // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
@@ -202,10 +201,10 @@ const PlayerBar: React.FC = () => {
         // A cover's album at rest: the same full screen, ▶ playing it, the disc of what plays at its foot.
         <PhonePlayer title={atRest.title} subtitle={atRest.artist} cover={{ src: atRest.cover, title: atRest.title }}
           playing={false} position={0} length={0} hasNext={false}
-          controls={{ toggle: () => atRest.playFrom(0), next: () => undefined, previous: () => undefined, playTrack: atRest.playFrom }}
-          guideOf={Number(restAlbum.id)} tracks={atRest.tracks} index={-1} from=""
-          onOpen={() => navigate(`/musicdex?album=${restAlbum.id}`)}
-          rest={{ albumId: restAlbum.id, line: atRest.line }} album={atRest.actions} starsOf={restAlbum.id}
+          controls={{ toggle: () => atRest.playFrom(0), next: () => undefined, previous: () => undefined, playTrack: atRest.playable ? atRest.playFrom : undefined }}
+          guideOf={Number(restAlbum.id)} tracks={atRest.shownTracks} index={-1} from=""
+          infoOf={{ albumId: Number(restAlbum.id), known: restAlbum }}
+          rest={{ albumId: restAlbum.id, line: atRest.line, playable: atRest.playable }} album={atRest.actions} starsOf={restAlbum.id}
           door={out ? <NowPlayingDisc exceptAlbumId={restAlbum.id} onOpen={leaveForPlaying} className="now-playing-door" /> : null}
           out />
       ) : last.current && (() => {
@@ -236,7 +235,8 @@ const PlayerBar: React.FC = () => {
               favourite={{ on: favourite, toggle: () => { void toggleFavourite(); } }}
               away={away} taken={taken ? outputName : null}
               left={left > 0 ? `${leftText(left)} left of ${fromListenNext ? 'Listen Next' : album.title}` : null}
-              from={fromListenNext ? 'Listen Next' : album.title} onOpen={open} format={format}
+              from={fromListenNext ? 'Listen Next' : album.title} format={format}
+              infoOf={(track.albumId ?? album.id) != null ? { albumId: Number(track.albumId ?? album.id) } : null}
               onOpenMixtape={track.artist != null && album.id != null ? { title: album.title, open: () => navigate(`/musicdex?album=${album.id}`) } : null}
               door={backTo ? (
                 <LeftAlbumDisc title={backTo.title} artist={Array.isArray(backTo.artist) ? backTo.artist.join(', ') : backTo.artist || ''}

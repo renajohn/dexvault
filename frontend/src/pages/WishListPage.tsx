@@ -33,7 +33,8 @@ import { thumbProps } from '../utils/thumb';
 import { openRicardo, ricardoSearchUrl } from '../utils/digitalLibrary';
 import { parseWishlistSearch } from '../utils/wishlistSearch';
 import SwipeRow, { type SwipeAction, type SwipeDeed } from '../components/SwipeRow';
-import useNarrow from '../utils/useNarrow';
+import useNarrow, { useMedia } from '../utils/useNarrow';
+import { setAlbumManagement, showAlbum, type ShownAlbum } from '../services/phoneDoor';
 import { toast } from '../components/shared/Toast';
 import { readStored, writeStored } from '../utils/safeStorage';
 import copyText from '../utils/copyText';
@@ -434,7 +435,9 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
         setSelectedBookDetails(null);
       } else if (itemType === 'album') {
         const albumDetails = await musicService.getAlbumById(itemId);
-        setSelectedAlbumDetails(albumDetails);
+        // On a phone, the full screen player on the album, its info first: what to do about the wish.
+        if (phone) showAlbum(albumDetails as ShownAlbum, 'info');
+        else setSelectedAlbumDetails(albumDetails);
         setSelectedMovieDetails(null);
         setSelectedBookDetails(null);
       } else if (itemType === 'book') {
@@ -573,6 +576,20 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
 
   // On a phone a row slides: right, spoken for; left, Share, I bought it and Delete.
   const narrow = useNarrow();
+  const phone = useMedia('(max-width: 767px)');
+  // What the phone's full screen player may do to a wished album from its info view, while the wish list shows.
+  useEffect(() => {
+    if (!phone) return undefined;
+    setAlbumManagement({
+      delete: albumId => handleDeleteItemFromDetails(albumId, 'album'),
+      bought: albumId => { const album = allAlbums.find(one => one.id === albumId); if (album) setBuyingAlbum(album); },
+      coverChange: (albumId, side, coverPath) => {
+        const patch = side === 'front' ? { cover: coverPath } : { backCover: coverPath };
+        setAlbums(prev => prev.map(album => album.id === albumId ? { ...album, ...patch } : album));
+      },
+    });
+    return () => setAlbumManagement(null);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
   const [swipeHint] = useState(() => readStored(SWIPE_HINT_KEY) !== '1');
   useEffect(() => { if (narrow && swipeHint) writeStored(SWIPE_HINT_KEY, '1'); }, [narrow, swipeHint]);
   const hintKind = movies.length > 0 ? 'movie' : albums.length > 0 ? 'album' : 'book';
@@ -1205,7 +1222,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
         />
       )}
 
-      {(selectedAlbumDetails && !loadingDetails) && (
+      {(selectedAlbumDetails && !loadingDetails && !phone) && (
         <MusicDetailCard
           cd={selectedAlbumDetails}
           onClose={handleCloseDetails}
