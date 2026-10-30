@@ -281,11 +281,9 @@ const DISC_SWIPE_HINT_KEY = 'dexvault-player-disc-swipe-hint';
 
 /**
  * The head of a disc, over its tracks, for an album of several: "Disc 2 ·
- * 4 tracks · 47 min", and a small headphones at its end when the disc is in
- * Listen Next (gold, streamed; the disc, silver, from the CD). A touch opens
- * its menu, with its list (streamed, from the CD, out) and its mixtapes; slid
- * to the left as a track's line, let go, the disc goes in Listen Next
- * (streamed) or out.
+ * 4 tracks · 47 min", and a small gold headphones at its end when the disc is
+ * in Listen Next. A touch opens its menu, with Listen Next and its mixtapes;
+ * slid to the left as a track's line, let go, the disc goes in Listen Next or out.
  */
 const DiscHeadLine: React.FC<{ number: number; tracks: PhoneTrack[]; head: DiscHead | null; hint: boolean }> = ({ number, tracks, head, hint }) => {
   const [menu, setMenu] = useState(false);
@@ -296,21 +294,18 @@ const DiscHeadLine: React.FC<{ number: number; tracks: PhoneTrack[]; head: DiscH
   const line = (props?: React.ComponentProps<'button'>) => (
     <button type="button" {...props} className={`now-playing-disc-head${menu ? ' now-playing-disc-head--held' : ''}`}
       onClick={head ? () => setMenu(open => !open) : undefined}
-      aria-label={`Disc ${number} · ${summary}${head?.on ? `, in Listen Next${head.medium === 'cd' ? ' from the CD' : ''}` : ''}`}>
+      aria-label={`Disc ${number} · ${summary}${head?.on ? ', in Listen Next' : ''}`}>
       <span className="now-playing-disc-head__words" aria-hidden="true"><b>Disc {number}</b> · {summary}</span>
       {head?.on && (
-        <span className={`now-playing-disc-head__mark now-playing-disc-head__mark--${head.medium ?? 'digital'}`} aria-hidden="true">
-          {head.medium === 'cd' ? <BsDisc /> : <BsHeadphones />}
-        </span>
+        <span className="now-playing-disc-head__mark" aria-hidden="true"><BsHeadphones /></span>
       )}
     </button>
   );
   if (!head) return <li className="now-playing-disc-head__line">{line()}</li>;
-  // In: out (the whole album there, this disc alone instead); out: in, streamed, or from the CD for a CD with no rip.
-  const cd = head.on ? head.medium === 'cd' : head.plainMedium === 'cd';
+  // In: out (the whole album there, this disc alone instead); out: in.
   return (
     <SwipeRow as="li" enabled hint={hint} className="now-playing-disc-head__line"
-      leftDeed={{ label: head.on ? 'Take out' : 'Listen Next', icon: cd ? <BsDisc /> : <BsHeadphones />, onSelect: head.toggle, tone: 'gold' }}>
+      leftDeed={{ label: head.on ? 'Take out' : 'Listen Next', icon: <BsHeadphones />, onSelect: head.toggle, tone: 'gold' }}>
       <Menu open={menu} onOpenChange={setMenu} label={`Disc ${number}`} trigger={props => line(props as unknown as React.ComponentProps<'button'>)}>
         {head.menu}
       </Menu>

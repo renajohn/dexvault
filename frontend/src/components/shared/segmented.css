@@ -84,13 +84,6 @@
   font-weight: 600;
 }
 
-/* Silver: Listen Next's CD list chosen, as gold is its streamed one. */
-.ui-segmented--silver .ui-segmented__option--on {
-  background: var(--dv-silver);
-  color: var(--dv-gold-ink);
-  font-weight: 600;
-}
-
 .ui-segmented__icon {
   display: inline-flex;
 }

@@ -9,6 +9,8 @@ import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
 import { readStored, writeStored } from '../utils/safeStorage';
 import useNarrow from '../utils/useNarrow';
 import CoverButton from './shared/CoverButton';
+import { AlbumStarRating } from './RecordStarRating';
+import { toast } from './shared/Toast';
 import Button from './shared/Button';
 import Menu, { MenuChevron } from './shared/Menu';
 import './ListenNextPlay.css';
@@ -377,4 +379,21 @@ const useSummary = (albums: ListAlbum[] | undefined, play: ListenNextPlayState |
 export const ListenNextSummary: React.FC<SummaryProps> = ({ albums, play }) => {
   const text = useSummary(albums, play);
   return text ? <div className="listen-next-summary">{text}</div> : null;
+};
+
+/** An album of no stars taken off Listen Next, heard: its stars asked a few seconds, with Undo. */
+export const askStars = (album: { id: number; title?: string }, onUndo: () => void): void => {
+  const Rate: React.FC = () => {
+    const [stars, setStars] = React.useState<number | null>(null);
+    return (
+      <span className="listen-next-rate">
+        <span className="listen-next-rate__words">{stars ? `${stars} ★ kept` : 'Rate it'} <b>{album.title}</b></span>
+        <AlbumStarRating value={stars} size="lg" label={`Stars for ${album.title}`} onChange={value => {
+          setStars(value || null);
+          musicService.setAlbumRating(album.id, value).catch(() => toast('The stars were not kept', { tone: 'danger' }));
+        }} />
+      </span>
+    );
+  };
+  toast(<Rate />, { duration: 8000, action: { label: 'Undo', onClick: onUndo } });
 };

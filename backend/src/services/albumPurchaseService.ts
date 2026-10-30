@@ -74,9 +74,9 @@ const albumPurchaseService = {
     await Album.setOwnership(albumId, normalizeAlbumOwnership(purchase));
     await Album.setFormat(albumId, 'CD');
     await Album.updateStatus(albumId, 'owned');
-    // The CD bought, to be put on the player: in Listen Next's CD list, unless it is in Listen Next already.
+    // The CD bought: at the end of Listen Next, unless it is there already.
     await musicCollectionService.addNewCd(albumId).catch(error =>
-      logger.warn(`Album ${albumId} bought but not put in Listen Next's CD list: ${(error as Error).message}`));
+      logger.warn(`Album ${albumId} bought but not put in Listen Next: ${(error as Error).message}`));
     logger.info(`Album ${albumId} "${album.title}" bought on CD${newEdition ? `, edition ${releaseId}` : ''} (was ${album.titleStatus})`);
     if (newEdition) {
       await musicbrainzRefreshService.refreshAlbum(albumId).catch(error =>

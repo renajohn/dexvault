@@ -530,17 +530,14 @@ const runAutoMigrations = async (): Promise<void> => {
     {
       name: '027_listen_next_cd',
       up: async () => {
-        // Listen Next in two lists: streamed (digital), as it was, and CDs to put on the player (cd).
+        // Listen Next was two lists for a while, streamed (digital) and CDs to put on the player (cd); 033 made it one again.
         const columns = await new Promise<PragmaColumnInfo[]>((resolve, reject) =>
           currentDb.all('PRAGMA table_info(album_collections)', (err: Error | null, rows: PragmaColumnInfo[]) => (err ? reject(err) : resolve(rows || []))));
         if (!columns.some(column => column.name === 'medium')) {
           await new Promise<void>((resolve, reject) => currentDb.run(
             "ALTER TABLE album_collections ADD COLUMN medium TEXT NOT NULL DEFAULT 'digital'", (err: Error | null) => (err ? reject(err) : resolve())));
         }
-        // The CDs come in since September, the classical ones left out, those already in Listen Next where they are.
-        const { default: musicCollectionService } = await import('./services/musicCollectionService');
-        const added = await musicCollectionService.seedCdList('2026-09-01');
-        console.log(`  ✓ Listen Next has a CD list (${added} CDs come in lately)`);
+        console.log('  ✓ Added medium to album_collections');
       }
     },
     {
@@ -609,6 +606,25 @@ const runAutoMigrations = async (): Promise<void> => {
             (err && !err.message.includes('duplicate column') ? reject(err) : resolve())));
         }
         console.log('  ✓ Added chosen to track_lyrics');
+      }
+    },
+    {
+      name: '033_listen_next_one_list',
+      up: async () => {
+        // Listen Next is one list again: the CDs to put on the player follow the streamed albums, each list in its order.
+        const listenNext = await new Promise<{ id: number } | undefined>((resolve, reject) =>
+          currentDb.get("SELECT id FROM collections WHERE type = 'listen_next'", (err: Error | null, row: { id: number } | undefined) => (err ? reject(err) : resolve(row))));
+        if (!listenNext) return;
+        const rows = await new Promise<Array<{ id: number }>>((resolve, reject) => currentDb.all(
+          `SELECT id FROM album_collections WHERE collection_id = ?
+           ORDER BY medium = 'cd', CASE WHEN collection_order IS NOT NULL THEN collection_order ELSE 999999 END, id`,
+          [listenNext.id], (err: Error | null, found: Array<{ id: number }>) => (err ? reject(err) : resolve(found || []))));
+        for (const [index, row] of rows.entries()) {
+          await new Promise<void>((resolve, reject) => currentDb.run(
+            "UPDATE album_collections SET collection_order = ?, medium = 'digital' WHERE id = ?", [index + 1, row.id],
+            (err: Error | null) => (err ? reject(err) : resolve())));
+        }
+        console.log(`  ✓ Listen Next is one list again (${rows.length} entries)`);
       }
     }
   ];

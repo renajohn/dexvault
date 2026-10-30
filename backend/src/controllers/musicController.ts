@@ -10,7 +10,7 @@ import musicbrainzService from '../services/musicbrainzService';
 import coverScanService from '../services/coverScanService';
 import discogsService from '../services/discogsService';
 import Album from '../models/album';
-import musicCollectionService, { MEDIUMS, parseEntryKey } from '../services/musicCollectionService';
+import musicCollectionService, { parseEntryKey } from '../services/musicCollectionService';
 import smartPlaylistService, { classicalChoiceOf } from '../services/smartPlaylistService';
 import musicbrainzLinkService from '../services/musicbrainzLinkService';
 import musicbrainzRefreshService from '../services/musicbrainzRefreshService';
@@ -1175,38 +1175,11 @@ const musicController = {
         res.status(400).json({ error: "disc must be a disc number or 'all'" });
         return;
       }
-      // { medium }: which list, 'digital' (streamed) or 'cd'; an album in the other one moves to it.
-      const medium = req.body?.medium;
-      if (medium !== undefined && !MEDIUMS.includes(medium)) {
-        res.status(400).json({ error: "medium must be 'digital' or 'cd'" });
-        return;
-      }
-      const result = await Album.toggleListenNext(id, disc, medium);
+      const result = await Album.toggleListenNext(id, disc);
       listenNextPlaylistService.schedule();
       res.json(result);
     } catch (error) {
       logger.error('Error toggling listen_next:', error);
-      res.status(500).json({ error: (error as Error).message });
-    }
-  },
-
-  /** PUT { key, medium, at, before? }: an entry of Listen Next dragged to a list, before the entry `before`, else at its 'start' or 'end'. */
-  moveListenNext: async (req: Request, res: Response): Promise<void> => {
-    const { key, medium, at = 'end', before } = req.body || {};
-    if (!(typeof key === 'string' || Number.isInteger(key)) || !parseEntryKey(key) || !MEDIUMS.includes(medium) || !['start', 'end'].includes(at)
-      || (before !== undefined && (typeof before !== 'string' || !parseEntryKey(before)))) {
-      res.status(400).json({ error: "Expected { key, medium: 'digital' | 'cd', at: 'start' | 'end', before? }" });
-      return;
-    }
-    try {
-      if (!(await musicCollectionService.moveListenNext(String(key), medium, at, before))) {
-        res.status(404).json({ error: 'Not in Listen Next' });
-        return;
-      }
-      listenNextPlaylistService.schedule();
-      res.json({ albums: await musicCollectionService.getListenNextAlbums() });
-    } catch (error) {
-      logger.error('Error moving a Listen Next entry:', error);
       res.status(500).json({ error: (error as Error).message });
     }
   },

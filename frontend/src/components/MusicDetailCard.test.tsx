@@ -442,40 +442,27 @@ describe('MusicDetailCard — a missing side', () => {
   });
 });
 
-describe('MusicDetailCard Listen Next, streamed or on CD', () => {
-  it('streams it by default, and its ▾ puts it on the CD list instead', async () => {
+describe('MusicDetailCard Listen Next', () => {
+  it('puts the whole album in, and takes it out', async () => {
     render(<MusicDetailCard cd={cd({ titleStatus: 'owned', fileQuality: 'lossless' }) as any} onClose={() => {}} onDelete={() => {}} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Listen Next' }));
-    await waitFor(() => expect(musicService.toggleListenNext).toHaveBeenCalledWith(1, undefined, 'digital'));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Choose how and what for Listen Next' }));
-    fireEvent.click(await screen.findByRole('menuitemradio', { name: /From the CD/ }));
-    await waitFor(() => expect(musicService.toggleListenNext).toHaveBeenLastCalledWith(1, undefined, 'cd'));
+    await waitFor(() => expect(musicService.toggleListenNext).toHaveBeenCalledWith(1, undefined));
+    // One disc: no ▾ to choose the discs.
+    expect(screen.queryByRole('button', { name: 'Choose the discs for Listen Next' })).not.toBeInTheDocument();
   });
 
-  it('says it is on the CD list, and offers no CD for an album with none', async () => {
-    (musicService.getListenNextAlbums as any).mockResolvedValueOnce([{ id: 1, disc: null, medium: 'cd' }]);
-    const { unmount } = render(<MusicDetailCard cd={cd({ titleStatus: 'owned' }) as any} onClose={() => {}} onDelete={() => {}} />);
-    expect(await screen.findByText(/· from the CD/)).toBeInTheDocument();
-    unmount();
-
-    render(<MusicDetailCard cd={cd({ titleStatus: 'digital' }) as any} onClose={() => {}} onDelete={() => {}} />);
-    await screen.findByRole('button', { name: 'Listen Next' });
-    expect(screen.queryByRole('button', { name: 'Choose how and what for Listen Next' })).not.toBeInTheDocument();
-  });
-
-  it('gives each disc the album button’s shorthand: streamed by a click, from the CD by its ▾', async () => {
+  it('puts a disc in alone, or all of them from its ▾', async () => {
     const twoDiscs = [1, 2].map(number => ({ number, tracks: [1, 2].map(no => ({ no, title: `D${number} T${no}`, durationSec: 200 })) }));
-    (musicService.getListenNextAlbums as any).mockResolvedValue([{ id: 1, disc: 1, medium: 'cd' }]);
+    (musicService.getListenNextAlbums as any).mockResolvedValue([{ id: 1, disc: 1 }]);
     render(<MusicDetailCard cd={cd({ titleStatus: 'owned', fileQuality: 'lossless', discs: twoDiscs }) as any} onClose={() => {}} onDelete={() => {}} />);
-    expect(await screen.findByRole('button', { name: 'Disc 1 in Listen Next' })).toHaveTextContent('from the CD');
+    expect(await screen.findByRole('button', { name: 'Disc 1 in Listen Next' })).toHaveTextContent('In Listen Next');
 
     fireEvent.click(screen.getByRole('button', { name: 'Disc 2 to Listen Next' }));
-    await waitFor(() => expect(musicService.toggleListenNext).toHaveBeenCalledWith(1, 2, 'digital'));
+    await waitFor(() => expect(musicService.toggleListenNext).toHaveBeenCalledWith(1, 2));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Disc 2: streamed or from the CD' }));
-    fireEvent.click(await screen.findByRole('menuitemradio', { name: /From the CD/ }));
-    await waitFor(() => expect(musicService.toggleListenNext).toHaveBeenLastCalledWith(1, 2, 'cd'));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose the discs for Listen Next' }));
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /All discs/ }));
+    await waitFor(() => expect(musicService.toggleListenNext).toHaveBeenLastCalledWith(1, 'all'));
     (musicService.getListenNextAlbums as any).mockResolvedValue([]);
   });
 });

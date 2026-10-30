@@ -26,11 +26,11 @@ export interface PlaylistReport {
 }
 
 /**
- * Every song of Listen Next's streamed list, album after album (or the disc chosen), disc by disc, track by track;
- * a mixtape's in its own order, or the one drawn. The CDs to put on the player are not played.
+ * Every song of Listen Next, album after album (or the disc chosen), disc by disc, track by track;
+ * a mixtape's in its own order, or the one drawn.
  */
 const songsOfListenNext = async (): Promise<{ songIds: string[]; albums: number; notRipped: number }> => {
-  const albums = await musicCollectionService.getListenNextAlbums('digital');
+  const albums = await musicCollectionService.getListenNextAlbums();
   const songIds: string[] = [];
   let notRipped = 0;
   for (const album of albums) {

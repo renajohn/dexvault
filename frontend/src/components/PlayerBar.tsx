@@ -143,7 +143,7 @@ const PlayerBar: React.FC = () => {
   const backTo = phone && leftAlbum && !(album?.id != null && Number(leftAlbum.id) === album.id) ? leftAlbum : null;
   const atRest = useAlbumAtRest(restAlbum);
   // On a phone, what ⋯ and the discs' heads do for the album playing (Listen Next, mixtapes); a mixtape's songs have their own.
-  const nowActions = useAlbumActions(phone && album?.id != null && track?.artist == null ? album.id : null, null, usePlayer(state => state.tracks));
+  const nowActions = useAlbumActions(phone && album?.id != null && track?.artist == null ? album.id : null, usePlayer(state => state.tracks));
   // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
   const idle = !shown && output.kind === 'renderer' && known.length > 0 && inMusic && !isComputer();
   // The settings of an appliance, opened from the ⋯ of a phone's bar.

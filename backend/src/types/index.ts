@@ -652,8 +652,6 @@ export interface AlbumCollectionData {
   suggested?: boolean;
   /** One disc of the album, 0 (the default) for the whole album. */
   disc?: number;
-  /** Which list of Listen Next: streamed (the default), or a CD to put on the player. */
-  medium?: 'digital' | 'cd';
 }
 
 // ============================================================

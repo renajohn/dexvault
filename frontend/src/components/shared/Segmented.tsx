@@ -23,8 +23,8 @@ export interface SegmentedProps<T extends string> {
   label: string;
   /** sm in a bar (28 px), md in a dialog (36 px), lg for the app's own sections (44 px). */
   size?: 'sm' | 'md' | 'lg';
-  /** neutral: a light veil on the one chosen (a view); gold: plain gold (a filter, the app's section); silver: plain silver (Listen Next's CD list). */
-  tone?: 'neutral' | 'gold' | 'silver';
+  /** neutral: a light veil on the one chosen (a view); gold: plain gold (a filter, the app's section). */
+  tone?: 'neutral' | 'gold';
   /** Tabs show one panel among several; a choice sets a value. */
   kind?: 'choice' | 'tabs';
   block?: boolean;

@@ -92,14 +92,14 @@ const AlbumCollection = {
   create: (albumCollectionData: AlbumCollectionData): Promise<AlbumCollectionCreateResult> => {
     return new Promise((resolve, reject) => {
       const db = getDatabase();
-      const { album_id, collection_id, collection_order, suggested = false, disc = 0, medium = 'digital' } = albumCollectionData;
+      const { album_id, collection_id, collection_order, suggested = false, disc = 0 } = albumCollectionData;
 
       const sql = `
-        INSERT INTO album_collections (album_id, collection_id, collection_order, suggested, disc, medium, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO album_collections (album_id, collection_id, collection_order, suggested, disc, created_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `;
 
-      db.run(sql, [album_id, collection_id, collection_order, suggested ? 1 : 0, disc, medium], function(this: sqlite3.RunResult, err: Error | null) {
+      db.run(sql, [album_id, collection_id, collection_order, suggested ? 1 : 0, disc], function(this: sqlite3.RunResult, err: Error | null) {
         if (err) {
           reject(err);
         } else {

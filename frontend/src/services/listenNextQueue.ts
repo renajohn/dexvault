@@ -109,10 +109,9 @@ export const sessionAlbums = (session: ListenNextSession, ids: EntryKey[], curre
   listed: ids,
 });
 
-/** The streamed list's entries: the CDs to put on the player are not played here. */
+/** Listen Next's entries in their order. */
 const listIds = async (): Promise<EntryKey[]> =>
-  ((await musicService.getListenNextAlbums()) as Array<{ id: number; disc?: number | null; medium?: string }>)
-    .filter(album => album.medium !== 'cd').map(keyOf);
+  ((await musicService.getListenNextAlbums()) as Array<{ id: number; disc?: number | null }>).map(keyOf);
 
 /** The entry an album of the player stands for: its disc, or the whole album. */
 export const playingKey = (album: Pick<PlayerAlbum, 'id' | 'disc'> | null | undefined): EntryKey | null =>

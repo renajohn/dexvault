@@ -203,3 +203,109 @@
   .listen-next-leaving__ring-left { animation: none; }
   .next-banner__card--collapsing { animation: none; display: none; }
 }
+
+/* The stars asked of an album heard, in a toast. */
+.listen-next-rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.listen-next-rate__words b {
+  display: inline-block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+/*
+ * Listen Next's header: the title and the list's length on the left, ▶ and
+ * Repeat at the right end. The title quiet, no glow.
+ */
+.listen-next .next-banner__title-section {
+  width: 100%;
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+.listen-next .next-banner__title {
+  font-size: 1.5rem;
+  text-shadow: none;
+  white-space: nowrap;
+}
+.listen-next .next-banner__icon {
+  width: 22px;
+  height: 22px;
+  filter: none;
+  animation: none;
+}
+.listen-next-head {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  /* As high as ▶ and Repeat, before they come: the header does not grow. */
+  min-height: 36px;
+}
+.listen-next-head .listen-next-summary {
+  margin: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+.listen-next-head__summary {
+  min-height: 1.2em;
+  min-width: 0;
+}
+.listen-next-head__end {
+  margin-left: auto;
+}
+.listen-next-controls__button.ui-button {
+  min-width: 40px;
+  padding: 0 11px;
+}
+
+@media (max-width: 600px) {
+  /*
+   * On a small screen, two lines: the title with ▶ and Repeat at its right,
+   * then the list's length. The header's pieces are laid out by the title's
+   * line itself (display: contents), a break between.
+   */
+  .listen-next .next-banner__title-section {
+    column-gap: 10px;
+  }
+  .listen-next-head {
+    display: contents;
+  }
+  .listen-next-head__end {
+    order: 1;
+    min-height: 36px;
+  }
+  .listen-next .next-banner__title-section::after {
+    content: '';
+    order: 2;
+    flex-basis: 100%;
+  }
+  .listen-next-head__summary {
+    order: 3;
+    flex: 1;
+    overflow: hidden;
+  }
+  .listen-next-head__summary .listen-next-summary {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 575px) {
+  /* On a phone, one line: the icon, then ▶ ▾ and Repeat at the right end; the list's length heads ▾. */
+  .listen-next .next-banner__title-section {
+    flex-wrap: nowrap;
+  }
+  .listen-next .next-banner__title-section::after,
+  .listen-next-head__summary {
+    display: none;
+  }
+}

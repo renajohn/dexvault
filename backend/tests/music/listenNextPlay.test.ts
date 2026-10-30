@@ -203,7 +203,7 @@ describe('Listen Next lu', () => {
 
     it('met un disque à la fin, un autre après, et l’album entier à la place du premier', async () => {
       await Album.toggleListenNext(first);
-      expect((await request(app).put(`/api/music/albums/${first}/listen-next`).send({ disc: 2 })).body).toEqual({ id: first, action: 'added', medium: 'digital' });
+      expect((await request(app).put(`/api/music/albums/${first}/listen-next`).send({ disc: 2 })).body).toEqual({ id: first, action: 'added' });
       await Album.toggleListenNext(first, 1);
       expect(await entries()).toEqual([`${second}:0`, `${third}:0`, `${first}:2`, `${first}:1`]);
 

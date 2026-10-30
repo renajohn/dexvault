@@ -1,10 +1,8 @@
 import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
-  DndContext, PointerSensor, TouchSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors,
-  type Collision, type CollisionDetection, type PointerSensorOptions, type DragEndEvent, type DragOverEvent, type DragStartEvent,
+  DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors,
+  type PointerSensorOptions, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
-import { getEventCoordinates } from '@dnd-kit/utilities';
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { BsX, BsFilm, BsDisc, BsDice5 } from 'react-icons/bs';
@@ -64,61 +62,9 @@ interface NextBannerProps {
   onReorder?: (keys: Array<string | number>) => void;
   /** Whether a card can be dragged (all of them by default); one that cannot keeps its place among the others. */
   canReorder?: (item: NextBannerItem) => boolean;
-  /**
-   * A card dropped in the other list, or a small cover of the other list
-   * dropped in the row, or either on a NextBannerDrop (a list's name): its
-   * key; where, 'here' (the row), `other.dropId`, or the drop's id; and the
-   * key of the one it stands before there, null at the end, undefined when
-   * the drop does not say (a list's name).
-   */
-  onDropOn?: (key: string, target: string, before?: string | null) => void;
-  /** The other list, small, at the foot: its covers dragged into the row and back, its name a place to drop. */
-  other?: OtherList;
-  /** A class of the banner's own: its tint, say. */
+  /** A class of the banner's own. */
   className?: string;
-  /** Shown with no card and no Help me choose: a list of a few, empty for now, with its others in sight. */
-  alwaysShow?: boolean;
-  /** A round button laid on an image, at its top, left of ✕. */
-  renderCornerButton?: (item: NextBannerItem) => React.ReactNode;
 }
-
-interface OtherList {
-  items: NextBannerItem[];
-  /** The name a drop on the strip gives onDropOn. */
-  dropId: string;
-  /** Its name, first on the strip: a button of the caller's. */
-  head: React.ReactNode;
-  /** Said on the strip while a cover is dragged: where it goes. */
-  dropHint: string;
-  /** How many small covers at most, "+N" after; as many as the strip holds when not given. */
-  most?: number;
-  /** A small cover clicked: that list in sight, at it. */
-  onShow: (key: string) => void;
-  /** "+N": that list in sight. */
-  onOpen: () => void;
-  /** After the strip, on the right: the list's length, say. */
-  aside?: React.ReactNode;
-  /** Its class: its tint. */
-  className?: string;
-  /** Its covers dragged among themselves: the list's keys in their new order. */
-  onReorder?: (keys: string[]) => void;
-  /** A small cover's tooltip. */
-  titleOf?: (item: NextBannerItem) => string;
-}
-
-/** Ids of the places to drop, apart from the cards' keys: the row, the strip, a list's name. */
-const DROP = 'drop:';
-const ROW = `${DROP}here`;
-const STRIP = `${DROP}other`;
-/** A small cover's side while dragged; a card's is the image's own width. */
-const SMALL_PX = 56;
-/** A small cover's side at the foot, and the room between two: how many the strip holds. */
-const STRIP_COVER_PX = 30;
-const STRIP_GAP_PX = 6;
-/** The strip's own room at its two ends (its padding). */
-const STRIP_PAD_PX = 4;
-/** How long what was dragged takes to land on its place. */
-const LAND_MS = 180;
 
 /**
  * The pointer sensor for a mouse or a pen alone. Safari sends a touch's
@@ -136,17 +82,6 @@ class MousePointerSensor extends PointerSensor {
     },
   }];
 }
-
-/** Somewhere a card or a small cover can be dropped, inside a NextBanner: lit while one is over it. */
-export const NextBannerDrop: React.FC<{ id: string; className?: string; inline?: boolean; children: React.ReactNode }> = ({ id, className = '', inline = false, children }) => {
-  const { setNodeRef, isOver, active } = useDroppable({ id: `${DROP}${id}` });
-  const Tag = inline ? 'span' : 'div';
-  return (
-    <Tag ref={setNodeRef} className={`${className} next-banner-drop${active ? ' next-banner-drop--ready' : ''}${isOver ? ' next-banner-drop--over' : ''}`}>
-      {children}
-    </Tag>
-  );
-};
 
 /** A banner's icon when it is given none: a star. */
 const BannerStar: React.FC = () => (
@@ -168,7 +103,7 @@ export const NextBannerPending: React.FC<{
   className?: string;
   /** In the header, as the banner will have them: controls of the list's own. */
   headerControls?: React.ReactNode;
-  /** Under the cards, as the banner will have it: the other list's strip, say. */
+  /** Under the cards, as the banner will have it. */
   footer?: React.ReactNode;
   /** The banner will end with Help me choose (onSmartFill): held too, with what lies under it. */
   smartFill?: boolean;
@@ -254,47 +189,26 @@ export const NextBannerSlot: React.FC<{ show: boolean; children: React.ReactNode
   );
 };
 
-/** A small cover of the other list, at the foot: dragged into the row and back like a card; a click stays a click. */
-const SortableSmall: React.FC<{ id: string; title: string; image: string | null; onClick: () => void; fallback: React.ReactNode; landing?: boolean }> = ({ id, title, image, onClick, fallback, landing = false }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  return (
-    <button ref={setNodeRef} type="button" {...attributes} {...listeners} role={undefined} title={title} onClick={onClick} data-key={id}
-      className={`next-banner-other__cover${isDragging || landing ? ' next-banner-other__cover--dragging' : ''}`}
-      style={{ transform: isDragging ? undefined : CSS.Translate.toString(transform), transition: transition || undefined }}>
-      {image ? <img src={image} alt="" loading="lazy" /> : fallback}
-    </button>
-  );
-};
-
 interface SortableCardProps {
   id: string | number;
   disabled: boolean;
   className: string;
-  /** What is dragged follows the pointer on its own: the card waits, faded, at the place it would take. */
-  still?: boolean;
-  /** What was dragged is landing on it: hidden until it is there. */
-  landing?: boolean;
-  /** Just dropped, the pointer still on it: it does not lift as under the pointer until the pointer has left it. */
-  calm?: boolean;
-  onLeave?: () => void;
   children: React.ReactNode;
 }
 
 /** A card of the banner, which a drag moves along the others. */
-const SortableCard: React.FC<SortableCardProps> = ({ id, disabled, className, still = false, landing = false, calm = false, onLeave, children }) => {
+const SortableCard: React.FC<SortableCardProps> = ({ id, disabled, className, children }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
-  const style: React.CSSProperties = { transform: still && isDragging ? undefined : CSS.Translate.toString(transform), transition: transition || undefined };
+  const style: React.CSSProperties = { transform: CSS.Translate.toString(transform), transition: transition || undefined };
   // Faded in when it appears, once: a card moved in the row is taken out and put back, which would play it again.
-  // One that appears as it is dragged in (a small cover over the row) stays hidden: no fading in of it.
-  const [entering, setEntering] = useState(!isDragging);
+  const [entering, setEntering] = useState(true);
   return (
     <div
       ref={setNodeRef}
       style={style}
       data-key={id}
       onAnimationEnd={event => { if (event.target === event.currentTarget) setEntering(false); }}
-      onMouseLeave={calm ? onLeave : undefined}
-      className={`${className}${entering ? ' next-banner__card--entering' : ''}${isDragging ? ` next-banner__card--dragging${still ? ' next-banner__card--waiting' : ''}` : ''}${landing ? ' next-banner__card--landing' : ''}${calm ? ' next-banner__card--calm' : ''}${disabled ? '' : ' next-banner__card--sortable'}`}
+      className={`${className}${entering ? ' next-banner__card--entering' : ''}${isDragging ? ' next-banner__card--dragging' : ''}${disabled ? '' : ' next-banner__card--sortable'}`}
       {...attributes}
       {...listeners}
       // The card is not a control of its own: its image and its buttons are.
@@ -336,48 +250,12 @@ const NextBanner: React.FC<NextBannerProps> = ({
   renderOverlay,
   onReorder,
   canReorder,
-  onDropOn,
-  other,
   className = '',
-  alwaysShow = false,
-  renderCornerButton,
   getKey = item => item.id
 }) => {
   const bannerRef = useRef<HTMLDivElement>(null);
-  /** What is being dragged, a card's key or a small cover's: its image follows the pointer. */
+  /** The card being dragged, while it is. */
   const [dragged, setDragged] = useState<string | null>(null);
-  /** While a drag goes on: the row's keys and the strip's, as they stand with the cover dragged where it is now. */
-  const [live, setLive] = useState<{ here: string[]; other: string[] } | null>(null);
-  /** Where the cover dragged came from. */
-  const origin = useRef<'here' | 'other' | null>(null);
-  /** The side of what follows the pointer: a card's, or a small cover's; it grows or shrinks between them. */
-  const [previewPx, setPreviewPx] = useState(SMALL_PX);
-  const cardPx = useRef(180);
-  /** Where the pointer is while a cover is dragged: what follows it is centred on it. */
-  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
-  /**
-   * A cover dropped: what followed the pointer flies to its place, at its
-   * size, the cover hidden there until it lands. `at` once its place is known.
-   */
-  /** The cover just dropped, the pointer still on it: kept still under it. */
-  const [calmKey, setCalmKey] = useState<string | null>(null);
-  const [landing, setLanding] = useState<{ key: string; image: string | null; from: { x: number; y: number; px: number }; at?: { x: number; y: number; px: number } } | null>(null);
-  const startedAt = useRef<{ x: number; y: number } | null>(null);
-  // How many small covers the strip holds, as wide as it is now.
-  const stripRef = useRef<HTMLDivElement>(null);
-  const [holds, setHolds] = useState(16);
-  useLayoutEffect(() => {
-    const strip = stripRef.current;
-    if (!strip || typeof ResizeObserver === 'undefined') return undefined;
-    // Not laid out yet (or hidden): as many as before.
-    const measure = () => {
-      if (strip.clientWidth > 0) setHolds(Math.max(1, Math.floor((strip.clientWidth - STRIP_PAD_PX + STRIP_GAP_PX) / (STRIP_COVER_PX + STRIP_GAP_PX))));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(strip);
-    return () => observer.disconnect();
-  }, [Boolean(other)]);
   /** Set from a drag's end to the click that follows it, which must not open the card. */
   const justDragged = useRef(false);
 
@@ -427,148 +305,12 @@ const NextBanner: React.FC<NextBannerProps> = ({
     }
   };
 
-  const keyOf = (item: NextBannerItem) => String(getKey(item));
-  const hereKeys = live?.here ?? items.map(keyOf);
-  const otherKeys = live?.other ?? (other?.items ?? []).map(keyOf);
-  const byKey = new Map([...items, ...(other?.items ?? [])].map(item => [keyOf(item), item]));
-  /** The row or the strip an id stands in: a key, or the place itself. */
-  const sideOf = (id: string, keys = { here: hereKeys, other: otherKeys }): 'here' | 'other' | null =>
-    id === ROW || keys.here.includes(id) ? 'here' : id === STRIP || keys.other.includes(id) ? 'other' : null;
-
-  /**
-   * Where a drop goes: a list's name under the pointer first; else, in the
-   * row or the strip the pointer is in, the cover nearest it, or the row or
-   * the strip itself.
-   */
-  const collide: CollisionDetection = args => {
-    const under = pointerWithin(args);
-    const name = under.find(hit => String(hit.id).startsWith(DROP) && hit.id !== ROW && hit.id !== STRIP);
-    if (name) return [name];
-    if (!other) {
-      return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(container => !String(container.id).startsWith(DROP)) });
-    }
-    const side = under.some(hit => sideOf(String(hit.id)) === 'other') ? 'other' : under.some(hit => sideOf(String(hit.id)) === 'here') ? 'here' : null;
-    if (!side) return [];
-    // The cover nearest the pointer, not the one nearest what is dragged: a card and a small cover differ in size.
-    const keys = side === 'here' ? hereKeys : otherKeys;
-    const at = args.pointerCoordinates;
-    let nearest: Collision | null = null;
-    let distance = Infinity;
-    for (const container of args.droppableContainers) {
-      const rect = args.droppableRects.get(container.id);
-      if (!at || !rect || !keys.includes(String(container.id))) continue;
-      const d = Math.hypot(rect.left + rect.width / 2 - at.x, rect.top + rect.height / 2 - at.y);
-      if (d < distance) { distance = d; nearest = { id: container.id, data: { droppableContainer: container, value: d } }; }
-    }
-    return nearest ? [nearest] : [{ id: side === 'here' ? ROW : STRIP }];
-  };
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const id = String(active.id);
-    const width = bannerRef.current?.querySelector('.next-banner__image')?.getBoundingClientRect().width;
-    if (width) cardPx.current = width;
-    setDragged(id);
-    origin.current = sideOf(id);
-    startedAt.current = getEventCoordinates(event.activatorEvent);
-    setPointer(startedAt.current);
-    setPreviewPx(origin.current === 'other' ? SMALL_PX : cardPx.current);
-    if (other) setLive({ here: items.map(keyOf), other: other.items.map(keyOf) });
-  };
-
-  // Across: the cover leaves its row for the other, at the place of the one under the pointer; the others make room.
-  const handleDragOver = ({ active, over }: DragOverEvent) => {
-    if (!live || !over) return;
-    const id = String(active.id);
-    const from = sideOf(id, live);
-    const to = sideOf(String(over.id), live);
-    if (!from || !to || from === to) return;
-    const target = live[to].filter(key => key !== id);
-    const at = target.indexOf(String(over.id));
-    target.splice(at < 0 ? target.length : at, 0, id);
-    setLive({ ...live, [from]: live[from].filter(key => key !== id), [to]: target });
-    setPreviewPx(to === 'here' ? cardPx.current : SMALL_PX);
-  };
-
-  // The pointer itself, not dnd-kit's delta, which jumps when a cover changes rows.
-  useEffect(() => {
-    if (!dragged || !other) return undefined;
-    const follow = (event: PointerEvent | TouchEvent) => {
-      const at = 'touches' in event ? event.touches[0] : event;
-      if (at) setPointer({ x: at.clientX, y: at.clientY });
-    };
-    window.addEventListener('pointermove', follow);
-    window.addEventListener('touchmove', follow, { passive: true });
-    return () => {
-      window.removeEventListener('pointermove', follow);
-      window.removeEventListener('touchmove', follow);
-    };
-  }, [dragged, other]);
-
-  // Where the cover dropped now stands, once drawn there: what followed the pointer goes to it, then gives way.
-  useLayoutEffect(() => {
-    if (!landing || landing.at) return undefined;
-    const target = bannerRef.current?.querySelector(`[data-key="${window.CSS.escape(landing.key)}"]`);
-    const box = (target?.querySelector('.next-banner__image') ?? target)?.getBoundingClientRect();
-    if (!box || box.width === 0) { setLanding(null); return undefined; }
-    const frame = requestAnimationFrame(() => setLanding(now => now && { ...now, at: { x: box.left + box.width / 2, y: box.top + box.height / 2, px: box.width } }));
-    return () => cancelAnimationFrame(frame);
-  }, [landing]);
-  useEffect(() => {
-    if (!landing?.at) return undefined;
-    const timer = window.setTimeout(() => setLanding(null), LAND_MS);
-    return () => window.clearTimeout(timer);
-  }, [landing]);
-
-  /** The cover dropped, where it now stands: what followed the pointer lands on it. */
-  const land = (key: string) => {
-    if (!pointer) return;
-    const item = byKey.get(key);
-    setLanding({ key, image: item && getImageUrl ? getImageUrl(item) : null, from: { x: pointer.x, y: pointer.y, px: previewPx } });
-    setCalmKey(key);
-  };
-
-  const endDrag = () => {
-    setDragged(null);
-    setLive(null);
-    setPointer(null);
-    origin.current = null;
-    startedAt.current = null;
-  };
+  const handleDragStart = ({ active }: DragStartEvent) => setDragged(String(active.id));
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    const state = live;
-    const began = origin.current;
-    endDrag();
+    setDragged(null);
     justDragged.current = true;
     setTimeout(() => { justDragged.current = false; }, 0);
-    const activeId = String(active.id);
-    const overId = over ? String(over.id) : null;
-    // Onto a list's name: into that list, where it says.
-    if (overId?.startsWith(DROP) && overId !== ROW && overId !== STRIP) {
-      onDropOn?.(activeId, overId.slice(DROP.length));
-      return;
-    }
-    if (other) land(activeId);
-    // Let go away from the row and the strip: nothing moves, the cover goes back to its place.
-    if (other && !over) return;
-    // Into the other row or strip: where it now stands there, moved on to the one under the pointer.
-    if (state && began) {
-      const side = sideOf(activeId, state);
-      if (side && side !== began) {
-        let keys = state[side];
-        if (overId && keys.includes(overId) && overId !== activeId) keys = arrayMove(keys, keys.indexOf(activeId), keys.indexOf(overId));
-        const before = keys[keys.indexOf(activeId) + 1] ?? null;
-        onDropOn?.(activeId, side === 'here' ? 'here' : other!.dropId, before);
-        return;
-      }
-      // Among the small covers: the other list in a new order.
-      if (began === 'other') {
-        const keys = state.other;
-        if (overId && keys.includes(overId) && overId !== activeId) other?.onReorder?.(arrayMove(keys, keys.indexOf(activeId), keys.indexOf(overId)));
-        return;
-      }
-    }
     if (!onReorder || !over || active.id === over.id) return;
     const from = items.findIndex(item => getKey(item) === active.id);
     const to = items.findIndex(item => getKey(item) === over.id);
@@ -596,20 +338,11 @@ const NextBanner: React.FC<NextBannerProps> = ({
   // Show the "Help me choose" card if smart fill is available
   const showHelpMeChoose = hasSmartFill;
 
-  if ((!items || items.length === 0) && !hasSmartFill && !alwaysShow) return null;
-
-  const draggedItem = dragged ? byKey.get(dragged) : undefined;
-  const preview = draggedItem && getImageUrl ? getImageUrl(draggedItem) : null;
-  // The row as it stands, with a cover from the strip in it while it is dragged there.
-  const rowItems = hereKeys.flatMap(key => { const item = byKey.get(key); return item ? [item] : []; });
-  const smallItems = otherKeys.flatMap(key => { const item = byKey.get(key); return item ? [item] : []; });
-  // All of them when they fit; else one fewer than the strip holds, "+N" in the last one's place.
-  const room = Math.min(holds, other?.most ?? Infinity);
-  const shownSmall = smallItems.length <= room ? smallItems.length : Math.max(1, room - 1);
+  if ((!items || items.length === 0) && !hasSmartFill) return null;
 
   return (
-    <DndContext sensors={sensors} collisionDetection={collide} onDragStart={handleDragStart}
-      onDragOver={handleDragOver} onDragEnd={handleDragEnd} onDragCancel={endDrag}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd} onDragCancel={() => setDragged(null)}>
     <div className={`next-banner ${className}${dragged ? ' next-banner--dragging' : ''}`} ref={bannerRef}>
       <div className="next-banner__header">
         <div className="next-banner__title-section">
@@ -624,24 +357,18 @@ const NextBanner: React.FC<NextBannerProps> = ({
       </div>
 
       <div className="next-banner__carousel">
-        <SortableContext items={other ? hereKeys : items.map(getKey)} strategy={horizontalListSortingStrategy}>
-        <NextBannerDrop id="here" className="next-banner__track-drop">
+        <SortableContext items={items.map(getKey)} strategy={horizontalListSortingStrategy}>
         <div className="next-banner__track">
-          {(other ? rowItems : items).map((item) => (
+          {items.map((item) => (
             <SortableCard
               key={getKey(item)}
               id={getKey(item)}
               disabled={!onReorder || (canReorder ? !canReorder(item) : false)}
-              still={Boolean(other)}
-              landing={landing?.key === keyOf(item)}
-              calm={calmKey === keyOf(item)}
-              onLeave={() => setCalmKey(null)}
               className={`next-banner__card cover-host ${shufflingItemId === item.id ? 'shuffling' : ''} ${getCardClassName ? getCardClassName(item) : ''}`}
             >
               <CoverButton className="next-banner__remove-btn" onClick={(e) => handleRemove(e, item)} label={`Remove from ${title}`}>
                 <BsX size={20} />
               </CoverButton>
-              {renderCornerButton && renderCornerButton(item)}
 
               {/* The die: another suggestion in its place; music only. */}
               {type === 'music' && onShuffle && (!canShuffle || canShuffle(item)) && (
@@ -740,53 +467,10 @@ const NextBanner: React.FC<NextBannerProps> = ({
             </div>
           )}
         </div>
-        </NextBannerDrop>
         </SortableContext>
       </div>
-      {other && (
-        <div className={`next-banner-other ${other.className ?? ''}`}>
-          <NextBannerDrop id="other" className="next-banner-other__drop">
-            {other.head}
-            <span className="next-banner-other__hint">{other.dropHint}</span>
-            <SortableContext items={otherKeys} strategy={horizontalListSortingStrategy}>
-              <div className="next-banner-other__covers" ref={stripRef}>
-                {smallItems.slice(0, live ? shownSmall + 1 : shownSmall).map(item => (
-                  <SortableSmall key={keyOf(item)} id={keyOf(item)} title={other.titleOf?.(item) ?? (getTitle ? getTitle(item) : item.title || '')}
-                    image={getImageUrl ? getImageUrl(item) : null} fallback={<PlaceholderIcon size={14} />}
-                    onClick={() => { if (!justDragged.current) other.onShow(keyOf(item)); }} landing={landing?.key === keyOf(item)} />
-                ))}
-                {!live && smallItems.length > shownSmall && (
-                  <button type="button" className="next-banner-other__more" onClick={other.onOpen}>+{smallItems.length - shownSmall}</button>
-                )}
-              </div>
-            </SortableContext>
-          </NextBannerDrop>
-          {other.aside}
-        </div>
-      )}
       {footer}
     </div>
-    {/* What is dragged, above everything, centred on the pointer: a card's side over the row, a small cover's over the strip. */}
-    {other && dragged && pointer && typeof document !== 'undefined' && createPortal(
-      <div className="next-banner__drag-preview" aria-hidden="true"
-        style={{ width: previewPx, height: previewPx, left: pointer.x - previewPx / 2, top: pointer.y - previewPx / 2 }}>
-        {preview ? <img src={preview} alt="" /> : <PlaceholderIcon size={28} />}
-      </div>,
-      document.body,
-    )}
-    {/* Dropped: it flies from the pointer to its place, straightening, at the size of the place. */}
-    {landing && typeof document !== 'undefined' && createPortal(
-      (() => {
-        const to = landing.at ?? landing.from;
-        return (
-          <div className={`next-banner__drag-preview next-banner__drag-preview--landing${landing.at ? ' next-banner__drag-preview--landed' : ''}`} aria-hidden="true"
-            style={{ width: to.px, height: to.px, left: to.x - to.px / 2, top: to.y - to.px / 2, transitionDuration: `${LAND_MS}ms`, borderRadius: landing.at ? (to.px > SMALL_PX ? Math.round(to.px / 15) : 4) : undefined }}>
-            {landing.image ? <img src={landing.image} alt="" /> : <PlaceholderIcon size={28} />}
-          </div>
-        );
-      })(),
-      document.body,
-    )}
     </DndContext>
   );
 };

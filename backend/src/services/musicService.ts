@@ -215,7 +215,7 @@ class MusicService {
   async updateAlbumStatus(id: number, status: string): Promise<{ id: number; title_status: string }> {
     try {
       const result = await Album.updateStatus(id, status);
-      // A wish come true: the CD to be put on the player.
+      // A wish come true: at the end of Listen Next.
       if (status === 'owned') await musicCollectionService.addNewCd(id).catch(() => false);
       return result;
     } catch (error) {
@@ -342,10 +342,10 @@ class MusicService {
       }
 
       await runStatement('COMMIT');
-      // A CD come in: to be put on the player, in Listen Next's CD list.
+      // A CD come in: at the end of Listen Next.
       if ((album.titleStatus ?? 'owned') === 'owned') {
         await musicCollectionService.addNewCd(album.id).catch(error =>
-          logger.warn(`Album ${album.id} added but not put in Listen Next's CD list: ${(error as Error).message}`));
+          logger.warn(`Album ${album.id} added but not put in Listen Next: ${(error as Error).message}`));
       }
       return album;
     } catch (error) {

@@ -695,11 +695,6 @@
   animation: cover-wait 1.6s ease-in-out infinite;
 }
 
-/* The other list's strip held: as high as its small covers. */
-.next-banner-other__pending {
-  height: 30px;
-}
-
 .next-banner--pending .next-banner__card:hover .next-banner__image {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
@@ -745,16 +740,6 @@
 .next-banner__card:hover {
   transform: translateY(-8px) scale(1.02);
   z-index: 10;
-}
-
-/* Just dropped under the pointer: it stays where it landed, until the pointer leaves it. */
-.next-banner__card--calm:hover {
-  transform: none;
-}
-.next-banner__card--calm:hover .next-banner__image {
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 /* A card dragged into a new order: it follows the pointer at once, above the others, which make room for it. */
@@ -949,9 +934,8 @@
   transform: none;
 }
 
-/* Being dragged, or just dropped under the pointer: the cover alone. */
-.next-banner__card--dragging .next-banner__caption,
-.next-banner__card--calm:hover .next-banner__caption {
+/* Being dragged: the cover alone. */
+.next-banner__card--dragging .next-banner__caption {
   transform: translateX(-101%);
 }
 
@@ -1114,93 +1098,6 @@
   right: 8px;
   bottom: 8px;
   z-index: 11;
-}
-
-/* A banner of a list in silver (Listen Next's CDs): its tint, its title and its icon. */
-.next-banner.next-banner--silver {
-  background: linear-gradient(135deg, rgba(217, 214, 207, 0.2) 0%, rgba(217, 214, 207, 0.07) 50%, #000000 100%);
-  border-bottom-color: rgba(217, 214, 207, 0.12);
-}
-.next-banner--silver .next-banner__title {
-  color: var(--dv-silver) !important;
-  text-shadow: 0 2px 8px rgba(217, 214, 207, 0.25);
-}
-.next-banner--silver .next-banner__icon {
-  color: var(--dv-silver);
-  filter: drop-shadow(0 2px 4px rgba(217, 214, 207, 0.35));
-}
-
-/* What is dragged, above everything, centred on the pointer; the card it comes from waits, faded, at the place it would take. */
-.next-banner__drag-preview {
-  position: fixed;
-  z-index: 2000;
-  pointer-events: none;
-  width: 120px;
-  height: 120px;
-  border-radius: 8px;
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-  background: #2a2a2a;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.6);
-  transform: rotate(-3deg);
-  cursor: grabbing;
-  /* A card's side over the row, a small cover's over the strip: it grows and shrinks between them. */
-  transition: width 0.2s ease, height 0.2s ease;
-}
-.next-banner__drag-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.next-banner--dragging .next-banner__card--dragging {
-  opacity: 0.35;
-}
-/* Dropped: hidden at its place until what followed the pointer lands there. */
-.next-banner__card--landing {
-  opacity: 0;
-}
-/* Landing: it goes from the pointer to the place, straightening; then it gives way to the card. */
-.next-banner__drag-preview--landing {
-  transition-property: left, top, width, height, transform, border-radius;
-  transition-timing-function: ease-out;
-}
-.next-banner__drag-preview--landed {
-  transform: none;
-  /* As the card at rest, so that it gives way to it unseen. */
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
-}
-/* Between two lists the card dragged is the one following the pointer: in the row, only the room it will take shows. */
-.next-banner--dragging .next-banner__card--waiting {
-  opacity: 0;
-}
-
-/* Where a cover can be dropped, while one is dragged: a light frame, plain under the pointer. */
-.next-banner-drop {
-  border-radius: 8px;
-  transition: background-color 0.15s, outline-color 0.15s;
-}
-.next-banner-drop--ready:not(.next-banner__track-drop) {
-  outline: 1px dashed rgba(255, 255, 255, 0.3);
-  outline-offset: 3px;
-}
-.next-banner-drop--over:not(.next-banner__track-drop) {
-  outline: 2px solid #fff;
-  background: rgba(255, 255, 255, 0.08);
-}
-.next-banner__track-drop.next-banner-drop--over {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-/* A card shown from its small cover at the foot: lit a moment. */
-.next-banner__card--found .next-banner__image {
-  outline: 3px solid var(--dv-gold);
-  outline-offset: 3px;
-}
-.next-banner--silver .next-banner__card--found .next-banner__image {
-  outline-color: var(--dv-silver);
 }
 
 /* On a phone (CollectionHeader's NarrowHeader): one line, the count, then icons opening their menus. */

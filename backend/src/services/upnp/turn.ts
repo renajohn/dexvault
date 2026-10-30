@@ -82,7 +82,6 @@ export class Superseded extends Error {
 
 export const listenNextDeps: TurnDeps = {
   listIds: async () => (await musicCollectionService.getListenNextAlbums())
-    .filter(album => (album as { medium?: string }).medium !== 'cd')
     .map(album => entryKey(album.id, (album as { disc?: number | null }).disc)),
   markPlayed: async key => {
     const { albumId, disc } = parseEntryKey(key);

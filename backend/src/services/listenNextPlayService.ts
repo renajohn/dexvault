@@ -94,9 +94,9 @@ const leave = async (collectionId: number, entry: Entry, at: number): Promise<Li
   return departure;
 };
 
-/** Listen Next's streamed entries in their order: each album, with the disc it is there for (0 for the whole album). A CD to put on the player leaves only by hand. */
+/** Listen Next's entries in their order: each album, with the disc it is there for (0 for the whole album). */
 const entries = async (): Promise<Entry[]> =>
-  (await musicCollectionService.getListenNextAlbums('digital')).map(album => ({ id: album.id, title: album.title, disc: album.disc || 0 }));
+  (await musicCollectionService.getListenNextAlbums()).map(album => ({ id: album.id, title: album.title, disc: album.disc || 0 }));
 
 /**
  * One album of Listen Next played to its end leaves it, unless Repeat is on:

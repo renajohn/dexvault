@@ -316,14 +316,14 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
       { id: 'b2', discNumber: 2, track: 1, title: 'Spanish Key', durationSec: 1052, suffix: 'flac' },
       { id: 'b3', discNumber: 2, track: 2, title: 'Sanctuary', durationSec: 656, suffix: 'flac' },
     ] };
-    // The whole album in the streamed list.
-    let listenNext: Array<{ id: number; disc?: number | null; medium?: string }> = [{ id: 13, disc: null, medium: 'digital' }];
+    // The whole album in Listen Next.
+    let listenNext: Array<{ id: number; disc?: number | null }> = [{ id: 13, disc: null }];
     vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
       if (url.endsWith('/navidrome-tracks')) return Promise.resolve(new Response(JSON.stringify(boxRip)));
       if (url.endsWith('/listen-next/albums')) return Promise.resolve(new Response(JSON.stringify(listenNext)));
       if (url.endsWith('/albums/13/listen-next')) {
         const asked = init?.body ? JSON.parse(init.body as string) : {};
-        listenNext = asked.disc ? [{ id: 13, disc: asked.disc, medium: asked.medium }] : [];
+        listenNext = asked.disc ? [{ id: 13, disc: asked.disc }] : [];
         return Promise.resolve(new Response('{}'));
       }
       return Promise.resolve(new Response(JSON.stringify(url === '/api/outputs' ? [] : url.endsWith('/music/mixtapes') ? NO_MIXTAPES : {})));
@@ -335,18 +335,18 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     expect(within(sheet).getByText('2 tracks · 28 min', { exact: false })).toBeInTheDocument();
     // Numbered from 1 again under each head.
     expect(within(sheet).getByRole('button', { name: /Spanish Key/ })).toHaveTextContent(/^1Spanish Key/);
-    // The whole album there: both heads say so; disc 2's slid to the left, that disc alone goes, streamed.
+    // The whole album there: both heads say so; disc 2's slid to the left, that disc alone goes.
     const head2 = await within(sheet).findByRole('button', { name: /^Disc 2 · 2 tracks · 28 min, in Listen Next$/ });
     expect(within(sheet).getByRole('button', { name: /^Disc 1 .*, in Listen Next$/ })).toBeInTheDocument();
     slide(head2, -120);
     expect(await within(sheet).findByRole('button', { name: /^Disc 1 · 1 track · 20 min$/ })).toBeInTheDocument();
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/music/albums/13/listen-next', expect.objectContaining({ body: JSON.stringify({ disc: 2, medium: 'digital' }) }));
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/music/albums/13/listen-next', expect.objectContaining({ body: JSON.stringify({ disc: 2 }) }));
 
-    // Touched: its menu, the list to choose, From the CD moving it there.
+    // Touched: its menu, taking it out.
     tap(within(sheet).getByRole('button', { name: /^Disc 2 .*, in Listen Next$/ }));
     expect(await screen.findByText('Disc 2 in Listen Next')).toBeInTheDocument();
-    tap(screen.getByRole('menuitemradio', { name: /From the CD/ }));
-    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/music/albums/13/listen-next', expect.objectContaining({ body: JSON.stringify({ disc: 2, medium: 'cd' }) })));
+    tap(screen.getByRole('menuitem', { name: /Take out of Listen Next/ }));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([url]) => url === '/api/music/albums/13/listen-next')).toHaveLength(2));
   });
 
   it('the album playing: its ⋯ puts it in Listen Next too, not only at rest', async () => {
@@ -359,8 +359,8 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     const sheet = fullScreen('Now playing');
     fireEvent.click(within(sheet).getByRole('button', { name: 'More' }));
     expect(await screen.findByText('Listen Next')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /Streamed/ }));
-    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/music/albums/7/listen-next', expect.objectContaining({ body: JSON.stringify({ medium: 'digital' }) })));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Listen to it next/ }));
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/music/albums/7/listen-next', { method: 'PUT' }));
   });
 
   it('a CD with nothing ripped: the player all the same, ▶ grey, the line saying so, the CD’s own tracks that play nothing', async () => {

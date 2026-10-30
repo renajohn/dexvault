@@ -835,16 +835,12 @@
   font-weight: 600;
 }
 
-/* The disc in Listen Next: a small headphones at the end of its line, as a track's ♥; silver from the CD. */
+/* The disc in Listen Next: a small headphones at the end of its line, as a track's ♥. */
 .now-playing-disc-head__mark {
   flex: none;
   display: inline-flex;
   font-size: 0.8rem;
   color: var(--dv-gold);
-}
-
-.now-playing-disc-head__mark--cd {
-  color: var(--dv-silver);
 }
 
 /* The info view: the album's details, scrolling in the tracks' place. */
