@@ -1,7 +1,6 @@
 import React, { useRef } from 'react';
 import { BsDisc } from 'react-icons/bs';
 import { usePlayer } from '../services/player';
-import { setFullPlayer } from '../services/phoneDoor';
 import NowPlayingBars from './shared/NowPlayingBars';
 import './NowPlayingDisc.css';
 
@@ -12,11 +11,11 @@ const RADIUS = 18.5;
 const CIRCLE = 2 * Math.PI * RADIUS;
 
 /**
- * Whether the disc of what plays shows at the foot of a music window: something
- * plays (or is paused) and it is not the window's own album, whose own Pause,
- * cover and gold track already say so.
+ * Whether the disc of what plays shows at the foot of the full screen player:
+ * something plays (or is paused) and it is not the album shown, whose own
+ * Pause, cover and gold track already say so.
  */
-export const useNowPlayingDoor = (exceptAlbumId?: number | string | null): boolean => {
+const useNowPlayingDoor = (exceptAlbumId?: number | string | null): boolean => {
   const shown = usePlayer(state => state.barShown && state.album != null && state.tracks.length > 0);
   const albumId = usePlayer(state => state.album?.id ?? null);
   return shown && (exceptAlbumId == null || albumId == null || Number(exceptAlbumId) !== albumId);
@@ -25,21 +24,18 @@ export const useNowPlayingDoor = (exceptAlbumId?: number | string | null): boole
 interface NowPlayingDiscProps {
   /** The album of the window it sits in: this one playing, no disc. */
   exceptAlbumId?: number | string | null;
-  /** The track and its artist beside the disc, when the foot has room for them. */
-  withWords?: boolean;
   className?: string;
-  /** Touched: in the full screen player, back to what plays; else the full screen player opened. */
-  onOpen?: () => void;
+  /** Touched, or drawn up: in the full screen player, back to what plays. */
+  onOpen: () => void;
 }
 
 /**
- * What plays, on a phone, at the foot of a record's card, which takes the
- * whole page, or of the full screen player showing another album, the player's pill having given way
- * to it: the cover round as a disc in a ring of the place in the track, gold
- * while it plays, grey when paused, with its bars. A tap, or a finger drawn up,
- * opens the full screen player, whose handle comes back to the window.
+ * What plays, on a phone, at the foot of the full screen player showing
+ * another album: the cover round as a disc in a ring of the place in the
+ * track, gold while it plays, grey when paused, with its bars. A tap, or a
+ * finger drawn up, goes back to what plays.
  */
-const NowPlayingDisc: React.FC<NowPlayingDiscProps> = ({ exceptAlbumId = null, withWords = false, className, onOpen = () => setFullPlayer(true) }) => {
+const NowPlayingDisc: React.FC<NowPlayingDiscProps> = ({ exceptAlbumId = null, className, onOpen }) => {
   const door = useNowPlayingDoor(exceptAlbumId);
   const album = usePlayer(state => state.album);
   const track = usePlayer(state => state.tracks[state.index]);
@@ -57,7 +53,7 @@ const NowPlayingDisc: React.FC<NowPlayingDiscProps> = ({ exceptAlbumId = null, w
   const label = `Now playing: ${track.title}, ${artist}`;
 
   return (
-    <button type="button" className={`now-playing-disc${playing ? '' : ' now-playing-disc--paused'}${withWords ? ' now-playing-disc--words' : ''}${className ? ` ${className}` : ''}`}
+    <button type="button" className={`now-playing-disc${playing ? '' : ' now-playing-disc--paused'}${className ? ` ${className}` : ''}`}
       aria-label={label} title={`${track.title} · ${artist}`}
       onClick={onOpen}
       onPointerDown={event => { from.current = event.clientY; }}
@@ -75,12 +71,6 @@ const NowPlayingDisc: React.FC<NowPlayingDiscProps> = ({ exceptAlbumId = null, w
         {cover ? <img src={cover} alt="" /> : <span className="now-playing-disc__nocover" aria-hidden="true"><BsDisc /></span>}
         <span className="now-playing-disc__bars" aria-hidden="true"><NowPlayingBars playing={playing} /></span>
       </span>
-      {withWords && (
-        <span className="now-playing-disc__words">
-          <span className="now-playing-disc__track-title">{track.title}</span>
-          <span className="now-playing-disc__artist">{artist}</span>
-        </span>
-      )}
     </button>
   );
 };

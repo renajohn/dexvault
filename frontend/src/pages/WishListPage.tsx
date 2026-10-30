@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BsTrash, BsCurrencyDollar, BsBookmarkCheck, BsClipboard, BsDisc, BsFilm, BsBook, BsFileEarmark, BsPlus, BsSearch, BsBoxArrowUp } from 'react-icons/bs';
 import apiService from '../services/api';
@@ -577,12 +577,24 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
   // On a phone a row slides: right, spoken for; left, Share, I bought it and Delete.
   const narrow = useNarrow();
   const phone = useMedia('(max-width: 767px)');
+  // A wished album the phone's player handed to "I bought the CD": cancelled, the player opens on it again.
+  const backToPlayer = useRef<number | null>(null);
+  const reopenInPlayer = () => {
+    const albumId = backToPlayer.current;
+    backToPlayer.current = null;
+    if (albumId != null) musicService.getAlbumById(albumId).then(album => showAlbum(album as ShownAlbum, 'info')).catch(() => undefined);
+  };
   // What the phone's full screen player may do to a wished album from its info view, while the wish list shows.
   useEffect(() => {
     if (!phone) return undefined;
     setAlbumManagement({
       delete: albumId => handleDeleteItemFromDetails(albumId, 'album'),
-      bought: albumId => { const album = allAlbums.find(one => one.id === albumId); if (album) setBuyingAlbum(album); },
+      bought: albumId => {
+        backToPlayer.current = albumId;
+        const album = allAlbums.find(one => one.id === albumId);
+        if (album) setBuyingAlbum(album);
+        else musicService.getAlbumById(albumId).then(setBuyingAlbum).catch(() => reopenInPlayer());
+      },
       coverChange: (albumId, side, coverPath) => {
         const patch = side === 'front' ? { cover: coverPath } : { backCover: coverPath };
         setAlbums(prev => prev.map(album => album.id === albumId ? { ...album, ...patch } : album));
@@ -1360,9 +1372,10 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
       {buyingAlbum && (
         <BoughtCdDialog
           album={{ ...buyingAlbum, cover: musicService.getImageUrl(buyingAlbum.cover) }}
-          onClose={() => setBuyingAlbum(null)}
+          onClose={() => { setBuyingAlbum(null); reopenInPlayer(); }}
           onBought={(album: any) => {
             setBuyingAlbum(null);
+            backToPlayer.current = null;
             setAllAlbums(prev => prev.filter(a => a.id !== album.id));
             setAlbums(prev => prev.filter(a => a.id !== album.id));
             if (onShowAlert) onShowAlert(`"${album.title}" is now a CD of your collection`, 'success');

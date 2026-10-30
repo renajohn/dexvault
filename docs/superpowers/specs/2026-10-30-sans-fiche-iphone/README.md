@@ -246,7 +246,24 @@ les albums (`RecordInfo`, dans `shared/`), et la règle « rien deux fois ».
   ouvrent le lecteur (sur Infos pour un album sans CD), la Wish List aussi ; un CD sans rip
   ouvre le lecteur au repos, ▶ gris, « On CD only · 2 discs · … », ses pistes propres qui ne
   jouent pas. La fiche n'est plus rendue sous 768 px.
-- **Reste à faire** : retirer de `MusicDetailCard` la mise en page iPhone devenue morte
-  (`phoneBody`, puces, feuilles, `phoneFoot`, `useCoversPlayer`, son CSS) et ses tests phone ;
-  les crédits et paroles par piste dans la liste du lecteur (question 4) ; une recette sur
-  l'iPhone.
+- **Reste à faire** : les crédits et paroles par piste dans la liste du lecteur (question 4) ;
+  une recette sur l'iPhone.
+
+## Bug bash (30.10.2026, worktree bugbash)
+
+- Les étoiles du propriétaire sous l'artiste dans **toutes** les vues (pochette, paroles, guide,
+  pistes, Infos), relues à l'ouverture du plein écran ; Infos garde la note de la communauté
+  dessous. Revient sur la décision 1 : la cohérence d'une vue à l'autre l'emporte.
+- Une liste (Infos, pistes, guide, paroles) tirée vers le bas **à son sommet** ferme le plein
+  écran ; un geste ou une molette qu'une liste ne peut pas prendre (trop courte, à son bout, hors
+  liste) est refusé, pour que la grille ne défile plus derrière.
+- Le code d'étagère d'Infos replie le lecteur avant d'ouvrir les étagères.
+- « Not interested » agit en place : la ligne dit « Your plays suggest buying the CD », un toast
+  explique (Undo), le bouton devient « Interested after all » ; absent d'un album non suggéré.
+- Edit (Cancel ou Save), I bought the CD (fait ou annulé) et un album ajouté rouvrent le lecteur
+  sur l'album ; l'album est enregistré avant d'être relu.
+- « Also on » : Infos n'affiche plus l'album précédent pendant la lecture du suivant.
+- Code mort retiré : la mise en page iPhone de `MusicDetailCard` (tête fixe, puces, feuilles,
+  pied à ⋯, `TrackHold`) et son CSS sous 768 px, `useCoversPlayer`/`useCovered` et la pilule
+  « covered » de `PlayerBar`, `NowPlayingDisc` `withWords`. Gardés, sans usage pour l'instant :
+  `Dialog variant="sheet"` et `useLongPress`, briques du design system.

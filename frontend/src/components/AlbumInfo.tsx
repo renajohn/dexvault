@@ -128,6 +128,8 @@ const AlbumInfo: React.FC<AlbumInfoProps> = ({ albumId, known = null }) => {
 
   useEffect(() => {
     let current = true;
+    // Another album (Also on): nothing of the one before shows while it is read, nor can be deleted.
+    setAlbum(shown => (shown && Number(shown.id) === albumId ? shown : known && Number(known.id) === albumId ? known as AlbumDetails : null));
     setOpen(new Set());
     setRip(undefined);
     setPlays(null);
@@ -150,9 +152,9 @@ const AlbumInfo: React.FC<AlbumInfoProps> = ({ albumId, known = null }) => {
     scorePiecesService.ofAlbum(albumId).then(list => { if (current) setScores(Array.isArray(list) ? list : []); }).catch(() => undefined);
     musicService.getAlbumNotes(albumId).then(list => { if (current) setNoteCount(list.length); }).catch(() => undefined);
     return () => { current = false; };
-  }, [albumId]);
+  }, [albumId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!album) return <div className="album-info"><Loading>Reading the album…</Loading></div>;
+  if (!album || Number(album.id) !== albumId) return <div className="album-info"><Loading>Reading the album…</Loading></div>;
 
   const toggle = (id: string) => setOpen(current => {
     const next = new Set(current);
@@ -215,6 +217,19 @@ const AlbumInfo: React.FC<AlbumInfoProps> = ({ albumId, known = null }) => {
       setBusy(false);
     }
   };
+  // "Not interested": listening no longer puts it in Buy. Done in place, said, and undone from the toast or the button.
+  const interest = management?.interest?.(Number(album.id)) ?? null;
+  const setInterest = async (dismissed: boolean) => {
+    if (!management?.dismiss) return;
+    try {
+      await management.dismiss(Number(album.id), dismissed);
+      if (dismissed) {
+        toast('Out of Buy: your plays will not suggest it again', { action: { label: 'Undo', onClick: () => { void management.dismiss!(Number(album.id), false); } } });
+      }
+    } catch (error) {
+      toast(`Buy was not changed: ${(error as Error).message}`, { tone: 'danger' });
+    }
+  };
   const toggleWish = async () => {
     if (!management?.wish) return;
     setBusy(true);
@@ -269,7 +284,9 @@ const AlbumInfo: React.FC<AlbumInfoProps> = ({ albumId, known = null }) => {
         <section className="album-info-section album-info-buy">
           <h5>{wished ? 'Wished' : 'To buy'}</h5>
           <div className="album-info-line">
-            {wished ? <strong><BsBookmarkFill aria-hidden="true" /> On your wish list</strong> : <strong><BsBag aria-hidden="true" /> No CD on the shelf</strong>}
+            {wished ? <strong><BsBookmarkFill aria-hidden="true" /> On your wish list</strong>
+              : interest === 'suggested' ? <strong><BsBag aria-hidden="true" /> Your plays suggest buying the CD</strong>
+              : <strong><BsBag aria-hidden="true" /> No CD on the shelf</strong>}
             {album.titleStatus === 'digital' && <span className="album-info-muted"> · the files only, in Navidrome</span>}
           </div>
           <div className="album-info-buy__actions">
@@ -280,16 +297,19 @@ const AlbumInfo: React.FC<AlbumInfoProps> = ({ albumId, known = null }) => {
             )}
             <LinkButton size="sm" icon={<BsSearch />} href={ricardoUrl({ artist, name: album.title })} title="Search the CD on Ricardo">Ricardo</LinkButton>
             {management?.bought && <Button size="sm" icon={<BsDisc />} onClick={() => leave(() => management.bought!(Number(album.id)))}>I bought the CD</Button>}
-            {management?.dismiss && !wished && (
-              <Button variant="quiet" size="sm" onClick={() => leave(() => management.dismiss!(Number(album.id), true))}>Not interested</Button>
+            {management?.dismiss && !wished && interest && (
+              <Button variant="quiet" size="sm" onClick={() => { void setInterest(interest === 'suggested'); }}>
+                {interest === 'dismissed' ? 'Interested after all' : 'Not interested'}
+              </Button>
             )}
           </div>
+          {!wished && interest === 'dismissed' && <div className="album-info-line album-info-muted album-info-buy__hint">Set aside: your plays no longer put it in Buy.</div>}
         </section>
       )}
 
       <section className="album-info-section">
         <h5>{hasCd ? 'Files and CD' : 'Files'}</h5>
-        {hasCd && <div className="album-info-shelf"><ShelfCode kind="album" id={album.id} variant="inline" /></div>}
+        {hasCd && <div className="album-info-shelf"><ShelfCode kind="album" id={album.id} variant="inline" onOpen={() => setFullPlayer(false)} /></div>}
         <div className="album-info-line">{ripLine}</div>
       </section>
 

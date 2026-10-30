@@ -1,5 +1,5 @@
 /*
- * What plays, at the foot of a music window on a phone (NowPlayingDisc.tsx):
+ * What plays, at the foot of the phone's full screen player (NowPlayingDisc.tsx):
  * the cover round as a disc, in a ring of the place in the track, gold while
  * it plays and grey when paused, its bars in a corner. A component's own
  * stylesheet places it (margins, order), never its look.
@@ -104,32 +104,6 @@
 
 .now-playing-disc:focus-visible img {
   box-shadow: var(--dv-ring-image);
-}
-
-/* With its words: the track, and under it its artist, cut at their end. */
-.now-playing-disc__words {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-
-.now-playing-disc__track-title,
-.now-playing-disc__artist {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.now-playing-disc__track-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--dv-text);
-}
-
-.now-playing-disc__artist {
-  font-size: 0.78rem;
-  color: var(--dv-text-muted);
 }
 
 @media (prefers-reduced-motion: reduce) {

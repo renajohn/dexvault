@@ -11,6 +11,8 @@ interface ShelfCodeProps {
   /** "overlay" sits on a poster or cover; "inline" beside a title. */
   variant?: 'overlay' | 'inline';
   className?: string;
+  /** Before the Shelves page shows: what holds the code makes way (the phone's full screen player). */
+  onOpen?: () => void;
 }
 
 /** The Shelves page, taken to a film or a CD: its section, its shelf, the object lit. */
@@ -21,13 +23,14 @@ interface TagProps extends ShelfCodeProps {
   go: (href: string) => void;
 }
 
-const ShelfCodeTag: React.FC<TagProps> = ({ kind, id, variant, className, where, go }) => {
+const ShelfCodeTag: React.FC<TagProps> = ({ kind, id, variant, className, where, go, onOpen }) => {
   const href = shelvesHref(kind, id!);
   // The cover or the card under it keeps its own click: this one goes to the shelves alone.
   // A press without moving starts no drag (6 px), so the Listen Next cards still let it through.
   const open = (event: React.MouseEvent | React.KeyboardEvent) => {
     event.stopPropagation();
     event.preventDefault();
+    onOpen?.();
     go(href);
   };
   const link = {
@@ -63,11 +66,11 @@ const RoutedShelfCode: React.FC<Omit<TagProps, 'go'>> = props => {
  * Where to find the film or CD: its shelf, "B-3", or the place it is kept in. Nothing until the furniture gives it one.
  * A click shows it on the Shelves page.
  */
-const ShelfCode: React.FC<ShelfCodeProps> = ({ kind, id, variant = 'overlay', className }) => {
+const ShelfCode: React.FC<ShelfCodeProps> = ({ kind, id, variant = 'overlay', className, onOpen }) => {
   const where = useShelfLocation(kind, id);
   const routed = useInRouterContext();
   if (!where || id == null) return null;
-  const props = { kind, id, variant, className, where };
+  const props = { kind, id, variant, className, where, onOpen };
   // Outside the app's router (a test, say): a plain page change.
   return routed ? <RoutedShelfCode {...props} /> : <ShelfCodeTag {...props} go={href => window.location.assign(href)} />;
 };

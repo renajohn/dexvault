@@ -1,8 +1,7 @@
 import React from 'react';
-import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import MusicDetailCard from './MusicDetailCard';
-import { ConfirmHost, resetConfirm } from './shared/ConfirmDialog';
 
 vi.mock('../services/musicService', () => ({
   default: {
@@ -537,94 +536,5 @@ describe('MusicDetailCard on the outputs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More ways to listen' }));
     expect(screen.getByRole('menuitemradio', { name: 'Salon' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('menuitemradio', { name: /^This / })).toHaveAttribute('aria-checked', 'false');
-  });
-});
-
-describe('MusicDetailCard on a phone', () => {
-  const guide = { albumId: 1, source: 'claude', model: null, text: '**Context**: Recorded in 1969, in one summer.', createdAt: '', updatedAt: '' };
-
-  beforeEach(() => {
-    // A phone's width: the same query the player's bar asks (useMedia).
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width: 767px'), addEventListener() {}, removeEventListener() {} }));
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    resetConfirm();
-  });
-
-  it('lays the head out at a fixed height, the guide behind a chip that opens a sheet with its words', async () => {
-    (musicService.getAlbumGuide as any).mockResolvedValue(guide);
-    render(<MusicDetailCard cd={cd()} onClose={() => {}} onDelete={() => {}} />);
-
-    // The head: the cover and, beside it, the lines and the stars in a block of its own; nothing to read in place.
-    expect(document.querySelector('.album-head--phone')).toBeInTheDocument();
-    const who = document.querySelector('.album-head-who--phone') as HTMLElement;
-    expect(within(who).getByRole('button', { name: 'The Beatles' })).toBeInTheDocument();
-    expect(within(who).getByRole('button', { name: '4 stars' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Read on Wikipedia…' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edition, codes and more' })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Recorded in 1969/)).not.toBeInTheDocument();
-
-    // The chips, in a row that wraps; the guide's only once there is one.
-    const chips = document.querySelector('.album-chips') as HTMLElement;
-    expect(chips).toBeInTheDocument();
-    fireEvent.click(await within(chips).findByRole('button', { name: 'Guide' }));
-
-    const sheet = await screen.findByRole('dialog', { name: 'Before you listen' });
-    expect(sheet).toHaveClass('dialog--sheet');
-    expect(await within(sheet).findByText(/Recorded in 1969/)).toBeInTheDocument();
-    expect(within(chips).getByRole('button', { name: 'Guide' })).toHaveAttribute('aria-pressed', 'true');
-  });
-
-  it('keeps three things at the foot, Edit and Delete under ⋯, and Delete asks first', async () => {
-    const onEdit = vi.fn();
-    const onDelete = vi.fn();
-    render(<><ConfirmHost /><MusicDetailCard cd={cd()} onClose={() => {}} onEdit={onEdit} onDelete={onDelete} /></>);
-    await screen.findByRole('button', { name: 'Apple Music' });
-
-    const foot = document.querySelector('.music-detail-foot--phone') as HTMLElement;
-    expect(foot.children).toHaveLength(3);
-    expect(within(foot).getByRole('button', { name: 'Listen Next' })).toBeInTheDocument();
-    expect(within(foot).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
-    expect(within(foot).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
-    expect(within(foot).queryByRole('button', { name: 'Mixtapes' })).not.toBeInTheDocument();
-
-    fireEvent.click(within(foot).getByRole('button', { name: 'More' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
-    expect(onEdit).toHaveBeenCalled();
-
-    fireEvent.click(within(foot).getByRole('button', { name: 'More' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
-    const question = await screen.findByRole('alertdialog', { name: 'Delete “Abbey Road”?' });
-    expect(onDelete).not.toHaveBeenCalled();
-    fireEvent.click(within(question).getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(onDelete).toHaveBeenCalledTimes(1));
-  });
-
-  it('lists the other albums in a sheet, and opens one on a tap', async () => {
-    (musicService.getAlbumOverlaps as any).mockResolvedValue([
-      { id: 7, title: 'Love', artist: ['The Beatles'], cover: 'covers/7.jpg', titleStatus: 'owned', format: 'CD', shared: 2, trackCount: 26, tracks: [{ disc: 1, no: 1, title: 'Track 1' }, { disc: 1, no: 2, title: 'Track 2' }] },
-    ]);
-    const onOpenAlbum = vi.fn();
-    render(<MusicDetailCard cd={cd()} onClose={() => {}} onDelete={() => {}} onOpenAlbum={onOpenAlbum} />);
-
-    fireEvent.click(await screen.findByRole('button', { name: /^Also on/ }));
-    const sheet = await screen.findByRole('dialog', { name: 'Also on' });
-    const row = within(sheet).getByRole('button', { name: /Love/ });
-    expect(row).toHaveTextContent('CD · 26 tracks · 2/3 of this album\'s');
-    fireEvent.click(row);
-    expect(onOpenAlbum).toHaveBeenCalledWith(7);
-  });
-
-  it('writes a listening note in the notes sheet, from ⋯', async () => {
-    render(<MusicDetailCard cd={cd()} onClose={() => {}} onDelete={() => {}} />);
-    await screen.findByRole('button', { name: 'Apple Music' });
-
-    fireEvent.click(screen.getByRole('button', { name: 'More' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Write a listening note…' }));
-
-    const sheet = await screen.findByRole('dialog', { name: 'Listening notes' });
-    expect(await within(sheet).findByLabelText('New listening note')).toBeInTheDocument();
   });
 });

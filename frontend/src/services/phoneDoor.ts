@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 
 /** An album as its card reads it (musicService.getAlbumById), for the full screen player to show at rest. */
 export interface ShownAlbum {
@@ -14,15 +14,11 @@ export interface ShownAlbum {
 }
 
 /**
- * What a phone's player shares with the page: whether a record's card takes
- * the whole page, the player's pill then giving way to a disc at its foot;
- * whether the full screen player is open, which the pill and that disc both
- * open; the album a cover opened in it, at rest, while another plays or
+ * What a phone's player shares with the page: whether the full screen player
+ * is open; the album a cover opened in it, at rest, while another plays or
  * nothing does; and the one left for what plays, to go back to.
  */
 interface PhoneDoorState {
-  /** How many full-page music windows are open. */
-  covered: number;
   full: boolean;
   shown: ShownAlbum | null;
   /** The album at rest left for what plays by its disc: a disc in the same place goes back to it. */
@@ -33,7 +29,7 @@ interface PhoneDoorState {
   infoAsked: boolean;
 }
 
-let state: PhoneDoorState = { covered: 0, full: false, shown: null, left: null, tracksAsked: false, infoAsked: false };
+let state: PhoneDoorState = { full: false, shown: null, left: null, tracksAsked: false, infoAsked: false };
 const listeners = new Set<() => void>();
 
 const set = (changes: Partial<PhoneDoorState>) => {
@@ -46,7 +42,7 @@ const subscribe = (listener: () => void) => {
   return () => { listeners.delete(listener); };
 };
 
-/** The full screen player opened (true) or back to the pill or the disc (false), the album shown at rest, or left, let go. */
+/** The full screen player opened (true) or back to the pill (false), the album shown at rest, or left, let go. */
 export const setFullPlayer = (full: boolean) => {
   if (state.full !== full || (!full && (state.shown || state.left || state.tracksAsked))) {
     set(full ? { full } : { full, shown: null, left: null, tracksAsked: false, infoAsked: false });
@@ -84,7 +80,9 @@ export interface AlbumManagement {
   delete?: (albumId: number) => Promise<void>;
   bought?: (albumId: number) => void;
   wish?: (albumId: number) => Promise<void>;
-  dismiss?: (albumId: number, dismissed: boolean) => void;
+  dismiss?: (albumId: number, dismissed: boolean) => Promise<void>;
+  /** Whether listening suggests buying it (Buy), or "Not interested" set it aside; null when it is not in Buy at all. */
+  interest?: (albumId: number) => 'suggested' | 'dismissed' | null;
   coverChange?: (albumId: number, side: 'front' | 'back', coverPath: string) => void;
   search?: (predicate: string) => void;
 }
@@ -107,17 +105,5 @@ export const useLeftAlbum = (): ShownAlbum | null => useSyncExternalStore(subscr
 /** Whether the full screen player is open. */
 export const useFullPlayer = (): boolean => useSyncExternalStore(subscribe, () => state.full);
 
-/** Whether a music window takes the whole page: the pill then stays out of sight, its room given back. */
-export const useCovered = (): boolean => useSyncExternalStore(subscribe, () => state.covered > 0);
-
-/** Said by a music window while it takes the whole page (and `active`): the pill gives way to it. */
-export const useCoversPlayer = (active = true) => {
-  useEffect(() => {
-    if (!active) return undefined;
-    set({ covered: state.covered + 1 });
-    return () => set({ covered: Math.max(0, state.covered - 1) });
-  }, [active]);
-};
-
-/** For tests: nothing covered, the full screen closed. */
-export const resetPhoneDoor = () => { set({ covered: 0, full: false, shown: null, left: null, tracksAsked: false, infoAsked: false }); setAlbumManagement(null); };
+/** For tests: the full screen closed. */
+export const resetPhoneDoor = () => { set({ full: false, shown: null, left: null, tracksAsked: false, infoAsked: false }); setAlbumManagement(null); };

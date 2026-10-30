@@ -54,7 +54,7 @@ interface MusicSearchProps {
   onAddCd: (cdData: any) => Promise<any>;
   onAddCdFromMusicBrainz: (releaseId: string, cdData: any) => Promise<any>;
   onAddCdByBarcode: (barcode: string, cdData: any) => Promise<any>;
-  onUpdateCd: (id: number | string, cdData: any) => void;
+  onUpdateCd: (id: number | string, cdData: any) => void | Promise<void>;
   onDeleteCd: (id: number | string) => Promise<any>;
   onShowAlert?: (message: string, variant: string) => void;
   onOpenAddDialog?: () => void;
@@ -660,16 +660,32 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     setShowDismissed(false);
   };
 
+  // An album the phone's full screen player handed to a dialog (Edit, I bought the CD): the player opens on it
+  // again, on its info, once the dialog is saved or cancelled.
+  const backToPlayer = useRef<number | null>(null);
+  const reopenInPlayer = async (details?: Album) => {
+    const albumId = backToPlayer.current;
+    backToPlayer.current = null;
+    if (albumId == null) return;
+    try {
+      showAlbum((details && Number(details.id) === albumId ? details : await musicService.getAlbumById(albumId)) as ShownAlbum, 'info');
+    } catch { /* gone (deleted meanwhile): the grid stays */ }
+  };
+
   // What the phone's full screen player may do to an album from its info view, while MusicDex shows.
   useEffect(() => {
     if (!phone) return undefined;
     const albumOf = async (albumId: number): Promise<Album> => findById(albumId, allCds, extraCds, listenNextAlbums) ?? await musicService.getAlbumById(albumId) as Album;
     setAlbumManagement({
-      edit: albumId => { void albumOf(albumId).then(handleEditCd); },
+      edit: albumId => { backToPlayer.current = albumId; void albumOf(albumId).then(handleEditCd); },
       delete: async albumId => { await onDeleteCd(albumId); await loadCds(); },
-      bought: albumId => { void albumOf(albumId).then(setBuying); },
+      bought: albumId => { backToPlayer.current = albumId; void albumOf(albumId).then(setBuying); },
       wish: digitalOn ? async albumId => { await toggleWish(await albumOf(albumId)); } : undefined,
-      dismiss: digitalOn ? (albumId, dismissed) => { void albumOf(albumId).then(cd => setDismissed(cd, dismissed)); } : undefined,
+      dismiss: digitalOn ? async (albumId, dismissed) => { await setDismissed(await albumOf(albumId), dismissed); } : undefined,
+      interest: digitalOn ? albumId => {
+        const album = digital.byAlbumId.get(albumId)?.album;
+        return isDismissed(album) ? 'dismissed' : isToBuy(album) && isSuggested(album) ? 'suggested' : null;
+      } : undefined,
       coverChange: (albumId, side, coverPath) => setCover(albumId, side, coverPath),
       search: updateSearchViaUrl,
     });
@@ -695,9 +711,9 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     setSelectedCdDetails((prev: any) => prev?.id === albumId ? { ...prev, ...patch } : prev);
   };
 
-  const setDismissed = (cd: Album, dismissed: boolean) => {
+  const setDismissed = async (cd: Album, dismissed: boolean) => {
     const album = digitalOf(cd).album;
-    if (album) digital.change(() => musicService.setDigitalDismissed(album.navidromeId, dismissed));
+    if (album) await digital.change(() => musicService.setDigitalDismissed(album.navidromeId, dismissed));
   };
 
   const handleSortChange = async (sortOption: string) => {
@@ -986,6 +1002,7 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
       setSelectedCdDetails(cdDetailsBeforeEdit);
       setCdDetailsBeforeEdit(null);
     }
+    void reopenInPlayer();
   };
 
   const handleFormSave = async (createdAlbum: any = null) => {
@@ -999,7 +1016,9 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
       // Then fetch the complete album details (including tracks) and show the detail dialog
       try {
         const completeAlbumDetails = await musicService.getAlbumById(createdAlbum.id);
-        setSelectedCdDetails(completeAlbumDetails);
+        // On a phone there is no card: the full screen player on the album added.
+        if (phone) showAlbum(completeAlbumDetails as ShownAlbum, hasCd(completeAlbumDetails as Album) ? 'tracks' : 'info');
+        else setSelectedCdDetails(completeAlbumDetails);
       } catch (err) {
         console.error('Failed to load complete album details after creation:', err);
         // Fallback to showing the basic album data
@@ -1019,6 +1038,7 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
           setCdDetailsBeforeEdit(null);
         }
       }
+      await reopenInPlayer();
     }
   };
 
@@ -1610,7 +1630,8 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
         <MusicForm
           cd={editingCd}
           onSave={async (cdData: any) => {
-            onUpdateCd(editingCd.id, cdData);
+            // Saved before the album is read again: else the card, or the phone's player, shows it as it was.
+            await onUpdateCd(editingCd.id, cdData);
             await handleFormSave();
           }}
           onCancel={handleFormCancel}
@@ -1654,13 +1675,16 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
       {buying && (
         <BoughtCdDialog
           album={buying}
-          onClose={() => setBuying(null)}
+          onClose={() => { setBuying(null); void reopenInPlayer(); }}
           onBought={async (album: any) => {
             setBuying(null);
             if (onShowAlert) onShowAlert(`"${album.title}" is now a CD of your collection`, 'success');
             await Promise.all([loadCds(), loadExtraCds()]);
             if (digitalOn) digital.reload();
-            setSelectedCdDetails(await musicService.getAlbumById(album.id));
+            const details = await musicService.getAlbumById(album.id);
+            // Bought from the phone's player: back to it, on the album now a CD.
+            if (backToPlayer.current != null) await reopenInPlayer(details as Album);
+            else setSelectedCdDetails(details);
           }}
         />
       )}

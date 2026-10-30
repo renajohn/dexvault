@@ -129,6 +129,33 @@ describe('PhonePlayer, its tracks’ hearts and dots', () => {
     expect(stars).toBeInTheDocument();
   });
 
+  it('shows the album’s stars under the artist in every view, the cover’s and the words’ too', async () => {
+    render(phone({ tracks, index: 0, starsOf: 25 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Full screen player' }));
+    expect(await screen.findByRole('group', { name: 'Your stars for 21: 4 stars' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Lyrics' }));
+    expect(screen.getByRole('group', { name: /Your stars for 21/ })).toBeInTheDocument();
+  });
+
+  it('keeps a mouse’s wheel off the page under it: refused over the head, let through in a list that has somewhere to go', () => {
+    render(phone({ tracks, index: 0, starsOf: 25 }));
+    toTracks();
+    const wheel = (target: Element, deltaY: number) => {
+      const event = new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(wheel(screen.getByRole('group', { name: /Your stars for 21/ }), 40)).toBe(true);
+    const list = document.querySelector<HTMLElement>('.now-playing-tracks')!;
+    // jsdom lays nothing out: a list too short to scroll hands nothing to the page either.
+    expect(wheel(list, 40)).toBe(true);
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 900 });
+    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 300 });
+    expect(wheel(list, 40)).toBe(false);
+    // At its top, a wheel up would scroll the page: refused.
+    expect(wheel(list, -40)).toBe(true);
+  });
+
   it('lets a finger drawn down on the album’s stars turn their dial, the full screen staying open', () => {
     render(phone({ tracks, index: 0, starsOf: 25 }));
     toTracks();

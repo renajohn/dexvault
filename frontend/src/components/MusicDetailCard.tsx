@@ -4,7 +4,7 @@ import { ButtonGroup } from 'react-bootstrap';
 import Dialog from './shared/Dialog';
 import scorePiecesService, { type AlbumScore } from '../services/scorePiecesService';
 import Menu, { MenuChevron } from './shared/Menu';
-import { BsPencil, BsTrash, BsDisc, BsApple, BsTags, BsPlayFill, BsPauseFill, BsHeadphones, BsBoxArrowUpRight, BsChevronRight, BsStarFill, BsArrowClockwise, BsBook, BsWikipedia, BsMusicNoteList, BsLink45Deg, BsTag, BsThreeDots } from 'react-icons/bs';
+import { BsPencil, BsTrash, BsDisc, BsApple, BsTags, BsPlayFill, BsPauseFill, BsHeadphones, BsBoxArrowUpRight, BsChevronRight, BsStarFill, BsArrowClockwise } from 'react-icons/bs';
 import musicService from '../services/musicService';
 import CoverModal from './CoverModal';
 import CoverFinder from './CoverFinder';
@@ -20,7 +20,7 @@ import { useOutputs } from '../services/outputs';
 import { playerAlbumOf, playerTracksOf } from '../utils/playAlbum';
 import { playingTime, ripSummary, urlLabel } from '../utils/albumHead';
 import TrackDetails from './TrackDetails';
-import DetailSteps, { useScrollKeys, useStepKeys } from './shared/DetailSteps';
+import { useScrollKeys, useStepKeys } from './shared/DetailSteps';
 import type { AlbumOverlap, ListenNextMedium, RipTracks } from '../services/musicService';
 import './MusicDetailCard.css';
 import ShelfCode from './shared/ShelfCode';
@@ -34,15 +34,9 @@ import Spinner from './shared/Spinner';
 import { AlbumStarRating } from './RecordStarRating';
 import toast from './shared/Toast';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
-import MixtapeMenu, { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
-import Chip from './shared/Chip';
-import { confirm } from './shared/ConfirmDialog';
-import { showAlbum, useCoversPlayer } from '../services/phoneDoor';
-import NowPlayingDisc, { useNowPlayingDoor } from './NowPlayingDisc';
-import { useMedia } from '../utils/useNarrow';
-import { useLongPress } from '../utils/useLongPress';
+import MixtapeMenu from './MixtapeMenu';
 import { useMixtapes } from '../utils/mixtapeStore';
-import { BsCassetteFill, BsXLg, BsLaptop, BsImage } from 'react-icons/bs';
+import { BsCassetteFill, BsXLg, BsLaptop } from 'react-icons/bs';
 import remote, { useRemotePlayers, type RemotePlayer } from '../services/remote';
 import { discsInWords, heldOf } from '../utils/listenNextEntry';
 
@@ -223,37 +217,6 @@ const TrackFavourite: React.FC<{ songId: string; title: string }> = ({ songId, t
   );
 };
 
-/** What a track's line takes to open its menu under a long press: spread on the line. */
-type TrackHoldProps = ReturnType<typeof useLongPress> & { ref?: React.Ref<HTMLDivElement>; 'data-held'?: boolean };
-
-/**
- * On a phone, half a second's press on a track opens its menu, as in the
- * player's tracks: its ♥, Play from here, its mixtapes. The line's touch still
- * opens it (docs/superpowers/specs/2026-10-27-fav-et-populaire).
- */
-const TrackHold: React.FC<{ songId: string | null; title: string; play?: (() => void) | null; children: (hold: TrackHoldProps) => React.ReactElement }> = ({ songId, title, play, children }) => {
-  const favourite = useFavourite(songId);
-  const [menu, setMenu] = useState(false);
-  const [naming, setNaming] = useState(false);
-  const press = useLongPress(songId ? () => setMenu(true) : null);
-  if (!songId) return children({});
-  return (
-    <>
-      <Menu open={menu} onOpenChange={setMenu} label={title}
-        trigger={props => children({ ...press, ref: props.ref as unknown as React.Ref<HTMLDivElement>, 'data-held': menu })}>
-        <Menu.Item icon={favourite ? <BsHeart /> : <BsHeartFill />}
-          onSelect={() => setFavourite(songId, !favourite).catch(error => toast(`Could not change the favourite: ${(error as Error).message}`, { tone: 'danger' }))}>
-          {favourite ? 'Remove from the favourites' : 'Add to the favourites'}
-        </Menu.Item>
-        {play && <Menu.Item icon={<BsPlayFill />} onSelect={play}>Play from here</Menu.Item>}
-        <Menu.Separator />
-        <MixtapeEntries songIds={[songId]} title={title} onNew={() => setNaming(true)} />
-      </Menu>
-      {naming && <NewMixtapeDialog songIds={[songId]} title={title} onClose={() => setNaming(false)} />}
-    </>
-  );
-};
-
 /**
  * A track's mixtapes: gold and always in sight when a mixtape holds it, its
  * title naming them; under the pointer otherwise. Its menu puts it in or
@@ -277,20 +240,6 @@ const TrackMixtapes: React.FC<{ songId: string; title: string }> = ({ songId, ti
 
 /** A row of Listen Next as the server sends it: the album, one disc of it or none, and its list. */
 type ListenNextRow = { id: number; disc?: number | null; medium?: ListenNextMedium };
-
-/** On a phone, what a chip under the head opens in a sheet. */
-type SheetKind = 'guide' | 'notes' | 'story' | 'also' | 'scores' | 'links' | 'edition';
-
-/** The sheet's head, by what it shows. */
-const SHEETS: Record<SheetKind, { title: string; icon: React.ReactNode }> = {
-  guide: { title: 'Before you listen', icon: <BsBook /> },
-  notes: { title: 'Listening notes', icon: <BsPencil /> },
-  story: { title: 'On Wikipedia', icon: <BsWikipedia /> },
-  also: { title: 'Also on', icon: <BsDisc /> },
-  scores: { title: 'On the shelf of scores', icon: <BsMusicNoteList /> },
-  links: { title: 'Links', icon: <BsLink45Deg /> },
-  edition: { title: 'Edition, codes and more', icon: <BsTag /> },
-};
 
 const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, onDelete, onSearch, onListenNextChange, onPrevious, onNext, digital, onWish, onDismiss, onBought, onCoverChange, onOpenAlbum }) => {
   const [showCoverModal, setShowCoverModal] = useState<boolean>(false);
@@ -343,11 +292,6 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   // The scores holding what it plays: "On the shelf of scores".
   const [scores, setScores] = useState<AlbumScore[]>([]);
   const [showAllOverlaps, setShowAllOverlaps] = useState<boolean>(false);
-  // A phone's width: the card is laid out to listen first (the prototypes of 2026-10-27), a computer's as before.
-  const phone = useMedia('(max-width: 767px)');
-  // On a phone, the sheet open over the card, and the dialog naming a new mixtape from ⋯.
-  const [sheet, setSheet] = useState<SheetKind | null>(null);
-  const [naming, setNaming] = useState<boolean>(false);
   const navidromeId = digital?.album?.navidromeId ?? null;
   // A wish or a digital album: no CD, the shelf code gives way to the cloud.
   const hasCd = cd.titleStatus !== 'digital' && cd.titleStatus !== 'wish';
@@ -599,22 +543,8 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
     setNoteCount(null);
     setWritingNote(false);
     setStoryOpen(null);
-    setSheet(null);
   }, [cd.id]);
 
-  // On a phone the guide and the notes live in sheets, unread until opened: the chips still have to
-  // know whether there is a guide, and how many notes, so they are asked for here.
-  useEffect(() => {
-    if (!phone) return undefined;
-    let current = true;
-    musicService.getAlbumGuide(Number(cd.id))
-      .then(guide => { if (current) setHasGuide(guide !== null); })
-      .catch(() => { if (current) setHasGuide(false); });
-    musicService.getAlbumNotes(Number(cd.id))
-      .then(list => { if (current) setNoteCount(list.length); })
-      .catch(() => undefined);
-    return () => { current = false; };
-  }, [cd.id, phone]);
   // Wikipedia is open at once when no guide tells what matters first, until a click says otherwise.
   const showStory = storyOpen ?? !hasGuide;
 
@@ -669,9 +599,6 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   const nowPlaying = usePlayer(state => state.playing);
   const resume = usePlayer(state => state.resume);
   const playingHere = nowAlbumId === Number(cd.id);
-  const nowPlayingDoor = useNowPlayingDoor(cd.id) && phone;
-  // On a phone the card takes the whole page: the player's pill gives way to the disc at its foot.
-  useCoversPlayer(phone);
   const resumeHere = !playingHere && resume?.album.id === Number(cd.id) ? resume : null;
   // The computers the remote can send this album or a track of it to.
   const computers = useRemotePlayers().filter(p => p.online);
@@ -751,7 +678,6 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       <span className={summary.state === 'lossless' ? 'album-head-lossless' : 'album-head-lossy'}>
         {summary.state === 'lossless' ? 'Lossless' : 'Lossy'}
       </span>
-      {/* The count before the format: on a phone the line's end is cut, and the end is the detail. */}
       <span className="album-head-muted">
         {trackCount > 0 && ` · ${summary.files} of ${trackCount} tracks`}
         {' · '}{summary.format}
@@ -762,12 +688,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   const frontCover = coverBroken ? null : getCoverImage();
   const backCover = getBackCoverImage();
 
-  /** On a phone, Delete is an entry of ⋯: it asks before it does, there being no button to press twice. */
-  const askDelete = async () => {
-    if (await confirm({ title: `Delete “${cd.title}”?`, message: 'It leaves the collection. This cannot be undone.', confirmLabel: 'Delete', danger: true })) onDelete();
-  };
-
-  // ---- The pieces of the card, drawn once and laid out for a computer or for a phone. ----
+  // ---- The pieces of the card. ----
 
   const covers = (
     <div className="album-head-covers">
@@ -777,9 +698,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
           src={frontCover}
           alt={`${cd.title} front cover`}
           className="album-head-cover"
-          // On a phone, a ripped album's cover opens the full screen player on it (playing, or at rest); else it grows.
-          onClick={() => (phone && ownPlayer ? showAlbum(cd) : handleCoverClick(frontCover, 'Front'))}
-          title={phone && ownPlayer ? (playingHere ? 'Now playing: open the player' : 'Open in the player') : undefined}
+          onClick={() => handleCoverClick(frontCover, 'Front')}
           onError={() => setCoverBroken(true)}
         />
       ) : (
@@ -790,11 +709,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
           )}
         </div>
       )}
-      {phone && playingHere && frontCover && (
-        <span className="album-head-cover-playing" aria-hidden="true"><NowPlayingBars playing={nowPlaying} /></span>
-      )}
-      {/* On a phone the head has a fixed height and no room under the cover: the back is found from ⋯. */}
-      {!backCover && onCoverChange && !phone && (
+      {!backCover && onCoverChange && (
         <Button size="sm" variant="quiet" className="album-head-find-back" onClick={() => setFindingCover('back')}>Find the back…</Button>
       )}
       {backCover && (
@@ -823,11 +738,11 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   const shapeLine = shapeText ? <div className="album-head-shape">{shapeText}</div> : null;
 
   /** How to listen to it: the rip in Navidrome, or with Digital on, the CD missing and the files. */
-  const listenLines = (compact: boolean) => (digital === undefined ? (
+  const listenLines = () => (digital === undefined ? (
     rip?.configured !== false && <div className="album-head-line">{ripText}</div>
   ) : (
     <>
-      {!hasCd && !compact && (
+      {!hasCd && (
         <div className="album-head-line album-head-physical">
           <span className="album-head-muted">{cd.titleStatus === 'wish' ? 'No CD · on your wish list' : 'No CD'}</span>
           {/* The box below holds the bookmark when there is something to decide. */}
@@ -840,8 +755,6 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
         </div>
       )}
       <div className="album-head-line">
-        {/* On a phone, the lines are counted: No CD opens the files' line rather than taking one. */}
-        {!hasCd && compact && <span className="album-head-muted">{cd.titleStatus === 'wish' ? 'No CD · wished · ' : 'No CD · '}</span>}
         {digital.album ? (
           <>
             <span className={isLossy(digital.album) ? 'album-head-lossy' : 'album-head-lossless'}>{formatLabel(digital.album)}</span>
@@ -1139,10 +1052,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                     {workCredits.get(trackIndex)?.common && <span className="track-work-by"> · {workCredits.get(trackIndex)!.common}</span>}
                   </div>
                 )}
-                <TrackHold songId={phone ? (heard?.id || file?.id || null) : null} title={track.title}
-                  play={ownPlay ? () => playFrom(disc.number, Number(track.no)) : null}>
-                {hold => (
-                <div {...hold}
+                <div
                   className={`track-item track-selectable${open ? ' track-selected' : ''}${work ? ' track-in-work' : ''}${current ? ' track-current' : ''}`}
                   role="button"
                   tabIndex={0}
@@ -1237,8 +1147,6 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                     </span>
                   )}
                 </div>
-                )}
-                </TrackHold>
                 {open && (
                   <TrackDetails
                     id={`track-details-${key}`}
@@ -1326,7 +1234,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       ))}
     </>
   );
-  /** Whether the ▾ beside Play (a computer) or the ⋯ (a phone) has a way to listen to offer. */
+  /** Whether the ▾ beside Play has a way to listen to offer. */
   const hasPlayMore = Boolean(ripAlbum) && (ownPlayer || computers.length > 0 || elsewhere.length > 0);
 
   /** The whole album in or out, streamed unless it is a CD with no rip. */
@@ -1338,19 +1246,19 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       onClick={() => handleListenNextToggle(undefined, isInListenNext ? undefined : plainMedium)}
       disabled={togglingListenNext}
     >
-      <span className={phone ? 'music-detail-next-words' : 'music-detail-long'}>
+      <span className="music-detail-long">
         {isInListenNext ? 'In Listen Next' : 'Listen Next'}
         {Array.isArray(listenNextHeld) && listenNextHeld.length > 0 && (
           <span className="music-detail-next-discs"> · {discsInWords(listenNextHeld)}</span>
         )}
         {albumMedium === 'cd' && <span className="music-detail-next-discs"> · from the CD</span>}
       </span>
-      {!phone && <span className="music-detail-short" aria-hidden="true">Next</span>}
+      <span className="music-detail-short" aria-hidden="true">Next</span>
     </Button>
   );
   /** Its ▾ chooses the list, and the discs when it has several. */
   const listenNextMenu = (canBeCd || discs.length > 1) && (
-    <Menu drop="up" align={phone ? 'end' : 'start'} label="Listen Next" trigger={(props, open) => (
+    <Menu drop="up" align="start" label="Listen Next" trigger={(props, open) => (
       <Button {...props} active={isInListenNext} className="ui-button--split" aria-label="Choose how and what for Listen Next"
         title={canBeCd ? 'Streamed or from the CD' : 'Some discs only'} disabled={togglingListenNext}>
         <MenuChevron open={open} />
@@ -1406,7 +1314,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
           {shapeLine}
         </div>
         <div className="album-head-rest">
-          {listenLines(false)}
+          {listenLines()}
           {genresLine}
           {overlapsLine}
           {scoresLine}
@@ -1515,138 +1423,12 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
     </>
   );
 
-  // ---- A phone: a head of fixed height, chips that open sheets, the tracks at once, three buttons at the foot. ----
-
-  const linkCount = (cd.musicbrainzReleaseId ? 1 : 0) + links.length;
-  const chip = (kind: SheetKind, icon: React.ReactNode, words: string, count?: number, muted?: boolean) => (
-    <Chip icon={icon} count={count} muted={muted} active={sheet === kind} onClick={() => setSheet(kind)}>{words}</Chip>
-  );
-
-  const phoneBody = (
-    <>
-      <div className="album-head album-head--phone">
-        {covers}
-        {/* Beside the cover, as high as it and no more: what overflows is cut, the stars keep their line at the foot. */}
-        <div className="album-head-who album-head-who--phone">
-          <div className="album-head-who-lines">
-            {artistButton}
-            {shapeLine}
-            {listenLines(true)}
-            {genresLine}
-          </div>
-          {ratingRow}
-        </div>
-      </div>
-      {ratingNotes}
-
-      {buyBox}
-
-      {/* What is to read, a chip each, in a row that wraps: a sheet opens on a tap. */}
-      <div className="album-chips">
-        {hasGuide && chip('guide', <BsBook />, 'Guide')}
-        {chip('notes', <BsPencil />, 'Notes', noteCount || undefined, !noteCount)}
-        {chip('story', <BsWikipedia />, 'Wikipedia')}
-        {overlaps.length > 0 && chip('also', <BsDisc />, 'Also on', overlaps.length)}
-        {scores.length > 0 && chip('scores', <BsMusicNoteList />, 'Scores', scores.length)}
-        {hasLinks && chip('links', <BsLink45Deg />, 'Links', linkCount)}
-        {chip('edition', <BsTag />, 'Edition & codes')}
-      </div>
-
-      {tracks}
-    </>
-  );
-
-  /** What the open sheet shows: the same parts as a computer's card, one at a time. */
-  const sheetBody = sheet === 'guide' ? <AlbumGuide albumId={Number(cd.id)} onLoaded={setHasGuide} />
-    : sheet === 'notes' ? <AlbumNotes albumId={Number(cd.id)} writing onCount={setNoteCount} />
-    : sheet === 'story' ? <AlbumStory albumId={cd.id} open />
-    : sheet === 'also' ? (
-      <ul className="card-sheet-list">
-        {overlaps.map(other => {
-          const thumb = musicService.getImageUrl(other.cover);
-          return (
-            <li key={other.id}>
-              <button type="button" className="card-sheet-row" title={overlapTip(other)} disabled={!onOpenAlbum}
-                onClick={() => { setSheet(null); onOpenAlbum?.(other.id); }}>
-                {thumb ? <img className="card-sheet-thumb" src={thumb} alt="" /> : <span className="card-sheet-thumb card-sheet-thumb-empty"><BsDisc aria-hidden="true" /></span>}
-                <span className="card-sheet-words">
-                  <span className="card-sheet-title">{other.title}</span>
-                  <span className="album-head-muted">
-                    {other.titleStatus === 'digital' ? 'digital' : other.format || 'CD'} · {other.trackCount} tracks · {overlapCount(other, trackCount)} of this album's
-                  </span>
-                </span>
-                {onOpenAlbum && <BsChevronRight aria-hidden="true" className="card-sheet-chevron" />}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    )
-    : sheet === 'scores' ? (
-      <ul className="card-sheet-list">
-        {scores.map(score => (
-          <li key={score.id} className="card-sheet-row">
-            <BsMusicNoteList aria-hidden="true" className="card-sheet-icon" />
-            <ScoreLink id={score.id} title={scoreTitle(score)} />
-          </li>
-        ))}
-      </ul>
-    )
-    : sheet === 'links' ? <div className="card-sheet-links">{linkItems}</div>
-    : sheet === 'edition' ? facts
-    : null;
-
-  const phoneFoot = (
-    <>
-      {/* Another album playing: its disc, which opens the full screen player, the pill having given way to the card. */}
-      {nowPlayingDoor && (
-        <>
-          <NowPlayingDisc exceptAlbumId={cd.id} className="music-detail-now" />
-          <span className="music-detail-now-rule" aria-hidden="true" />
-        </>
-      )}
-      {playButton}
-      <span className="ui-button-group music-detail-next">
-        {listenNextButton}
-        {listenNextMenu}
-      </span>
-      {/* Everything else under ⋯: where to play, mixtapes, a note, the CD bought, Edit, and Delete apart in red. */}
-      <Menu drop="up" align="end" label="More" trigger={(props, open) => (
-        <IconButton {...props} label="More" boxed active={open} className="music-detail-more"><BsThreeDots /></IconButton>
-      )}>
-        {hasPlayMore && playMoreItems}
-        {hasPlayMore && <Menu.Separator />}
-        {playerTracks.length > 0 && (
-          <>
-            <MixtapeEntries songIds={playerTracks.map(track => track.songId)} onNew={() => setNaming(true)} />
-            <Menu.Separator />
-          </>
-        )}
-        <Menu.Item icon={<BsPencil />} onSelect={() => setSheet('notes')}>Write a listening note…</Menu.Item>
-        {!hasCd && onWish && (
-          <Menu.Item icon={cd.titleStatus === 'wish' ? <BsBookmarkFill /> : <BsBookmark />} onSelect={onWish}>
-            {cd.titleStatus === 'wish' ? 'Take off the wish list' : 'Add to wish list'}
-          </Menu.Item>
-        )}
-        {!hasCd && onBought && <Menu.Item icon={<BsDisc />} onSelect={onBought}>I bought the CD</Menu.Item>}
-        {!backCover && onCoverChange && <Menu.Item icon={<BsImage />} onSelect={() => setFindingCover('back')}>Find the back cover…</Menu.Item>}
-        {onEdit && cd.titleStatus !== 'digital' && <Menu.Item icon={<BsPencil />} onSelect={onEdit}>Edit</Menu.Item>}
-        {cd.titleStatus !== 'digital' && (
-          <>
-            <Menu.Separator />
-            <Menu.Item danger icon={<BsTrash />} onSelect={askDelete}>Delete</Menu.Item>
-          </>
-        )}
-      </Menu>
-    </>
-  );
-
   return (
     <Dialog
       variant="panel"
       onClose={handleClose}
       zIndex={10100}
-      className={`music-detail-modal${phone ? ' music-detail-modal--phone' : ''}`}
+      className="music-detail-modal"
       icon={<BsDisc />}
       title={cd.title}
       aside={hasCd ? <ShelfCode kind="album" id={cd.id} variant="inline" className="music-detail-shelf" />
@@ -1654,21 +1436,13 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       steps={{ onPrevious, onNext, noun: 'album' }}
     >
       <Dialog.Body ref={bodyRef}>
-        {phone ? phoneBody : computerBody}
+        {computerBody}
       </Dialog.Body>
 
-      <Dialog.Footer className={phone ? 'music-detail-foot--phone' : undefined}>
-        {phone ? phoneFoot : computerFoot}
+      <Dialog.Footer>
+        {computerFoot}
       </Dialog.Footer>
 
-      {/* On a phone, what a chip opened: over the card (10100), under the dialogs that stand over everything (12000). */}
-      {phone && sheet && (
-        <Dialog variant="sheet" tall={sheet === 'guide'} zIndex={10150} onClose={() => setSheet(null)}
-          className="music-detail-sheet" icon={SHEETS[sheet].icon} title={SHEETS[sheet].title}>
-          <Dialog.Body>{sheetBody}</Dialog.Body>
-        </Dialog>
-      )}
-      {naming && <NewMixtapeDialog songIds={playerTracks.map(track => track.songId)} onClose={() => setNaming(false)} />}
 
       {findingCover && (
         <CoverFinder albumId={cd.id} side={findingCover} title={cd.title} artist={cd.artist}

@@ -367,18 +367,18 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
       .catch(() => undefined);
     return () => { current = false; };
   }, [tracksShown, heartsOf]);
-  // The album's stars over its tracks: read again from Navidrome as they are shown (given in Amperfy since).
+  // The album's stars under the artist, in every view: read again from Navidrome as the full screen opens (given in Amperfy since).
   const starsOf = props.starsOf ?? null;
   const [stars, setStars] = useState<number | null>(null);
   useEffect(() => { setStars(null); }, [starsOf]);
   useEffect(() => {
-    if (!tracksShown || starsOf == null) return undefined;
+    if (!full || starsOf == null) return undefined;
     let current = true;
     musicService.syncAlbumRating(starsOf)
       .then(({ userRating }) => { if (current) setStars(userRating ?? null); })
       .catch(() => undefined);
     return () => { current = false; };
-  }, [tracksShown, starsOf]);
+  }, [full, starsOf]);
   const rate = (next: number) => {
     if (starsOf == null) return;
     const before = stars;
@@ -456,16 +456,70 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   }, [view, hasLyrics, hasTracks, guide, tracksAsked, hasInfo]);
 
   // A finger drawn on the pill or the full screen never scrolls the page under them: iOS's Safari scrolls it
-  // through a fixed layer whatever its touch-action, unless the move is refused. A slider and a list keep their own.
+  // through a fixed layer whatever its touch-action, unless the move is refused. A slider keeps its own, and a list
+  // too while it has somewhere to go: one too short to scroll, or at its end, would hand the move to the page.
+  // A list at its top drawn down draws the full screen down, as anywhere else (the info view is nothing but its list).
   const pillRef = useRef<HTMLDivElement>(null);
+  const listTouch = useRef<{ x: number; y: number; at: number; list: HTMLElement | null; mode: 'undecided' | 'pull' | 'native' } | null>(null);
   useEffect(() => {
     const hold = (event: TouchEvent) => {
-      if (!(event.target instanceof Element && event.target.closest('input, .now-playing-scroll'))) event.preventDefault();
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('input')) return;
+      const list = target?.closest<HTMLElement>('.now-playing-scroll');
+      if (!list) { event.preventDefault(); return; }
+      const touch = listTouch.current;
+      const dy = touch ? event.touches[0].clientY - touch.y : 0;
+      const dx = touch ? event.touches[0].clientX - touch.x : 0;
+      // Decided at the first clear move: down at the list's top draws the full screen; across, a line slides (♥, mixtapes).
+      if (touch?.mode === 'undecided' && Math.max(Math.abs(dx), Math.abs(dy)) >= 3) {
+        touch.mode = dy > Math.abs(dx) && list.scrollTop <= 0 ? 'pull' : 'native';
+      }
+      if (touch?.mode === 'undecided' && dy > 0 && list.scrollTop <= 0 && event.cancelable) { event.preventDefault(); return; }
+      if (touch?.mode === 'pull') {
+        if (event.cancelable) event.preventDefault();
+        if (dy >= DRAG_FROM_PX) place(dy);
+        return;
+      }
+      const room = list.scrollHeight - list.clientHeight;
+      if (event.cancelable && (room <= 1 || (dy < 0 && list.scrollTop >= room - 1))) event.preventDefault();
     };
-    const layers = [pillRef.current, sheetRef.current].filter((one): one is HTMLDivElement => one != null);
+    const begin = (event: TouchEvent) => {
+      const list = event.target instanceof Element ? event.target.closest<HTMLElement>('.now-playing-scroll') : null;
+      listTouch.current = event.touches.length === 1 && list ? { x: event.touches[0].clientX, y: event.touches[0].clientY, at: event.timeStamp, list, mode: 'undecided' } : null;
+    };
+    const end = (event: TouchEvent) => {
+      const touch = listTouch.current;
+      listTouch.current = null;
+      if (touch?.mode !== 'pull') return;
+      const dy = (event.changedTouches[0]?.clientY ?? touch.y) - touch.y;
+      place(null);
+      if (dy < DRAG_FROM_PX) return;
+      dragged.current = true;
+      window.setTimeout(() => { dragged.current = false; }, 0);
+      if (dy > SWIPE_CLOSE_PX || (dy > 30 && dy / Math.max(1, event.timeStamp - touch.at) > 0.5)) setFull(false);
+    };
+    // A mouse's wheel or a trackpad likewise: a list scrolls while it has somewhere to go, the page under never.
+    const wheel = (event: WheelEvent) => {
+      const list = event.target instanceof Element ? event.target.closest<HTMLElement>('.now-playing-scroll') : null;
+      const room = list ? list.scrollHeight - list.clientHeight : 0;
+      const free = list != null && room > 1 && (event.deltaY < 0 ? list.scrollTop > 0 : event.deltaY > 0 ? list.scrollTop < room - 1 : true);
+      if (!free) event.preventDefault();
+    };
+    const sheet = sheetRef.current;
+    const layers = [pillRef.current, sheet].filter((one): one is HTMLDivElement => one != null);
     layers.forEach(layer => layer.addEventListener('touchmove', hold, { passive: false }));
-    return () => layers.forEach(layer => layer.removeEventListener('touchmove', hold));
-  }, []);
+    layers.forEach(layer => layer.addEventListener('wheel', wheel, { passive: false }));
+    sheet?.addEventListener('touchstart', begin, { passive: true });
+    sheet?.addEventListener('touchend', end);
+    sheet?.addEventListener('touchcancel', end);
+    return () => {
+      layers.forEach(layer => layer.removeEventListener('touchmove', hold));
+      layers.forEach(layer => layer.removeEventListener('wheel', wheel));
+      sheet?.removeEventListener('touchstart', begin);
+      sheet?.removeEventListener('touchend', end);
+      sheet?.removeEventListener('touchcancel', end);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Open, Escape closes it, and the focus goes into it (not on a button, whose tooltip would show); closed, back to the pill.
   // The body is left alone: the page under it holds still by its refused moves, and a record's card (Bootstrap)
@@ -577,7 +631,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
     </Menu>
   );
 
-  // Over the tracks, the album's stars under the artist; the track's ♥ is on each line there.
+  // The album's stars under the artist, in every view; over the tracks the track's ♥ is on each line, not in the head.
   const wordsOf = (withStars: boolean) => (
     <div className="now-playing-words">
       <span className="now-playing-track">{props.title}</span>
@@ -587,7 +641,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
       )}
     </div>
   );
-  const words = wordsOf(false);
+  const words = wordsOf(true);
 
   // Once, the first time tracks are shown, their first line of Navidrome's opens a little to say that it slides.
   const [swipeHint] = useState(() => readStored(SWIPE_HINT_KEY) !== '1');
@@ -658,7 +712,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
               <button type="button" className="now-playing-thumb" onClick={() => setView('cover')} aria-label="Back to the cover">
                 {cover.src ? <img src={cover.src} alt="" /> : <span className="now-playing-nocover" aria-hidden="true" />}
               </button>
-              {wordsOf(view === 'tracks')}{view === 'tracks' && starsOf != null ? null : heart}{wordsShown && lyrics?.status === 'found' && !fixing && !trying && <LyricsMenu timing={timing} canFix={canFix} className="output-menu" />}{more}
+              {wordsOf(true)}{view === 'tracks' && starsOf != null ? null : heart}{wordsShown && lyrics?.status === 'found' && !fixing && !trying && <LyricsMenu timing={timing} canFix={canFix} className="output-menu" />}{more}
             </div>
             {view === 'lyrics' && props.lyricsOf && <Lyrics lyrics={timing.shown} lines={timing.lines} position={position} seek={controls.seek} />}
             {view === 'guide' && guide && (

@@ -5,6 +5,7 @@ import PlayerBar from './PlayerBar';
 import { ConfirmHost } from './shared/ConfirmDialog';
 import outputs, { resetOutputs, takeState, type OutputState } from '../services/outputs';
 import { player, resetPlayer } from '../services/player';
+import { resetShelfLocations } from '../utils/shelfLocations';
 import { resetPhoneDoor, setAlbumManagement, setFullPlayer, showAlbum, useFullPlayer } from '../services/phoneDoor';
 
 const shown = { id: 12, title: 'Kind of Blue', artist: 'Miles Davis', cover: null, format: 'CD', releaseYear: 1959, titleStatus: 'owned', fileQuality: 'lossless' };
@@ -190,6 +191,52 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Delete', hidden: true })[1]);
     await waitFor(() => expect(remove).toHaveBeenCalledWith(12));
     expect(screen.getByTestId('full')).toHaveTextContent('false');
+  });
+
+  it('its info: the shelf code goes to the shelves, the full screen giving way; a finger drawn down the info at its top closes it', async () => {
+    vi.mocked(fetch).mockImplementation(((url: string) => {
+      if (url.endsWith('/navidrome-tracks')) return Promise.resolve(new Response(JSON.stringify(rip)));
+      if (url.endsWith('/music/albums/12')) return Promise.resolve(new Response(JSON.stringify(shown)));
+      if (url === '/api/shelving/locations') return Promise.resolve(new Response(JSON.stringify({ movies: {}, albums: { 12: 'A-3' } })));
+      return Promise.resolve(new Response(JSON.stringify(url.endsWith('/listen-next/albums') || url === '/api/outputs' || url.endsWith('/scores') || url.endsWith('/notes') || url.endsWith('/overlaps') ? [] : {})));
+    }) as typeof fetch);
+    resetShelfLocations();
+    page();
+    act(() => { showAlbum(shown, 'info'); });
+    fireEvent.click(await within(fullScreen('Kind of Blue')).findByRole('link', { name: 'On the shelves: A-3' }));
+    expect(screen.getByTestId('full')).toHaveTextContent('false');
+
+    act(() => { showAlbum(shown, 'info'); });
+    const info = (await within(fullScreen('Kind of Blue')).findByText('Files and CD')).closest('.now-playing-scroll')!;
+    fireEvent.touchStart(info, { touches: [{ clientX: 100, clientY: 200 }] });
+    fireEvent.touchMove(info, { touches: [{ clientX: 100, clientY: 210 }] });
+    fireEvent.touchMove(info, { touches: [{ clientX: 100, clientY: 400 }] });
+    fireEvent.touchEnd(info, { changedTouches: [{ clientX: 100, clientY: 400 }] });
+    expect(screen.getByTestId('full')).toHaveTextContent('false');
+  });
+
+  it('its info, an album with no CD that plays suggest: Not interested sets it aside in place, says so, and can be undone', async () => {
+    const digital = { ...shown, titleStatus: 'digital' };
+    vi.mocked(fetch).mockImplementation(((url: string) => {
+      if (url.endsWith('/navidrome-tracks')) return Promise.resolve(new Response(JSON.stringify(rip)));
+      if (url.endsWith('/music/albums/12')) return Promise.resolve(new Response(JSON.stringify(digital)));
+      if (url === '/api/shelving/locations') return Promise.resolve(new Response(JSON.stringify(NO_SHELVES)));
+      return Promise.resolve(new Response(JSON.stringify(url.endsWith('/listen-next/albums') || url === '/api/outputs' || url.endsWith('/scores') || url.endsWith('/notes') || url.endsWith('/overlaps') ? [] : {})));
+    }) as typeof fetch);
+    let interest: 'suggested' | 'dismissed' = 'suggested';
+    const dismiss = vi.fn(async (_id: number, dismissed: boolean) => { interest = dismissed ? 'dismissed' : 'suggested'; });
+    act(() => { setAlbumManagement({ dismiss, interest: () => interest }); });
+    page();
+    act(() => { showAlbum(digital, 'info'); });
+    const sheet = fullScreen('Kind of Blue');
+    expect(await within(sheet).findByText('Your plays suggest buying the CD')).toBeInTheDocument();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Not interested' }));
+    await waitFor(() => expect(dismiss).toHaveBeenCalledWith(12, true));
+    // In place: the full screen stays, the page says it again, the button turns back.
+    expect(screen.getByTestId('full')).toHaveTextContent('true');
+    act(() => { setAlbumManagement({ dismiss, interest: () => interest }); });
+    expect(await within(sheet).findByRole('button', { name: 'Interested after all' })).toBeInTheDocument();
+    expect(within(sheet).getByText(/no longer put it in Buy/)).toBeInTheDocument();
   });
 
   it('another album playing: its disc at the left of the foot goes back to it, and closing lets the album go', async () => {

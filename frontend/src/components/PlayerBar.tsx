@@ -11,7 +11,7 @@ import Menu, { MenuChevron } from './shared/Menu';
 import PlayerTracks from './PlayerTracks';
 import OutputMenu, { OutputEntries } from './OutputMenu';
 import OutputSettings from './OutputSettings';
-import { leaveForPlaying, setFullPlayer, showAlbum, showPlaying, useCovered, useLeftAlbum, useShownAlbum } from '../services/phoneDoor';
+import { leaveForPlaying, showAlbum, showPlaying, useLeftAlbum, useShownAlbum } from '../services/phoneDoor';
 import PhonePlayer from './PhonePlayer';
 import NowPlayingDisc, { LeftAlbumDisc } from './NowPlayingDisc';
 import { useAlbumActions, useAlbumAtRest } from './useAlbumAtRest';
@@ -132,9 +132,6 @@ const PlayerBar: React.FC = () => {
   const outputName = output.kind === 'renderer' ? output.name : '';
   // A phone's width: a pill at the foot, full screen at a tap.
   const phone = useMedia('(max-width: 767px)');
-  // On a phone, a record's card over the whole page: the pill gives way to the disc at its foot, and its room
-  // goes back to the card. The full screen stays, the disc opening it.
-  const covered = useCovered() && phone;
   // The album a cover opened in the full screen player: at rest, unless it is the one playing.
   const shownAlbum = useShownAlbum();
   const shownPlaying = shownAlbum != null && album?.id != null && Number(shownAlbum.id) === album.id;
@@ -148,7 +145,7 @@ const PlayerBar: React.FC = () => {
   // On a phone, what ⋯ and the discs' heads do for the album playing (Listen Next, mixtapes); a mixtape's songs have their own.
   const nowActions = useAlbumActions(phone && album?.id != null && track?.artist == null ? album.id : null, null, usePlayer(state => state.tracks));
   // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
-  const idle = !shown && output.kind === 'renderer' && known.length > 0 && inMusic && !isComputer() && !covered;
+  const idle = !shown && output.kind === 'renderer' && known.length > 0 && inMusic && !isComputer();
   // The settings of an appliance, opened from the ⋯ of a phone's bar.
   const [settingsFor, setSettingsFor] = useState<Output | null>(null);
 
@@ -157,8 +154,8 @@ const PlayerBar: React.FC = () => {
 
   // The room the bar takes, for the pages and the cards: --player-h on the root.
   useEffect(() => {
-    document.documentElement.style.setProperty('--player-h', (shown && !covered) || idle ? 'var(--player-bar-room)' : '0px');
-  }, [shown, idle, covered]);
+    document.documentElement.style.setProperty('--player-h', shown || idle ? 'var(--player-bar-room)' : '0px');
+  }, [shown, idle]);
 
   // What the bar last showed, kept while it slides away after ✕.
   const last = useRef<{ album: NonNullable<typeof album>; track: NonNullable<typeof track> } | null>(null);
@@ -195,8 +192,8 @@ const PlayerBar: React.FC = () => {
   const taken = outputStatus === 'taken';
 
   return (
-    <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}${phone ? ' player-bar--pill' : ''}${covered ? ' player-bar--covered' : ''}`} role="region"
-      aria-label={outputName ? `Playing on ${outputName}` : 'Player'} aria-hidden={!out || covered}>
+    <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}${phone ? ' player-bar--pill' : ''}`} role="region"
+      aria-label={outputName ? `Playing on ${outputName}` : 'Player'} aria-hidden={!out}>
       {restAlbum && atRest ? (
         // A cover's album at rest: the same full screen, ▶ playing it, the disc of what plays at its foot.
         <PhonePlayer title={atRest.title} subtitle={atRest.artist} cover={{ src: atRest.cover, title: atRest.title }}
