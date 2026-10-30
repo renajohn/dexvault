@@ -25,12 +25,12 @@ interface MixtapeMenuProps {
  * them at the end); then New mixtape…, which `onNew` asks a name for. The
  * entries of a menu: of the mixtapes' own, and of the phone player's ⋯.
  */
-export const MixtapeEntries: React.FC<{ songIds: string[]; title?: string; onNew: () => void }> = ({ songIds, title, onNew }) => {
+export const MixtapeEntries: React.FC<{ songIds: string[]; title?: string; onNew: () => void; /** The section's title, for a disc: "Disc 2 in mixtapes". */ heading?: string }> = ({ songIds, title, onNew, heading }) => {
   const { mixtapes } = useMixtapes();
   const unique = [...new Set(songIds)];
   return (
     <>
-      <Menu.Section title={unique.length === 1 ? 'Track in mixtapes' : 'Album in mixtapes'} />
+      <Menu.Section title={heading ?? (unique.length === 1 ? 'Track in mixtapes' : 'Album in mixtapes')} />
       {byLastChange(mixtapes).map(mixtape => {
         const held = heldIn(mixtape, unique);
         const all = held === unique.length;

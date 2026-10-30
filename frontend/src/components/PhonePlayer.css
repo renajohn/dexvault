@@ -784,3 +784,65 @@
   justify-self: start;
   margin-left: 10px;
 }
+
+/* An album of several discs: each disc's head over its tracks, a line that slides as the tracks' do. */
+.now-playing-disc-head__line {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.now-playing-tracks ol:first-of-type > .now-playing-disc-head__line {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* As tall as a track's line: what a slide bares (an icon over a word) needs the height. */
+.now-playing-disc-head {
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--dv-radius-md);
+  background: none;
+  color: var(--dv-text-muted);
+  text-align: left;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.now-playing-disc-head--held {
+  background: var(--dv-veil);
+}
+
+.now-playing-disc-head__words {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+.now-playing-disc-head__words b {
+  color: var(--dv-text);
+  font-weight: 600;
+}
+
+/* The disc in Listen Next: a small headphones at the end of its line, as a track's ♥; silver from the CD. */
+.now-playing-disc-head__mark {
+  flex: none;
+  display: inline-flex;
+  font-size: 0.8rem;
+  color: var(--dv-gold);
+}
+
+.now-playing-disc-head__mark--cd {
+  color: var(--dv-silver);
+}

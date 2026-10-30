@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  BsBoxArrowUpRight, BsCassetteFill, BsChatQuote, BsChatQuoteFill, BsInfoCircle, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
+  BsBoxArrowUpRight, BsCassetteFill, BsChatQuote, BsChatQuoteFill, BsHeadphones, BsInfoCircle, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
   BsSkipBackwardFill, BsSkipForwardFill, BsSpeaker, BsThreeDots, BsX,
 } from 'react-icons/bs';
 import { setFullPlayer, tracksShownAsAsked, useFullPlayer, useTracksAsked } from '../services/phoneDoor';
@@ -20,6 +20,7 @@ import { LyricsMenu, TimingDrawer, TryBar } from './LyricsTiming';
 import { useLyricsTiming } from './useLyricsTiming';
 import { GuideText, readingOf } from './AlbumGuide';
 import { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
+import type { AlbumActions, DiscHead } from './useAlbumAtRest';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
 import { readStored, writeStored } from '../utils/safeStorage';
 import SwipeRow from './SwipeRow';
@@ -109,9 +110,11 @@ export interface PhonePlayerProps {
   /**
    * An album a cover opened, at rest while another plays or nothing does: its
    * line (CD · 12 tracks · 45 min) where the place in the track would be, ▶
-   * alone, its own entries in ⋯.
+   * alone.
    */
-  rest?: { albumId: number | string; line: string; menu: React.ReactNode } | null;
+  rest?: { albumId: number | string; line: string } | null;
+  /** The album's own entries of ⋯ (Listen Next, mixtapes) and its discs' heads, at rest or playing; none for a mixtape or a computer far away. */
+  album?: AlbumActions | null;
   /** At the left of the foot: the disc of what plays, the album shown being another; or, back on what plays, the album left. */
   door?: React.ReactNode;
 }
@@ -223,6 +226,8 @@ const Lyrics: React.FC<{ lyrics: TrackLyrics | null | undefined; lines: LyricLin
 export interface PhoneTrack {
   title: string;
   durationSec: number | null;
+  /** The disc it is on: an album of several shows each under its head. */
+  disc?: number;
   songId?: string;
   starred?: boolean;
   popular?: boolean;
@@ -264,6 +269,48 @@ const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing
       leftDeed={{ label: favourite ? 'Not favourite' : 'Favourite', icon: favourite ? <BsHeart /> : <BsHeartFill />, onSelect: toggleFavourite, tone: 'gold' }}>
       <Menu open={menu} onOpenChange={setMenu} label={track.title} trigger={props => line(props as unknown as React.ComponentProps<'button'>)}>
         <MixtapeEntries songIds={[songId]} title={track.title} onNew={onNewMixtape} />
+      </Menu>
+    </SwipeRow>
+  );
+};
+
+/** Set once the first disc's head has shown, on a phone, that it slides. */
+const DISC_SWIPE_HINT_KEY = 'dexvault-player-disc-swipe-hint';
+
+/**
+ * The head of a disc, over its tracks, for an album of several: "Disc 2 ·
+ * 4 tracks · 47 min", and a small headphones at its end when the disc is in
+ * Listen Next (gold, streamed; the disc, silver, from the CD). A touch opens
+ * its menu, with its list (streamed, from the CD, out) and its mixtapes; slid
+ * to the left as a track's line, let go, the disc goes in Listen Next
+ * (streamed) or out.
+ */
+const DiscHeadLine: React.FC<{ number: number; tracks: PhoneTrack[]; head: DiscHead | null; hint: boolean }> = ({ number, tracks, head, hint }) => {
+  const [menu, setMenu] = useState(false);
+  const summary = [
+    `${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}`,
+    playingTime(tracks.reduce((sum, one) => sum + (one.durationSec || 0), 0)) || null,
+  ].filter(Boolean).join(' · ');
+  const line = (props?: React.ComponentProps<'button'>) => (
+    <button type="button" {...props} className={`now-playing-disc-head${menu ? ' now-playing-disc-head--held' : ''}`}
+      onClick={head ? () => setMenu(open => !open) : undefined}
+      aria-label={`Disc ${number} · ${summary}${head?.on ? `, in Listen Next${head.medium === 'cd' ? ' from the CD' : ''}` : ''}`}>
+      <span className="now-playing-disc-head__words" aria-hidden="true"><b>Disc {number}</b> · {summary}</span>
+      {head?.on && (
+        <span className={`now-playing-disc-head__mark now-playing-disc-head__mark--${head.medium ?? 'digital'}`} aria-hidden="true">
+          {head.medium === 'cd' ? <BsDisc /> : <BsHeadphones />}
+        </span>
+      )}
+    </button>
+  );
+  if (!head) return <li className="now-playing-disc-head__line">{line()}</li>;
+  // In: out (the whole album there, this disc alone instead); out: in, streamed, or from the CD for a CD with no rip.
+  const cd = head.on ? head.medium === 'cd' : head.plainMedium === 'cd';
+  return (
+    <SwipeRow as="li" enabled hint={hint} className="now-playing-disc-head__line"
+      leftDeed={{ label: head.on ? 'Take out' : 'Listen Next', icon: cd ? <BsDisc /> : <BsHeadphones />, onSelect: head.toggle, tone: 'gold' }}>
+      <Menu open={menu} onOpenChange={setMenu} label={`Disc ${number}`} trigger={props => line(props as unknown as React.ComponentProps<'button'>)}>
+        {head.menu}
       </Menu>
     </SwipeRow>
   );
@@ -497,7 +544,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
       {props.from && <Menu.Section title={`Playing from ${props.from}`} />}
       {props.onOpenMixtape && <Menu.Item icon={<BsDisc />} onSelect={() => leave(props.onOpenMixtape!.open)}>Open {props.onOpenMixtape.title}</Menu.Item>}
       {props.onAllTracks && <Menu.Item icon={<BsMusicNoteList />} onSelect={props.onAllTracks}>Listen Next's tracks…</Menu.Item>}
-      {props.rest?.menu}
+      {props.album?.menu}
       {props.onAmperfy && <Menu.Item icon={<BsBoxArrowUpRight />} onSelect={() => leave(props.onAmperfy!)}>Open in Amperfy</Menu.Item>}
       {props.mixtape && (
         <>
@@ -531,6 +578,16 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const hintSongId = props.tracks?.find(one => one.songId)?.songId;
   const tracksSeen = full && view === 'tracks' && hintSongId != null;
   useEffect(() => { if (tracksSeen && swipeHint) writeStored(SWIPE_HINT_KEY, '1'); }, [tracksSeen, swipeHint]);
+  // Once, the first time a disc's head is shown, it opens a little to say that it slides.
+  const [discSwipeHint] = useState(() => readStored(DISC_SWIPE_HINT_KEY) !== '1');
+  const discHeadsSeen = full && view === 'tracks' && Boolean(props.album) && (props.tracks ?? []).some(one => (one.disc ?? 1) !== 1);
+  useEffect(() => { if (discHeadsSeen && discSwipeHint) writeStored(DISC_SWIPE_HINT_KEY, '1'); }, [discHeadsSeen, discSwipeHint]);
+  // The tracks by disc, when they are on more than one; else all in one list with no head.
+  const discNumbers = [...new Set((props.tracks ?? []).map(one => one.disc ?? 1))].sort((a, b) => a - b);
+  const discGroups = (discNumbers.length > 1 ? discNumbers : [null]).map(disc => ({
+    disc,
+    tracks: (props.tracks ?? []).map((track, index) => ({ track, index })).filter(one => disc == null || (one.track.disc ?? 1) === disc),
+  }));
   const tracksList = hasTracks && (
     <div className="now-playing-tracks now-playing-scroll">
       {/* Always there, so the tracks do not move as the album starts: what is left. At rest the line under the
@@ -538,14 +595,21 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
       <div className="now-playing-tracks__head">
         <span className="now-playing-tracks__ahead">{props.left || (props.rest ? null : summary)}</span>
       </div>
-      <ol>
-        {props.tracks!.map((one, i) => (
-          <TrackLine key={i} track={one} no={i + 1} now={i === props.index} playing={playing}
-            play={controls.playTrack ? () => controls.playTrack!(i) : undefined}
-            hint={swipeHint && one.songId === hintSongId}
-            onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })} />
-        ))}
-      </ol>
+      {/* An album of several discs: each under its head, numbered from 1 again. */}
+      {discGroups.map((group, g) => (
+          <ol key={group.disc ?? 'all'}>
+            {group.disc != null && (
+              <DiscHeadLine number={group.disc} tracks={group.tracks.map(one => one.track)} head={props.album?.disc(group.disc) ?? null}
+                hint={discSwipeHint && g === 0 && Boolean(props.album)} />
+            )}
+            {group.tracks.map(({ track: one, index: i }, no) => (
+              <TrackLine key={i} track={one} no={no + 1} now={i === props.index} playing={playing}
+                play={controls.playTrack ? () => controls.playTrack!(i) : undefined}
+                hint={swipeHint && one.songId === hintSongId}
+                onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })} />
+            ))}
+          </ol>
+      ))}
       {props.onAllTracks && (
         <Button variant="quiet" size="sm" icon={<BsMusicNoteList />} onClick={props.onAllTracks}>All of Listen Next…</Button>
       )}

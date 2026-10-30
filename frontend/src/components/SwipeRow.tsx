@@ -7,7 +7,7 @@ import './SwipeRow.css';
  * (spoken for, or no longer; a favourite, or no longer), done when the plate
  * is let go past a threshold; to the left, large buttons, the plate stopping
  * open on them, or a deed of its own, done as the one to the right (the
- * mixtapes, their menu opening as the plate is let go). A touch on a row open closes it; one row open at a time. Off
+ * mixtapes, their menu opening as the plate is let go); with no deed the row slides left only. A touch on a row open closes it; one row open at a time. Off
  * (a wide screen), a plain row. A table's row (`tr`, the default), or a
  * list's line (`li`) on a ground of its own, the full screen player's light:
  * its plate has none, what lies under shows only where the plate bares it.
@@ -42,7 +42,8 @@ let closeOpen: (() => void) | null = null;
 interface SwipeRowProps extends React.HTMLAttributes<HTMLElement> {
   as?: 'tr' | 'li';
   enabled: boolean;
-  deed: SwipeDeed;
+  /** What a slide to the right does; none, and the row does not slide that way. */
+  deed?: SwipeDeed;
   /** The buttons a slide to the left lays bare, left to right. */
   actions?: SwipeAction[];
   /** In place of the buttons: what a slide to the left does, let go past the threshold. */
@@ -108,6 +109,8 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ as = 'tr', enabled, deed, actions =
     if (at.way !== 'h') return;
     moved.current = true;
     let next = at.from + touch.clientX - at.x;
+    // No deed to the right: the plate stays.
+    if (!deed && next > 0) next = 0;
     // Beyond its buttons the plate resists, by half.
     if (!leftDeed && next < -width) next = -width + (next + width) / 2;
     place(next, false);
@@ -117,7 +120,7 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ as = 'tr', enabled, deed, actions =
     drag.current = null;
     if (at?.way !== 'h') return;
     const x = offset.current;
-    if (x >= THRESHOLD) {
+    if (deed && x >= THRESHOLD) {
       deed.onSelect();
       close();
     } else if (leftDeed) {
@@ -144,12 +147,14 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ as = 'tr', enabled, deed, actions =
     <Row ref={rowRef} className={`swipe-row${as === 'li' ? ' swipe-row--bare' : ''}${hint ? ' swipe-row--hint' : ''} ${className}`}
       onClickCapture={click} onClick={onClick} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} {...rest}>
       {children}
-      <Under className={`swipe-row__under swipe-row__under--deed swipe-row__under--${deed.tone ?? 'gold'}`} aria-hidden="true">
-        <span className="swipe-row__deed">
-          {deed.icon}
-          <span>{deed.label}</span>
-        </span>
-      </Under>
+      {deed && (
+        <Under className={`swipe-row__under swipe-row__under--deed swipe-row__under--${deed.tone ?? 'gold'}`} aria-hidden="true">
+          <span className="swipe-row__deed">
+            {deed.icon}
+            <span>{deed.label}</span>
+          </span>
+        </Under>
+      )}
       {leftDeed ? (
         <Under className={`swipe-row__under swipe-row__under--actions swipe-row__under--left-deed swipe-row__under--${leftDeed.tone ?? 'plain'}`} aria-hidden="true">
           <span className="swipe-row__deed">

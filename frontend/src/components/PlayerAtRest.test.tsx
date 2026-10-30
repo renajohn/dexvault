@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import PlayerBar from './PlayerBar';
 import outputs, { resetOutputs, takeState, type OutputState } from '../services/outputs';
@@ -21,6 +21,7 @@ const SALON_LISTED = {
   id: 'uuid:salon', name: 'Salon', deviceName: 'Salon', model: 'TX-RZ70', manufacturer: 'ONKYO', reachable: true, gapless: true,
   volume: 30, muted: false, maxVolume: 70, session: null,
 };
+const NO_MIXTAPES = { configured: true, mixtapes: [] };
 /** Another album playing, on the living room's appliance: the player follows what it says. */
 const session = (): OutputState => ({
   id: 'uuid:salon', name: 'Salon', album: playing, track: null, index: 0, count: 1, tracks: playingTracks,
@@ -29,6 +30,22 @@ const session = (): OutputState => ({
 
 // jsdom has no PointerEvent: a MouseEvent carries the finger's place.
 if (!window.PointerEvent) window.PointerEvent = MouseEvent as unknown as typeof PointerEvent;
+
+/** A finger drawn across a line and let go: to the right (dx > 0) its deed, to the left what lies there. */
+const slide = (line: HTMLElement, dx: number) => {
+  const row = line.closest('.swipe-row')!;
+  fireEvent.touchStart(row, { touches: [{ clientX: 150, clientY: 40 }] });
+  fireEvent.touchMove(row, { touches: [{ clientX: 150 + Math.sign(dx) * 10, clientY: 40 }] });
+  fireEvent.touchMove(row, { touches: [{ clientX: 150 + Math.sign(dx) * 10 + dx, clientY: 40 }] });
+  fireEvent.touchEnd(row);
+};
+
+/** A finger's tap on an entry of the menu a slide opened: its touch first, which ends the slide, then the click. */
+const tap = (element: HTMLElement) => {
+  fireEvent.touchStart(element, { touches: [{ clientX: 100, clientY: 100 }] });
+  fireEvent.touchEnd(element);
+  fireEvent.click(element);
+};
 
 /** Whether the full screen player is open, as the page reads it. */
 const Full = () => <span data-testid="full">{String(useFullPlayer())}</span>;
@@ -48,6 +65,7 @@ beforeEach(() => {
     if (url.endsWith('/listen-next/albums')) return Promise.resolve(new Response(JSON.stringify([])));
     if (url === '/api/outputs') return Promise.resolve(new Response(JSON.stringify([SALON_LISTED])));
     if (url.startsWith('/api/outputs/')) return Promise.resolve(new Response(JSON.stringify(session())));
+    if (url.endsWith('/music/mixtapes')) return Promise.resolve(new Response(JSON.stringify(NO_MIXTAPES)));
     return Promise.resolve(new Response('{}'));
   }));
   resetOutputs();
@@ -176,6 +194,63 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     expect(fullScreen('Now playing')).toHaveTextContent('Don’t Know Why');
     expect(screen.getByTestId('full')).toHaveTextContent('true');
     expect(within(fullScreen('Now playing')).getByRole('button', { name: 'Tracks' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('an album of two discs: each under its head, which slid to the left puts that disc alone in Listen Next, touched opens its menu to choose the list', async () => {
+    const boxed = { ...shown, id: 13, title: 'Bitches Brew', discs: [
+      { number: 1, tracks: [{ no: 1, title: 'Pharaoh’s Dance', durationSec: 1205 }] },
+      { number: 2, tracks: [{ no: 1, title: 'Spanish Key', durationSec: 1052 }, { no: 2, title: 'Sanctuary', durationSec: 656 }] },
+    ] };
+    const boxRip = { ...rip, tracks: [
+      { id: 'b1', discNumber: 1, track: 1, title: 'Pharaoh’s Dance', durationSec: 1205 },
+      { id: 'b2', discNumber: 2, track: 1, title: 'Spanish Key', durationSec: 1052 },
+      { id: 'b3', discNumber: 2, track: 2, title: 'Sanctuary', durationSec: 656 },
+    ] };
+    // The whole album in the streamed list.
+    let listenNext: Array<{ id: number; disc?: number | null; medium?: string }> = [{ id: 13, disc: null, medium: 'digital' }];
+    vi.mocked(fetch).mockImplementation(((url: string, init?: RequestInit) => {
+      if (url.endsWith('/navidrome-tracks')) return Promise.resolve(new Response(JSON.stringify(boxRip)));
+      if (url.endsWith('/listen-next/albums')) return Promise.resolve(new Response(JSON.stringify(listenNext)));
+      if (url.endsWith('/albums/13/listen-next')) {
+        const asked = init?.body ? JSON.parse(init.body as string) : {};
+        listenNext = asked.disc ? [{ id: 13, disc: asked.disc, medium: asked.medium }] : [];
+        return Promise.resolve(new Response('{}'));
+      }
+      return Promise.resolve(new Response(JSON.stringify(url === '/api/outputs' ? [] : url.endsWith('/music/mixtapes') ? NO_MIXTAPES : {})));
+    }) as typeof fetch);
+    page();
+    act(() => { showAlbum(boxed); });
+    const sheet = fullScreen('Bitches Brew');
+    expect(await within(sheet).findByText('Disc 2')).toBeInTheDocument();
+    expect(within(sheet).getByText('2 tracks · 28 min', { exact: false })).toBeInTheDocument();
+    // Numbered from 1 again under each head.
+    expect(within(sheet).getByRole('button', { name: /Spanish Key/ })).toHaveTextContent(/^1Spanish Key/);
+    // The whole album there: both heads say so; disc 2's slid to the left, that disc alone goes, streamed.
+    const head2 = await within(sheet).findByRole('button', { name: /^Disc 2 · 2 tracks · 28 min, in Listen Next$/ });
+    expect(within(sheet).getByRole('button', { name: /^Disc 1 .*, in Listen Next$/ })).toBeInTheDocument();
+    slide(head2, -120);
+    expect(await within(sheet).findByRole('button', { name: /^Disc 1 · 1 track · 20 min$/ })).toBeInTheDocument();
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/music/albums/13/listen-next', expect.objectContaining({ body: JSON.stringify({ disc: 2, medium: 'digital' }) }));
+
+    // Touched: its menu, the list to choose, From the CD moving it there.
+    tap(within(sheet).getByRole('button', { name: /^Disc 2 .*, in Listen Next$/ }));
+    expect(await screen.findByText('Disc 2 in Listen Next')).toBeInTheDocument();
+    tap(screen.getByRole('menuitemradio', { name: /From the CD/ }));
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/music/albums/13/listen-next', expect.objectContaining({ body: JSON.stringify({ disc: 2, medium: 'cd' }) })));
+  });
+
+  it('the album playing: its ⋯ puts it in Listen Next too, not only at rest', async () => {
+    await playOther();
+    vi.mocked(fetch).mockImplementation(((url: string) => Promise.resolve(new Response(JSON.stringify(
+      url.endsWith('/albums/7') ? { id: 7, titleStatus: 'owned', fileQuality: 'lossless' } : url.endsWith('/music/mixtapes') ? NO_MIXTAPES : url.endsWith('/listen-next/albums') || url === '/api/outputs' ? [] : {},
+    )))) as typeof fetch);
+    page();
+    act(() => { setFullPlayer(true); });
+    const sheet = fullScreen('Now playing');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'More' }));
+    expect(await screen.findByText('Listen Next')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Streamed/ }));
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/music/albums/7/listen-next', expect.objectContaining({ body: JSON.stringify({ medium: 'digital' }) })));
   });
 
   it('a CD with nothing ripped: no player, its card instead', async () => {

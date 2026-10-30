@@ -14,7 +14,7 @@ import OutputSettings from './OutputSettings';
 import { leaveForPlaying, setFullPlayer, showAlbum, showPlaying, useCovered, useLeftAlbum, useShownAlbum } from '../services/phoneDoor';
 import PhonePlayer from './PhonePlayer';
 import NowPlayingDisc, { LeftAlbumDisc } from './NowPlayingDisc';
-import { useAlbumAtRest } from './useAlbumAtRest';
+import { useAlbumActions, useAlbumAtRest } from './useAlbumAtRest';
 import { useMedia } from '../utils/useNarrow';
 import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
 // Listen Next registers itself with the player, to go on after a reload whatever the page; the bar asks it what comes next.
@@ -146,6 +146,8 @@ const PlayerBar: React.FC = () => {
   const backTo = phone && leftAlbum && !(album?.id != null && Number(leftAlbum.id) === album.id) ? leftAlbum : null;
   // A CD with nothing to play: its card, which says why.
   const atRest = useAlbumAtRest(restAlbum, albumId => { setFullPlayer(false); navigate(`/musicdex?album=${albumId}`); });
+  // On a phone, what ⋯ and the discs' heads do for the album playing (Listen Next, mixtapes); a mixtape's songs have their own.
+  const nowActions = useAlbumActions(phone && album?.id != null && track?.artist == null ? album.id : null, null, usePlayer(state => state.tracks));
   // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
   const idle = !shown && output.kind === 'renderer' && known.length > 0 && inMusic && !isComputer() && !covered;
   // The settings of an appliance, opened from the ⋯ of a phone's bar.
@@ -203,7 +205,7 @@ const PlayerBar: React.FC = () => {
           controls={{ toggle: () => atRest.playFrom(0), next: () => undefined, previous: () => undefined, playTrack: atRest.playFrom }}
           guideOf={Number(restAlbum.id)} tracks={atRest.tracks} index={-1} from=""
           onOpen={() => navigate(`/musicdex?album=${restAlbum.id}`)}
-          rest={{ albumId: restAlbum.id, line: atRest.line, menu: atRest.menu }} starsOf={restAlbum.id}
+          rest={{ albumId: restAlbum.id, line: atRest.line }} album={atRest.actions} starsOf={restAlbum.id}
           door={out ? <NowPlayingDisc exceptAlbumId={restAlbum.id} onOpen={leaveForPlaying} className="now-playing-door" /> : null}
           out />
       ) : last.current && (() => {
@@ -225,7 +227,7 @@ const PlayerBar: React.FC = () => {
               lyricsOf={album.id != null ? { albumId: album.id, disc: track.disc, no: track.no } : null} timingSongId={track.songId}
               guideOf={track.albumId ?? album.id} heartsOf={track.artist == null ? album.id ?? null : null}
               starsOf={track.artist == null ? album.id ?? null : null} mixtape={{ songId: track.songId, title: track.title }}
-              tracks={tracks} index={index} onAllTracks={fromListenNext ? () => setTracksOpen(true) : null}
+              tracks={tracks} index={index} onAllTracks={fromListenNext ? () => setTracksOpen(true) : null} album={nowActions}
               onAmperfy={isAppleMobile() && album.navidromeId ? () => {
                 // Not both at once: DexVault's player pauses, and Amperfy starts the album.
                 player.toggle(false);
@@ -376,6 +378,7 @@ const PlayerBar: React.FC = () => {
         );
       })()}
       {atRest?.dialog}
+      {nowActions?.dialog}
       <PlayerTracks show={tracksOpen && out} onClose={() => setTracksOpen(false)} />
       {settingsFor && <OutputSettings output={settingsFor} onClose={() => setSettingsFor(null)} />}
     </div>
