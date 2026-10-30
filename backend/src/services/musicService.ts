@@ -1,6 +1,7 @@
 
 import Album from '../models/album';
 import Track from '../models/track';
+import ShelfItem from '../models/shelfItem';
 import { getDatabase } from '../database';
 import { normalizeAlbumOwnership } from './utils/albumOwnership';
 import musicbrainzService from './musicbrainzService';
@@ -983,6 +984,14 @@ class MusicService {
       }
 
       const album = await this.addAlbum(albumData);
+
+      // The release already includes its artist's filing name. Keep it now,
+      // rather than leaving a new CD under its first name until the next sync.
+      const credit = releaseData['artist-credit']?.[0];
+      const creditedName = credit?.name || credit?.artist?.name;
+      if (credit?.artist?.['sort-name'] && album.artist[0] === creditedName) {
+        await ShelfItem.saveArtistSort(album.id, credit.artist['sort-name'], credit.artist.type || null);
+      }
 
       // The communities' votes, which the release lookups above do not count.
       communityRatingService.refreshAlbum(album.id).catch((error: unknown) => {

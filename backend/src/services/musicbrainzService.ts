@@ -54,7 +54,7 @@ interface MBRawRelease {
   packaging?: string;
   disambiguation?: string;
   annotation?: string;
-  'artist-credit'?: Array<{ name?: string; artist?: { name?: string } }>;
+  'artist-credit'?: Array<{ name?: string; artist?: { name?: string; 'sort-name'?: string; type?: string } }>;
   'label-info'?: Array<{ 'catalog-number'?: string; label?: { name?: string } }>;
   'catalog-number'?: string;
   media?: Array<{
