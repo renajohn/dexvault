@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BsBookmarkCheck, BsBoxArrowUpRight, BsCheck, BsFileEarmarkPdf, BsPaperclip, BsThreeDots, BsX } from 'react-icons/bs';
+import { BsBookmarkCheck, BsBoxArrowUpRight, BsCheck, BsDownload, BsFileEarmarkPdf, BsPaperclip, BsThreeDots, BsX } from 'react-icons/bs';
 import bookSectionsService, { ScoreFile, scoreFileUrl } from '../services/bookSectionsService';
 import Button, { IconButton } from './shared/Button';
 import Menu from './shared/Menu';
@@ -24,11 +24,13 @@ const ScoreFiles: React.FC<{
   onAdd: () => void;
   /** Its editions on IMSLP, to take one. */
   onImslp: () => void;
+  /** Its pieces engraved anew on Mutopia, fetched in one PDF. */
+  onMutopia?: () => void;
   /** Its pieces' pages marked in one of them; none before its pieces are known. */
   onMark?: (file: ScoreFile) => void;
   /** It read full screen; the browser's viewer otherwise. */
   onOpen?: (file: ScoreFile) => void;
-}> = ({ scoreId, files, onChange, onAdd, onImslp, onMark, onOpen }) => {
+}> = ({ scoreId, files, onChange, onAdd, onImslp, onMutopia, onMark, onOpen }) => {
   const open = onOpen || openScoreFile;
   const [renaming, setRenaming] = useState<{ id: number; label: string } | null>(null);
 
@@ -45,7 +47,7 @@ const ScoreFiles: React.FC<{
 
   return (
     <div className="score-files">
-      {!files.length && <p className="score-files__empty">No PDF yet: IMSLP may have it.</p>}
+      {!files.length && <p className="score-files__empty">No PDF yet: IMSLP or Mutopia may have it.</p>}
       {files.length > 0 && (
         <ul className="score-files__list">
           {files.map(file => (
@@ -86,6 +88,7 @@ const ScoreFiles: React.FC<{
       <div className="score-files__add">
         <Button size="sm" variant="quiet" icon={<BsPaperclip />} onClick={onAdd}>{files.length ? 'Add a PDF' : 'Attach PDF'}</Button>
         <Button size="sm" variant="quiet" icon={<BsBoxArrowUpRight />} onClick={onImslp}>From IMSLP…</Button>
+        {onMutopia && <Button size="sm" variant="quiet" icon={<BsDownload />} onClick={onMutopia}>From Mutopia…</Button>}
       </div>
     </div>
   );

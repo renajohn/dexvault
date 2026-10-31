@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Form } from 'react-bootstrap';
-import { BsBoxArrowUpRight, BsCamera, BsPrinter, BsFileEarmarkPdf, BsFileMusic, BsListCheck, BsPaperclip, BsPencil, BsPlayFill, BsSearch, BsThreeDots, BsTrash, BsUpcScan, BsVolumeUpFill, BsYoutube } from 'react-icons/bs';
+import { BsBoxArrowUpRight, BsCamera, BsDownload, BsPrinter, BsFileEarmarkPdf, BsFileMusic, BsListCheck, BsPaperclip, BsPencil, BsPlayFill, BsSearch, BsThreeDots, BsTrash, BsUpcScan, BsVolumeUpFill, BsYoutube } from 'react-icons/bs';
 import scorePiecesService, { imslpPieceUrl, PieceRecording, PieceSuggestion, ScoreLookup, ScorePiece, youtubeUrl } from '../services/scorePiecesService';
 import bookCommentService from '../services/bookCommentService';
 import { decodeBarcode } from '../utils/decodeBarcode';
@@ -22,6 +22,7 @@ import ScoreSheet from './ScoreSheet';
 import { keyOf, mainOf, play, recordingsOfSingle, usePlaying } from '../utils/playPiece';
 import ScoreFiles, { openScoreFile } from './ScoreFiles';
 import ImslpEditions from './ImslpEditions';
+import MutopiaPieces from './MutopiaPieces';
 import ScoreBookmarks, { keyOf as markKey, rowsOf as markRowsOf } from './ScoreBookmarks';
 import { useMedia } from '../utils/useNarrow';
 import { francs } from './PhoneSheet';
@@ -137,6 +138,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   // Its PDFs, read again when the page adds one.
   const [files, setFiles] = useState<ScoreFile[]>([]);
   const [editionsShown, setEditionsShown] = useState(false);
+  const [mutopiaShown, setMutopiaShown] = useState(false);
   // The PDF whose pages are being marked, and where each piece lies in the one that opens first.
   const [marking, setMarking] = useState<ScoreFile | null>(null);
   const [marks, setMarks] = useState<ScoreBookmark[]>([]);
@@ -280,6 +282,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const coverUrl = cover ? bookService.getImageUrl(String(cover)) || '' : '';
   const openPdf = () => (onRead ? onRead(score.id) : window.open(scorePdfUrl(score.id), '_blank', 'noopener'));
   const filesBody = <ScoreFiles scoreId={score.id} files={files} onChange={filesChanged} onAdd={() => onAttach(score)} onImslp={() => setEditionsShown(true)}
+    onMutopia={score.composer ? () => setMutopiaShown(true) : undefined}
     onMark={pieces?.length ? setMarking : undefined} onOpen={onRead ? openFile : undefined} />;
   const openImslp = () => window.open(imslp, '_blank', 'noopener');
   const openHenle = henle.url ? () => window.open(henle.url!, '_blank', 'noopener') : null;
@@ -341,6 +344,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const coverModal = (
     <>
       <CoverModal isOpen={coverShown} onClose={() => setCoverShown(false)} coverUrl={coverUrl} title={title} artist={values.composer || undefined} coverType="Cover" />
+      {mutopiaShown && <MutopiaPieces scoreId={score.id} onClose={() => setMutopiaShown(false)} onAdded={filesChanged} />}
       {editionsShown && <ImslpEditions scoreId={score.id} reference={values.number || null} onClose={() => setEditionsShown(false)} onAdded={filesChanged} />}
       {printing && (
         <PrintPieces rows={marked} pageOf={pageOf} onClose={() => setPrinting(false)}
@@ -423,6 +427,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
                 <>
                   <Button size="sm" icon={<BsBoxArrowUpRight />} onClick={() => setEditionsShown(true)}
                     title={imslpPage ? `Its editions on IMSLP: ${imslpPage}` : 'Its editions on IMSLP'}>Find the PDF on IMSLP</Button>
+                  {score.composer && <Button size="sm" variant="quiet" icon={<BsDownload />} onClick={() => setMutopiaShown(true)}
+                    title="Its pieces engraved anew on Mutopia, in one PDF">From Mutopia</Button>}
                   <Button size="sm" variant="quiet" icon={<BsPaperclip />} onClick={() => onAttach(score)}>Attach PDF</Button>
                 </>
               )}

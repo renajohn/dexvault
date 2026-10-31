@@ -47,12 +47,18 @@
 }
 
 /* Gold: the one that is on, one's own edition. */
-.imslp-edition__own {
+.imslp-edition__own,
+.imslp-edition__engraved {
   color: var(--dv-gold);
   font-size: 0.7rem;
   font-weight: 400;
   font-variant: all-small-caps;
   letter-spacing: 0.04em;
+}
+
+/* Engraved anew: a fact, not a choice, in the words' own grey. */
+.imslp-edition__engraved {
+  color: var(--dv-text-muted);
 }
 
 .imslp-edition__meta {

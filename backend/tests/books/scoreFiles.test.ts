@@ -112,11 +112,19 @@ describe('les éditions d’une œuvre sur IMSLP', () => {
     expect(editions[0]).toMatchObject({
       editor: 'First edition', copyright: 'Public Domain', plate: 'E. 1404 F',
       thumbnail: expect.stringMatching(/^https:\/\/cdn\.imslp\.org\//),
-      files: [{ index: '83536', title: 'Complete Score', pages: 33, size: '6.07MB', downloads: 57820, download: 'https://imslp.org/wiki/Special:ImagefromIndex/83536' }],
+      files: [{ index: '83536', title: 'Complete Score', pages: 33, size: '6.07MB', downloads: 57820, download: 'https://imslp.org/wiki/Special:ImagefromIndex/83536', typeset: false }],
     });
     expect(editions[2]).toMatchObject({ plate: 'HN 381', editor: 'Ernst-Günter Heinemann (b. 1945)' });
     // Every first page from IMSLP itself, whether it writes its path from its root or without its scheme.
     for (const edition of editions) expect(edition.thumbnail).toMatch(/^https:\/\/(cdn\.)?imslp\.org\//);
+  });
+
+  it('dit d’un fichier gravé à nouveau qu’il l’est, et d’un scan qu’il ne l’est pas', () => {
+    const file = (index: string, by: string) => `<div class="we"><div id="IMSLP${index}" class="we_file_first">`
+      + `<a title="File:PMLP02799-${index}.pdf">#${index}</a> - 1.2MB, 3 pp. `
+      + `<div class="we_file_info mhs"><p><span class="mh555"><a href="/wiki/IMSLP:File_formats" title="IMSLP:File formats">PDF</a> ${by}<br /></span></p></div></div></div>`;
+    const tab = `<div id="tabScore1">${file('67290', 'typeset by editor')}${file('971706', 'scanned by <span>D-KA</span>')}</div>`;
+    expect(editionsOf(tab).map(edition => edition.files[0].typeset)).toEqual([true, false]);
   });
 
   it.each([

@@ -5,7 +5,7 @@ import logger from '../logger';
  * The editions IMSLP holds of a work, read from its page: the scans of its
  * Scores tab alone (its arrangements and transcriptions are another tab),
  * each with its publisher, its year, its editor, its copyright, its files
- * (pages, size, downloads) and a thumbnail of its first page. IMSLP's
+ * (pages, size, downloads, scanned or engraved anew) and a thumbnail of its first page. IMSLP's
  * downloads pass a check made for people, so DexVault does not fetch the PDF:
  * it lists the editions, the browser downloads the one chosen on IMSLP, and
  * the file is then attached under the name its edition gives it.
@@ -20,6 +20,8 @@ export interface ImslpEditionFile {
   size: string | null;
   downloads: number | null;
   download: string;
+  /** Engraved anew ("typeset by editor"), sharp at any size, rather than a scan of a page. */
+  typeset: boolean;
 }
 
 export interface ImslpEdition {
@@ -102,6 +104,7 @@ export const editionsOf = (html: string): ImslpEdition[] => {
         size: info?.[1]?.replace(/\s+/g, '') ?? null,
         downloads: number(block.match(/Total number of downloads:\s*([\d,]+)/)?.[1]),
         download: `https://imslp.org/wiki/Special:ImagefromIndex/${index}`,
+        typeset: /PDF<\/a>\s*typeset by/.test(block),
       });
     }
     if (!files.length) continue;

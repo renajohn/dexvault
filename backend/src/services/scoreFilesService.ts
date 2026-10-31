@@ -18,7 +18,7 @@ export class ScoreFilesError extends Error {
   }
 }
 
-export type ScoreFileSource = 'upload' | 'imslp' | 'scan';
+export type ScoreFileSource = 'upload' | 'imslp' | 'scan' | 'mutopia';
 
 export interface Bookmark {
   pieceId: number;

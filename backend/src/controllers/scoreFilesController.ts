@@ -5,6 +5,7 @@ import multer from 'multer';
 import scoreFilesService, { filesDir, ScoreFileSource, ScoreFilesError } from '../services/scoreFilesService';
 import scorePiecesService from '../services/scorePiecesService';
 import imslpEditionsService from '../services/imslpEditionsService';
+import mutopiaService from '../services/mutopiaService';
 import scorePrintService from '../services/scorePrintService';
 import logger from '../logger';
 
@@ -53,6 +54,14 @@ const scoreFilesController = {
       if (/IMSLP did not answer/.test((error as Error).message)) { res.status(503).json({ error: (error as Error).message }); return; }
       fail(res, error);
     }
+  },
+  // GET: Mutopia's pieces for each of its pieces, or each part of a set
+  mutopia: async (req: Request, res: Response): Promise<void> => {
+    try { res.json(await mutopiaService.find(id(req.params.id))); } catch (error) { fail(res, error); }
+  },
+  // POST { picks: [{ pieceId, partWorkId, pdf }] }: those fetched into one PDF, each piece marked at its pages
+  fetchMutopia: async (req: Request, res: Response): Promise<void> => {
+    try { res.status(201).json(await mutopiaService.fetchInto(id(req.params.id), req.body?.picks)); } catch (error) { fail(res, error); }
   },
   // POST multipart { file, label?, source? }: a PDF added
   add: async (req: Request, res: Response): Promise<void> => {

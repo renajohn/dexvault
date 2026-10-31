@@ -30,7 +30,7 @@ export interface ScoreFile {
   bookId: number;
   filename: string;
   label: string;
-  source: 'upload' | 'imslp' | 'scan';
+  source: 'upload' | 'imslp' | 'scan' | 'mutopia';
   /** The one that opens first. */
   isDefault: boolean;
   size: number | null;
@@ -54,7 +54,28 @@ export interface ImslpEdition {
   notes: string | null;
   plate: string | null;
   thumbnail: string | null;
-  files: Array<{ index: string; title: string; pages: number | null; size: string | null; downloads: number | null; download: string }>;
+  files: Array<{ index: string; title: string; pages: number | null; size: string | null; downloads: number | null; download: string; typeset: boolean }>;
+}
+
+/** A piece of the Mutopia Project's, engraved anew (backend mutopiaService). */
+export interface MutopiaEntry {
+  id: string;
+  title: string;
+  opus: string | null;
+  instrument: string | null;
+  source: string | null;
+  licence: string | null;
+  pdf: string;
+  preview: string | null;
+}
+
+/** A piece of a score, or a part of a set, and Mutopia's that play it. */
+export interface MutopiaTarget {
+  pieceId: number;
+  partWorkId: string | null;
+  name: string;
+  piece: string;
+  candidates: Array<MutopiaEntry & { checked: boolean }>;
 }
 
 export interface ReadingEntry {
@@ -104,6 +125,9 @@ const bookSectionsService = {
     return fetch(`/api/scores/${scoreId}/files`, { method: 'POST', body: form }).then(response => json<ScoreFile[]>(response));
   },
   imslpEditions: (scoreId: number) => fetch(`/api/scores/${scoreId}/imslp/editions`).then(response => json<{ page: string | null; editions: ImslpEdition[] }>(response)),
+  mutopia: (scoreId: number) => fetch(`/api/scores/${scoreId}/mutopia`).then(response => json<{ composer: { code: string; name: string } | null; targets: MutopiaTarget[] }>(response)),
+  fetchMutopia: (scoreId: number, picks: Array<{ pieceId: number; partWorkId: string | null; pdf: string }>) =>
+    send<ScoreFile[]>('POST', `/api/scores/${scoreId}/mutopia`, { picks }),
   bookmarks: (scoreId: number, fileId: number) => fetch(`/api/scores/${scoreId}/files/${fileId}/bookmarks`).then(response => json<ScoreBookmark[]>(response)),
   keepBookmarks: (scoreId: number, fileId: number, bookmarks: ScoreBookmark[], pageCount: number) =>
     send<ScoreBookmark[]>('PUT', `/api/scores/${scoreId}/files/${fileId}/bookmarks`, { bookmarks, pageCount }),

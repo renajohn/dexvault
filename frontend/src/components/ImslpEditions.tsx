@@ -12,6 +12,9 @@ type File = ImslpEdition['files'][number];
 
 const plain = (text: string) => text.replace(/[\s.]/g, '').toUpperCase();
 
+/** Engraved anew rather than scanned: sharp at any size, and printed clean. */
+export const isEngraved = (edition: ImslpEdition) => edition.files.some(file => file.typeset);
+
 /** The name a file attached from it is kept under: "E. Fromont, 1905", "Jean Jobert, 1927 · Clair de lune (No.3)". */
 export const labelOfEdition = (edition: ImslpEdition, file: File) => [
   edition.name,
@@ -23,7 +26,8 @@ export const labelOfEdition = (edition: ImslpEdition, file: File) => [
  * The editions IMSLP holds of a score's work, to take one as its PDF. IMSLP
  * checks that a person downloads, so the browser downloads it there; the file
  * it gave is then attached here, named after its edition. One's own edition
- * (its plate, HN 381, the score's number) comes first, then the most downloaded.
+ * (its plate, HN 381, the score's number) comes first, then those engraved
+ * anew, then the most downloaded.
  */
 const ImslpEditions: React.FC<{
   scoreId: number;
@@ -52,7 +56,7 @@ const ImslpEditions: React.FC<{
     const bySection = new Map<string, ImslpEdition[]>();
     for (const edition of found?.editions || []) bySection.set(edition.section, [...(bySection.get(edition.section) || []), edition]);
     const downloads = (edition: ImslpEdition) => edition.files.reduce((n, file) => n + (file.downloads || 0), 0);
-    return [...bySection].map(([section, list]) => [section, [...list].sort((a, b) => Number(own(b)) - Number(own(a)) || downloads(b) - downloads(a))] as const);
+    return [...bySection].map(([section, list]) => [section, [...list].sort((a, b) => Number(own(b)) - Number(own(a)) || Number(isEngraved(b)) - Number(isEngraved(a)) || downloads(b) - downloads(a))] as const);
   }, [found]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const download = (edition: ImslpEdition, file: File) => {
@@ -98,12 +102,13 @@ const ImslpEditions: React.FC<{
                           <div className="imslp-edition__name">
                             {edition.name}
                             {own(edition) && <span className="imslp-edition__own">Your edition</span>}
+                            {isEngraved(edition) && <span className="imslp-edition__engraved" title="Engraved anew rather than scanned: sharp at any size">Engraved</span>}
                           </div>
                           <div className="imslp-edition__meta">{[edition.editor?.split('\n').join(', '), edition.plate ? `Plate ${edition.plate}` : null, edition.copyright].filter(Boolean).join(' · ')}</div>
                           {edition.files.map(file => (
                             <div key={file.index} className="imslp-edition__file">
                               <span className="imslp-edition__facts">
-                                {[file.title, file.pages ? `${file.pages} pp.` : null, file.size, file.downloads ? `${file.downloads.toLocaleString('fr-CH')} downloads` : null].filter(Boolean).join(' · ')}
+                                {[file.title, file.typeset ? 'engraved' : 'scan', file.pages ? `${file.pages} pp.` : null, file.size, file.downloads ? `${file.downloads.toLocaleString('fr-CH')} downloads` : null].filter(Boolean).join(' · ')}
                               </span>
                               {chosen?.file.index === file.index ? (
                                 <Button size="sm" variant="primary" icon={<BsPaperclip />} loading={sending} onClick={() => fileRef.current?.click()}>Attach it</Button>
