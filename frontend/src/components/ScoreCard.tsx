@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Form } from 'react-bootstrap';
-import { BsBoxArrowUpRight, BsCamera, BsFileEarmarkPdf, BsFileMusic, BsListCheck, BsPaperclip, BsPencil, BsPlayFill, BsSearch, BsThreeDots, BsUpcScan, BsVolumeUpFill, BsYoutube } from 'react-icons/bs';
+import { BsBoxArrowUpRight, BsCamera, BsFileEarmarkPdf, BsFileMusic, BsListCheck, BsPaperclip, BsPencil, BsPlayFill, BsSearch, BsThreeDots, BsTrash, BsUpcScan, BsVolumeUpFill, BsYoutube } from 'react-icons/bs';
 import scorePiecesService, { imslpPieceUrl, PieceRecording, PieceSuggestion, ScoreLookup, ScorePiece, youtubeUrl } from '../services/scorePiecesService';
 import bookCommentService from '../services/bookCommentService';
 import { decodeBarcode } from '../utils/decodeBarcode';
@@ -208,7 +208,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
       const price = parseFloat(editing.priceChf.replace(',', '.'));
       await bookService.updateBook(score.id, {
         ...book,
-        title: titleWithNumber(editing.title, editing.number),
+        // Its title as kept when neither its words nor its number changed: "Préludes Vol. 1 - piano - (HN 383)" stays whole.
+        title: editing.title === values.title && editing.number === values.number ? book.title : titleWithNumber(editing.title, editing.number),
         composer: editing.composer.trim() || null,
         publisher: editing.publisher.trim() || null,
         isbn13: editing.code.replace(/[\s-]/g, '') || null,
@@ -237,6 +238,13 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
       loadNotes();
     } catch (error) { toast((error as Error).message, { tone: 'danger' }); }
   };
+  const removeNote = async (id: number) => {
+    if (!(await confirm({ title: 'Delete this note?', message: 'It goes for good.', confirmLabel: 'Delete', danger: true }))) return;
+    try {
+      await bookCommentService.deleteComment(id);
+      setNotes(prev => prev.filter(note => note.id !== id));
+    } catch (error) { toast((error as Error).message, { tone: 'danger' }); }
+  };
 
   const choose = async (piece: ScorePiece, albumId: number) => {
     setPieces(prev => (prev || []).map(p => (p.id === piece.id ? { ...p, preferredAlbumId: albumId } : p)));
@@ -246,6 +254,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
     try { setPieces(await scorePiecesService.keepParts(score.id, piece.id, workIds)); onChanged(); } catch (error) { toast((error as Error).message, { tone: 'danger' }); }
   };
   const removePiece = async (piece: ScorePiece) => {
+    if (!(await confirm({ title: 'Take this piece out?', message: `${piece.title} leaves the score; its recordings stay in your music.`, confirmLabel: 'Take it out', danger: true }))) return;
     try {
       await scorePiecesService.removePiece(score.id, piece.id);
       const left = (pieces || []).filter(p => p.id !== piece.id);
@@ -294,7 +303,13 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const notesBody = (
     <>
       {notes.map(note => (
-        <blockquote key={note.id} className="score-card__note">{note.comment}<small>{note.name}, {new Date(note.date).toLocaleDateString('fr-CH')}</small></blockquote>
+        <blockquote key={note.id} className="score-card__note">
+          {note.comment}
+          <small>
+            {note.name}, {new Date(note.date).toLocaleDateString('fr-CH')}
+            <IconButton size="sm" tone="danger" label="Delete this note" onClick={() => removeNote(note.id)}><BsTrash /></IconButton>
+          </small>
+        </blockquote>
       ))}
       {writing !== null && (
         <div className="score-card__write">

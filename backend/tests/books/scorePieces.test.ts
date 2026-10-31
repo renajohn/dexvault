@@ -220,6 +220,22 @@ describe('les pièces d’une partition et les enregistrements de la musique', (
     expect((await request(app).get(`/api/scores/${score}/imslp`).expect(200)).body).toEqual({ page: '4 Ballades (Chopin, Frédéric)' });
   });
 
+  it('mène à la page IMSLP du livre que dit son titre, ou de celle que partagent ses pièces', async () => {
+    const score = await run(`INSERT INTO books (title, authors, book_type, title_status, composer) VALUES ('Préludes Vol. 1 - piano - (HN 383)', '[]', 'score', 'owned', 'Claude Debussy')`);
+    for (const found of [['Préludes, Livre 2 (Debussy, Claude)', 'Préludes, Livre 1 (Debussy, Claude)'], ['Préludes, Livre 1 (Debussy, Claude)', 'Préludes, Livre 2 (Debussy, Claude)']]) {
+      jest.spyOn(imslpWorksService, 'searchWorks').mockResolvedValue(found);
+      expect((await request(app).get(`/api/scores/${score}/imslp`).expect(200)).body).toEqual({ page: 'Préludes, Livre 1 (Debussy, Claude)' });
+    }
+
+    // Its set has no page of its own, its preludes Livre 1's: that one, without a search.
+    const t = tag();
+    await run(`INSERT INTO mb_works (id, title, parent_ids, parts, imslp, fetched_at) VALUES (?, 'Préludes, Livre I', '[]', ?, NULL, '2026-10-31')`,
+      [uuid(1, t), JSON.stringify([1, 2].map(n => ({ id: uuid(10 + n, t), title: `Prélude ${n}`, imslp: 'Préludes,_Livre_1_(Debussy,_Claude)' })))]);
+    await run(`INSERT INTO score_pieces (book_id, work_id, title, position) VALUES (?, ?, 'Préludes, Livre I', 0)`, [score, uuid(1, t)]);
+    jest.spyOn(imslpWorksService, 'searchWorks').mockResolvedValue(['Préludes, Livre 2 (Debussy, Claude)']);
+    expect((await request(app).get(`/api/scores/${score}/imslp`).expect(200)).body).toEqual({ page: 'Préludes,_Livre_1_(Debussy,_Claude)' });
+  });
+
   it('refuse ce qui n’est pas une partition', async () => {
     const book = await run(`INSERT INTO books (title, authors, book_type, title_status) VALUES ('Dune', '[]', 'book', 'owned')`);
     await request(app).get(`/api/scores/${book}/pieces`).expect(404);

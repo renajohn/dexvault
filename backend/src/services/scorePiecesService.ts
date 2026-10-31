@@ -535,9 +535,9 @@ const IMSLP_WORDS: Record<string, string> = { ballads: 'Ballades', valses: 'Walt
 const imslpPagesFor = async (title: string, words: string, composer: string): Promise<string[]> => {
   const numbers = catalogueOf(title);
   const pageNumber = (page: string) => catalogueFor(page.replace(/\s*\([^()]*\)\s*$/, ''));
-  // One page per work: "4 Ballades" and "Ballades" are the same.
-  const firstOf = (pages: string[]) => [...new Map(pages.map(page => [
-    pageNumber(page) || [...wordsOf(page.replace(/\s*\([^()]*\)\s*$/, ''), false)].map(word => word.replace(/s$/, '')).sort().join(' ') || page, page])).values()];
+  // One page per work, the first: "4 Ballades" and "Ballades" are the same.
+  const keyOf = (page: string) => pageNumber(page) || [...wordsOf(page.replace(/\s*\([^()]*\)\s*$/, ''), false)].map(word => word.replace(/s$/, '')).sort().join(' ') || page;
+  const firstOf = (pages: string[]) => pages.filter((page, index) => pages.findIndex(other => keyOf(other) === keyOf(page)) === index);
   if (numbers.length) {
     const found: string[] = [];
     for (const number of numbers.slice(0, 6)) {
@@ -549,7 +549,12 @@ const imslpPagesFor = async (title: string, words: string, composer: string): Pr
   }
   const query = searchWordsOf(words);
   if (!query) return [];
-  const near = (pages: string[]) => pages.filter(page => nearness(words, page.replace(/\s*\([^()]*\)\s*$/, '')) >= 0.5);
+  // Its numbers first: "Préludes Vol. 1" is Livre 1, before Livre 2.
+  const numbersOf = (text: string) => [...wordsOf(text, true)].filter(word => /^\d+$/.test(word));
+  const wanted = numbersOf(words);
+  const says = (page: string) => wanted.every(number => numbersOf(page.replace(/\s*\([^()]*\)\s*$/, '')).includes(number));
+  const near = (pages: string[]) => pages.filter(page => nearness(words, page.replace(/\s*\([^()]*\)\s*$/, '')) >= 0.5)
+    .sort((a, b) => Number(says(b)) - Number(says(a)));
   const pages = near(await imslpWorksService.searchWorks(query, composer));
   if (!pages.length) {
     for (const word of query.split(' ').filter(w => w.length >= 5).slice(0, 3)) {
@@ -581,7 +586,13 @@ const imslpPage = async (bookId: number): Promise<string | null> => {
   const book = await scoreOf(bookId);
   const rows = await piecesRows(bookId);
   const works = await storedWorks(rows.map(row => row.work_id).filter(Boolean) as string[]);
-  const pages = [...new Set(rows.map(row => works.get(row.work_id || '')?.imslp).filter(Boolean) as string[])];
+  // A set's page, else the one its parts all share ("Préludes, Livre I" has none of its own, its preludes Livre 1's).
+  const pageOf = (work: StoredWork | undefined) => {
+    if (work?.imslp) return work.imslp;
+    const shared = [...new Set((work?.parts || []).map(part => part.imslp))];
+    return shared.length === 1 ? shared[0] ?? null : null;
+  };
+  const pages = [...new Set(rows.map(row => pageOf(works.get(row.work_id || ''))).filter(Boolean) as string[])];
   if (pages.length === 1) return pages[0];
   if (!book.composer) return null;
   const found = await imslpPagesFor(book.title, workWordsOf(book.title, book.composer), book.composer).catch(() => []);

@@ -344,7 +344,10 @@
 }
 
 .score-card__note small {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-top: 4px;
   color: var(--dv-text-faint);
 }

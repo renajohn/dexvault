@@ -16,7 +16,7 @@ vi.mock('../services/scorePiecesService', async importOriginal => ({
 }));
 vi.mock('../utils/playAlbum', () => ({ loadPlayable: vi.fn() }));
 vi.mock('../services/bookService', () => ({ default: { getImageUrl: (p: string | null) => p, getBookById: vi.fn(), updateBook: vi.fn(), deleteBook: vi.fn() } }));
-vi.mock('../services/bookCommentService', () => ({ default: { getCommentsByBookId: vi.fn(), createComment: vi.fn() } }));
+vi.mock('../services/bookCommentService', () => ({ default: { getCommentsByBookId: vi.fn(), createComment: vi.fn(), deleteComment: vi.fn() } }));
 vi.mock('../components/shared/ConfirmDialog', async importOriginal => ({ ...(await importOriginal<typeof import('./shared/ConfirmDialog')>()), confirm: vi.fn() }));
 
 const score: Score = {
@@ -205,6 +205,45 @@ describe('ScoreCard', () => {
       title: 'Préludes, Premier livre (HN 383)', priceChf: 26, publisher: 'G. Henle Verlag', titleStatus: 'owned',
     })));
     expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('garde son titre tel quel quand on ne change ni ses mots ni son numéro', async () => {
+    card();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Change its edition' }))[0]);
+    fireEvent.change(screen.getByLabelText('Its price'), { target: { value: '26' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+    await waitFor(() => expect(bookService.updateBook).toHaveBeenCalledWith(219, expect.objectContaining({
+      title: 'Préludes Vol. 1 - piano - (HN 383)', priceChf: 26,
+    })));
+  });
+
+  it('supprime une note après confirmation', async () => {
+    vi.mocked(bookCommentService.deleteComment).mockReset().mockResolvedValue({});
+    vi.mocked(confirm).mockReset().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    card();
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete this note' }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(bookCommentService.deleteComment).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete this note' }));
+    await waitFor(() => expect(bookCommentService.deleteComment).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByText('Voiles d’abord')).not.toBeInTheDocument());
+  });
+
+  it('ne retire une pièce qu’après confirmation', async () => {
+    vi.mocked(scorePiecesService.removePiece).mockReset().mockResolvedValue(undefined as never);
+    vi.mocked(confirm).mockReset().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    card();
+    const takeOut = async () => {
+      const set = (await screen.findByText('Voiles')).closest('.score-piece') as HTMLElement;
+      fireEvent.click(within(set).getByRole('button', { name: 'More' }));
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Take it out of the score' }));
+    };
+    await takeOut();
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(scorePiecesService.removePiece).not.toHaveBeenCalled();
+    await takeOut();
+    await waitFor(() => expect(scorePiecesService.removePiece).toHaveBeenCalledWith(219, 1));
+    await waitFor(() => expect(screen.queryByText('Voiles')).not.toBeInTheDocument());
   });
 
   it('se supprime après confirmation', async () => {
