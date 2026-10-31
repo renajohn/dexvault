@@ -1,12 +1,11 @@
 
-import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef, useCallback } from 'react';
 import CoverButton from './shared/CoverButton';
 import { BsStar, BsStarFill, BsX } from 'react-icons/bs';
 import apiService from '../services/api';
 import MovieDetailCard from './MovieDetailCard';
 import MovieSheet from './MovieSheet';
 import BoxSetStack from './BoxSetStack';
-import AlphabeticalIndex from './AlphabeticalIndex';
 import { NextBanner, NextBannerPending, NextBannerSlot, CollectionHeader, EmptyState } from './shared';
 import { hasMatchScores, stacksMatchFirst, useBestMatch } from './shared/search/bestMatch';
 import { useOpenItem } from '../services/openItem';
@@ -78,14 +77,11 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
   // Track expanded box set
   const [expandedBoxSet, setExpandedBoxSet] = useState<string | null>(null);
 
-  // Ref for scroll container (for alphabetical index)
+  // The page's root
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // The page scrolls as a whole: the alphabetical index follows the document, known from the first render
-  // (found in an effect, it drew the whole grid a second time as the section opened).
-  const scrollContainer: HTMLElement = document.documentElement;
 
 
-  // Keep letter logic consistent with AlphabeticalIndex (handles FR/EN leading articles)
+  // The letter a title is filed under (handles FR/EN leading articles)
   const removeArticlesForIndex = useCallback((text: string) => {
     if (!text) return '';
     const trimmed = String(text).trim();
@@ -747,118 +743,6 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
     ? stacksMatchFirst(items, filteredMovies, item => (item.type === 'boxset' ? item.movies : [item.movie]))
     : items), [bestMatch.on, filteredMovies]);
 
-  // Items used to compute the A-Z index letters; must match the titles actually rendered (box set name vs movie title)
-  const alphabeticalIndexItems = useMemo(() => {
-    // Index doesn't make sense in grouped view (many items are collapsed)
-    if (groupBy !== 'none') return [];
-
-    // If stacking is disabled, the rendered list is just movies
-    if (!stackEnabled) {
-      return (movies || []).map(m => ({ title: m?.title || '' }));
-    }
-
-    const hasActiveFilter = !!searchCriteria?.searchText?.trim();
-    const moviesToGroup = hasActiveFilter ? allMovies : movies;
-    const { boxSetMap: allBoxSetMap, standaloneMovies: allStandaloneMovies } = groupMoviesByBoxSet(moviesToGroup || []);
-
-    // When filtering, we only render stacks/movies that match filteredMovies, but we keep stack grouping from allMovies
-    let boxSetMap = allBoxSetMap;
-    let standaloneMovies = allStandaloneMovies;
-
-    if (hasActiveFilter) {
-      const filteredMovieIds = new Set((filteredMovies || []).map(m => m.id));
-
-      boxSetMap = new Map();
-      allBoxSetMap.forEach((boxSetMovies, boxSetName) => {
-        const matchingMovies = boxSetMovies.filter(m => filteredMovieIds.has(m.id));
-        if (matchingMovies.length > 0) {
-          boxSetMap.set(boxSetName, matchingMovies);
-        }
-      });
-
-      standaloneMovies = allStandaloneMovies.filter(m => filteredMovieIds.has(m.id));
-    }
-
-    // Build combined list in the same order as the stacked renderer
-    const combinedItems: any[] = [];
-
-    boxSetMap.forEach((boxSetMovies, boxSetName) => {
-      const sortedMoviesInSet = [...boxSetMovies].sort((a, b) => {
-        const orderA = a.collection_order != null ? Number(a.collection_order) : 999999;
-        const orderB = b.collection_order != null ? Number(b.collection_order) : 999999;
-        if (orderA !== orderB) return orderA - orderB;
-        const dateA = a.release_date ? new Date(a.release_date).getTime() : 0;
-        const dateB = b.release_date ? new Date(b.release_date).getTime() : 0;
-        return dateA - dateB;
-      });
-
-      combinedItems.push({
-        type: 'boxset',
-        boxSetName,
-        movies: boxSetMovies,
-        representativeMovie: sortedMoviesInSet[0],
-      });
-    });
-
-    standaloneMovies.forEach(movie => {
-      combinedItems.push({
-        type: 'movie',
-        movie,
-      });
-    });
-
-    combinedItems.sort((a, b) => {
-      const movieA = a.type === 'boxset' ? a.representativeMovie : a.movie;
-      const movieB = b.type === 'boxset' ? b.representativeMovie : b.movie;
-
-      switch (sortBy) {
-        case 'title': {
-          const titleA = a.type === 'boxset' ? a.boxSetName : movieA.title;
-          const titleB = b.type === 'boxset' ? b.boxSetName : movieB.title;
-          return titleA.localeCompare(titleB);
-        }
-        case 'titleReverse': {
-          const titleA = a.type === 'boxset' ? a.boxSetName : movieA.title;
-          const titleB = b.type === 'boxset' ? b.boxSetName : movieB.title;
-          return titleB.localeCompare(titleA);
-        }
-        case 'lastAddedFirst':
-          return new Date(movieB.acquired_date || movieB.created_at || movieB.updated_at).getTime() -
-                 new Date(movieA.acquired_date || movieA.created_at || movieA.updated_at).getTime();
-        case 'lastAddedLast':
-          return new Date(movieA.acquired_date || movieA.created_at || movieA.updated_at).getTime() -
-                 new Date(movieB.acquired_date || movieB.created_at || movieB.updated_at).getTime();
-        case 'rating': {
-          const ratingA = getCombinedScore(movieA) || 0;
-          const ratingB = getCombinedScore(movieB) || 0;
-          return ratingB - ratingA;
-        }
-        case 'ratingLowest': {
-          const ratingA = getCombinedScore(movieA) || 0;
-          const ratingB = getCombinedScore(movieB) || 0;
-          return ratingA - ratingB;
-        }
-        case 'ageAsc': {
-          const ageA = movieA.recommended_age ?? 999;
-          const ageB = movieB.recommended_age ?? 999;
-          return ageA - ageB;
-        }
-        case 'ageDesc': {
-          const ageA = movieA.recommended_age ?? -1;
-          const ageB = movieB.recommended_age ?? -1;
-          return ageB - ageA;
-        }
-        default:
-          return 0;
-      }
-    });
-    stacksBestFirst(combinedItems);
-
-    return combinedItems.map(item => ({
-      title: item.type === 'boxset' ? item.boxSetName : (item.movie?.title || ''),
-    }));
-  }, [groupBy, stackEnabled, movies, searchCriteria?.searchText, allMovies, filteredMovies, sortBy, getCombinedScore, stacksBestFirst]);
-
   // Toggle box set stack expansion
   const toggleBoxSetExpansion = (boxSetName: string) => {
     setExpandedBoxSet(expandedBoxSet === boxSetName ? null : boxSetName);
@@ -905,15 +789,6 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
 
   return (
     <div className="movie-search" ref={scrollContainerRef}>
-      {/* Alphabetical Index - only shows when sorted by title */}
-      <AlphabeticalIndex
-        items={alphabeticalIndexItems}
-        getTitle={(item: any) => item.title}
-        scrollContainer={scrollContainer}
-        sortBy={sortBy}
-        // Keep available during filtering/search; disable only when grouping is enabled
-        disabled={groupBy !== 'none'}
-      />
 
       {/* Watch Next Banner: its place held until its list is read, then filled or slid away. */}
       <NextBannerSlot show={!searchCriteria?.searchText && (!watchNextRead || watchNextMovies.length > 0)}>

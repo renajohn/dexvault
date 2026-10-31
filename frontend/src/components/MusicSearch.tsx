@@ -8,7 +8,6 @@ import MusicDetailCard from './MusicDetailCard';
 import { setAlbumManagement, showAlbum, type ShownAlbum } from '../services/phoneDoor';
 import { LISTEN_NEXT_CHANGED_EVENT } from './useAlbumAtRest';
 import AddMusicDialog from './AddMusicDialog';
-import AlphabeticalIndex from './AlphabeticalIndex';
 import { NextBanner, NextBannerPending, NextBannerSlot, CollectionHeader, EmptyState } from './shared';
 import { hasMatchScores, useBestMatch } from './shared/search/bestMatch';
 import { useOpenItem } from '../services/openItem';
@@ -18,7 +17,7 @@ import { readStored, writeStored } from '../utils/safeStorage';
 import { findById, useDetailSteps } from '../utils/detailSteps';
 import { albumImages } from '../utils/detailImages';
 import { useAlbumOrder } from '../utils/shelfLocations';
-import { artistLetter, artistSortKey, artistSortName } from '../utils/artistOrder';
+import { artistLetter, artistSortKey } from '../utils/artistOrder';
 import AlbumPlayButton from './shared/AlbumPlayButton';
 import CoverButton from './shared/CoverButton';
 import { LeavingOverlay, ListenNextControls, ListenNextSummary, askStars, useListenNextPlay } from './ListenNextPlay';
@@ -189,11 +188,8 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   // With Digital on, what a search finds among the CDs and the albums with no CD, its keywords and all.
   const [hybridFound, setHybridFound] = useState<Album[] | null>(null);
 
-  // Ref and state for scroll container (for alphabetical index)
+  // The page's root
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // The page scrolls as a whole: the alphabetical index follows the document, known from the first render
-  // (found in an effect, it drew the whole grid a second time as the section opened).
-  const scrollContainer: HTMLElement = document.documentElement;
 
 
   // Expose methods to parent component
@@ -1162,7 +1158,7 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
       );
     }
 
-    // Ungrouped view - add letter to all items for alphabetical index visibility detection
+    // Ungrouped view - each item carries its letter
     if (groupBy === 'none') {
       return (
         <div className={`cd-grid ${sortLoading ? 'sort-loading' : ''}`}>
@@ -1270,21 +1266,6 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
 
   return (
     <div className="music-search" ref={scrollContainerRef}>
-      {/* Alphabetical Index - shows when sorted alphabetically */}
-      <AlphabeticalIndex
-        items={shownCds}
-        getTitle={(cd: Record<string, unknown>) => {
-          if (sortBy === 'artist' || sortBy === 'artistReverse') {
-            // The name the CD is filed under on the shelves.
-            return artistSortName(cd as unknown as Album, albumOrder);
-          }
-          return String(cd.title || '');
-        }}
-        scrollContainer={scrollContainer}
-        sortBy={sortBy}
-        // Keep available during search/filter; disable only when grouping is enabled
-        disabled={groupBy !== 'none' || (digitalOn && digitalFilter === 'buy')}
-      />
 
       {/* Listen Next Banner - show when there are albums OR when we have albums in collection to suggest;
           its place held until its lists are read, then filled or slid away. */}

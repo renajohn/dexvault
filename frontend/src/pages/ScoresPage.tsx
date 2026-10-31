@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BsBoxArrowUpRight, BsFileEarmarkPdf, BsPaperclip, BsThreeDots } from 'react-icons/bs';
 import bookSectionsService, { imslpUrl, Score, scorePdfUrl } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
-import AlphabeticalIndex from '../components/AlphabeticalIndex';
 import ScoreCard from '../components/ScoreCard';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Button, { IconButton } from '../components/shared/Button';
@@ -38,10 +37,6 @@ const ScoresPage: React.FC<{ searchCriteria?: { searchText?: string } }> = ({ se
   const narrow = useNarrow();
   const filter = searchCriteria?.searchText || '';
   const rootRef = useRef<HTMLDivElement>(null);
-  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    setScrollContainer((rootRef.current?.closest('.app-main-content') as HTMLElement | null) || document.documentElement);
-  }, []);
   const [reviewing, setReviewing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [composerOf, setComposerOf] = useState<Score | null>(null);
@@ -151,13 +146,6 @@ const ScoresPage: React.FC<{ searchCriteria?: { searchText?: string } }> = ({ se
             );
           })}
 
-      {/* The composers' initials at the side, as the other sections' titles. */}
-      <AlphabeticalIndex
-        items={shown as unknown as Record<string, unknown>[]}
-        getTitle={item => { const name = (item as unknown as Score).composer || OTHERS; return name === OTHERS ? '' : surname(name); }}
-        scrollContainer={scrollContainer}
-        sortBy="title"
-      />
 
       {reviewing && <ComposerReview scores={suggested} onClose={() => setReviewing(false)} onSaved={() => { setReviewing(false); load(); }} />}
       {composerOf && <ComposerReview scores={[composerOf]} onClose={() => setComposerOf(null)} onSaved={() => { setComposerOf(null); load(); }} />}
