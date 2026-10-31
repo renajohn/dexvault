@@ -395,3 +395,17 @@
 .score-add .modal-body {
   min-height: 160px;
 }
+
+/* Several pieces to print: a set's name over its parts. */
+.score-print__group {
+  margin: 10px 0 4px;
+  color: var(--dv-text-faint);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.score-print .form-check small {
+  color: var(--dv-text-faint);
+}

@@ -5,6 +5,7 @@ import multer from 'multer';
 import scoreFilesService, { filesDir, ScoreFileSource, ScoreFilesError } from '../services/scoreFilesService';
 import scorePiecesService from '../services/scorePiecesService';
 import imslpEditionsService from '../services/imslpEditionsService';
+import scorePrintService from '../services/scorePrintService';
 import logger from '../logger';
 
 const fail = (res: Response, error: unknown): void => {
@@ -77,6 +78,17 @@ const scoreFilesController = {
   // PUT { bookmarks: [{ pieceId, partWorkId, startPage, endPage }], pageCount }
   keepBookmarks: async (req: Request, res: Response): Promise<void> => {
     try { res.json(await scoreFilesService.keepBookmarks(id(req.params.id), id(req.params.fileId), req.body || {})); } catch (error) { fail(res, error); }
+  },
+  // GET ?pieces=12:,12:w-voiles&file=&name=: the pieces' pages on A4, to print
+  print: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const keys = String(req.query.pieces || '').split(',').map(key => key.trim()).filter(Boolean);
+      const { pdf, name } = await scorePrintService.print(id(req.params.id), keys, req.query.file ? id(req.query.file) : null,
+        typeof req.query.name === 'string' ? req.query.name : null);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
+      res.end(Buffer.from(pdf));
+    } catch (error) { fail(res, error); }
   },
   // GET: the PDF, opened in the browser
   pdf: async (req: Request, res: Response): Promise<void> => {

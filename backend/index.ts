@@ -434,6 +434,7 @@ app.post('/api/scores/:id/contents-photo', scorePiecesController.contentsPhoto);
 // A score's PDFs: several, one of them opening first
 app.get('/api/scores/:id/files', scoreFilesController.list);
 app.get('/api/scores/:id/imslp/editions', scoreFilesController.imslpEditions);
+app.get('/api/scores/:id/print', scoreFilesController.print);
 app.post('/api/scores/:id/files', scoreFilesController.uploadMiddleware, scoreFilesController.add);
 app.put('/api/scores/:id/files/:fileId', scoreFilesController.change);
 app.delete('/api/scores/:id/files/:fileId', scoreFilesController.remove);

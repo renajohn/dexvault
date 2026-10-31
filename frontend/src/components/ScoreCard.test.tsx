@@ -88,6 +88,10 @@ describe('ScoreCard, ses PDF', () => {
     const voiles = (await screen.findByText('Voiles')).closest('.score-piece__row') as HTMLElement;
     fireEvent.click(await within(voiles).findByRole('button', { name: 'p. 7' }));
     expect(open).toHaveBeenCalledWith('/api/scores/219/files/1/pdf#page=7', '_blank', 'noopener');
+    fireEvent.click(within(voiles).getByRole('button', { name: 'Print Voiles' }));
+    expect(open).toHaveBeenCalledWith(`/api/scores/219/print?pieces=1%3Aw2&file=1&name=${encodeURIComponent('Préludes Vol. 1 – Voiles').replace(/%20/g, '+')}`, '_blank', 'noopener');
+    // One piece marked: nothing to choose among.
+    expect(screen.queryByRole('button', { name: /Print several/ })).not.toBeInTheDocument();
     expect(within(list).getAllByText('2.5 MB')).toHaveLength(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'Its other PDFs' }));
@@ -107,6 +111,27 @@ describe('ScoreCard, ses PDF', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete the PDF' }));
     await waitFor(() => expect(bookSectionsService.removeFile).toHaveBeenCalledWith(219, 1));
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }));
+  });
+
+  it('imprime plusieurs pièces marquées, choisies parmi elles', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.mocked(bookSectionsService.files).mockReset().mockResolvedValue([pdf(1, 'Durand', true)]);
+    vi.mocked(bookSectionsService.bookmarks).mockReset().mockResolvedValue([
+      { pieceId: 1, partWorkId: 'w1', startPage: 3, endPage: 5 }, { pieceId: 1, partWorkId: 'w2', startPage: 6, endPage: 9 }, { pieceId: 2, partWorkId: null, startPage: 40, endPage: 44 },
+    ]);
+    card({ score: { ...score, ebookFile: 'score_219_1.pdf', fileCount: 1 } });
+    fireEvent.click(await screen.findByRole('button', { name: /Print several/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Print several of its pieces' });
+    expect(within(dialog).getAllByRole('checkbox')).toHaveLength(3);
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /Voiles/ }));
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /Clair de lune/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Print 2 pieces' }));
+    expect(open).toHaveBeenCalledWith(`/api/scores/219/print?pieces=1%3Aw2%2C2%3A&file=1&name=${encodeURIComponent('Préludes Vol. 1 – 2 pieces').replace(/%20/g, '+')}`, '_blank', 'noopener');
+
+    const set = screen.getByText('Danseuses de Delphes').closest('.score-piece') as HTMLElement;
+    fireEvent.click(within(set).getByRole('button', { name: 'More' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Print it all/ }));
+    expect(open).toHaveBeenLastCalledWith(expect.stringContaining('pieces=1%3A*'), '_blank', 'noopener');
   });
 
   it('ne demande rien quand la partition n’a pas de PDF', async () => {

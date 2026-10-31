@@ -149,3 +149,16 @@
   flex-wrap: wrap;
   justify-content: flex-start;
 }
+
+.score-sheet-heads {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: -6px -6px -6px auto;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.score-sheet-heads .score-sheet-add {
+  margin: 0;
+}

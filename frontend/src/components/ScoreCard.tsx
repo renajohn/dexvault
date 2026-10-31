@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Form } from 'react-bootstrap';
-import { BsBoxArrowUpRight, BsCamera, BsFileEarmarkPdf, BsFileMusic, BsListCheck, BsPaperclip, BsPencil, BsPlayFill, BsSearch, BsThreeDots, BsTrash, BsUpcScan, BsVolumeUpFill, BsYoutube } from 'react-icons/bs';
+import { BsBoxArrowUpRight, BsCamera, BsPrinter, BsFileEarmarkPdf, BsFileMusic, BsListCheck, BsPaperclip, BsPencil, BsPlayFill, BsSearch, BsThreeDots, BsTrash, BsUpcScan, BsVolumeUpFill, BsYoutube } from 'react-icons/bs';
 import scorePiecesService, { imslpPieceUrl, PieceRecording, PieceSuggestion, ScoreLookup, ScorePiece, youtubeUrl } from '../services/scorePiecesService';
 import bookCommentService from '../services/bookCommentService';
 import { decodeBarcode } from '../utils/decodeBarcode';
 import { pieceOf, referenceOf, titleWithNumber } from '../utils/scoreTitle';
-import bookSectionsService, { imslpUrl, Score, ScoreBookmark, ScoreFile, scoreFileUrl, scorePdfUrl } from '../services/bookSectionsService';
+import bookSectionsService, { imslpUrl, Score, ScoreBookmark, ScoreFile, scoreFileUrl, scorePdfUrl, scorePrintUrl } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
 import { player, usePlayer } from '../services/player';
 import { loadPlayable } from '../utils/playAlbum';
@@ -23,7 +23,7 @@ import CoverModal from './CoverModal';
 import ScoreSheet from './ScoreSheet';
 import ScoreFiles, { openScoreFile } from './ScoreFiles';
 import ImslpEditions from './ImslpEditions';
-import ScoreBookmarks, { keyOf as markKey } from './ScoreBookmarks';
+import ScoreBookmarks, { keyOf as markKey, rowsOf as markRowsOf } from './ScoreBookmarks';
 import { useMedia } from '../utils/useNarrow';
 import { francs } from './PhoneSheet';
 import './ScoreCard.css';
@@ -204,6 +204,9 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   /** A piece's first page in the PDF that opens first, to open it there. */
   const pageOf = (pieceId: number, partWorkId: string | null) => marks.find(mark => markKey(mark.pieceId, mark.partWorkId) === markKey(pieceId, partWorkId))?.startPage ?? null;
   const openAt = (page: number) => first && window.open(scoreFileUrl(score.id, first.id, page), '_blank', 'noopener');
+  /** Pieces' pages on A4, opened to print: "12:" a piece, "12:w1" a part, "12:*" a set's parts marked. */
+  const print = (keys: string[], name?: string) => first && window.open(scorePrintUrl(score.id, keys, { file: first.id, name }), '_blank', 'noopener');
+  const [printing, setPrinting] = useState(false);
 
   const load = () => scorePiecesService.pieces(score.id)
     .then(list => { setPieces(list); if (!list.length) setFinding(true); })
@@ -323,6 +326,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
     <>
       {pieces.map(piece => (
         <PieceBlock key={piece.id} piece={piece} composer={score.composer} playing={playing} pageOf={pageOf} onOpenPage={first ? openAt : undefined}
+          onPrint={first ? (keys, name) => print(keys, name && `${title} – ${name}`) : undefined}
           heard={playedFrom?.track === playing ? playedFrom.row : null} onHeard={(row, track) => setPlayedFrom({ row, track })}
           onChoose={albumId => choose(piece, albumId)} onKeep={workIds => keepParts(piece, workIds)} onRemove={() => removePiece(piece)} />
       ))}
@@ -330,6 +334,9 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
     </>
   );
   const addPiece = pieces?.length && !finding ? () => setFinding(true) : null;
+  // Several pieces to print at once: those marked in the PDF that opens first.
+  const marked = markRowsOf(pieces || []).filter(row => pageOf(row.pieceId, row.partWorkId));
+  const printSeveral = first && marked.length > 1 ? () => setPrinting(true) : null;
   const notesBody = (
     <>
       {notes.map(note => (
@@ -357,6 +364,13 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
     <>
       <CoverModal isOpen={coverShown} onClose={() => setCoverShown(false)} coverUrl={coverUrl} title={title} artist={values.composer || undefined} coverType="Cover" />
       {editionsShown && <ImslpEditions scoreId={score.id} reference={values.number || null} onClose={() => setEditionsShown(false)} onAdded={filesChanged} />}
+      {printing && (
+        <PrintPieces rows={marked} pageOf={pageOf} onClose={() => setPrinting(false)}
+          onPrint={keys => {
+            print(keys, `${title} – ${keys.length === 1 ? marked.find(row => markKey(row.pieceId, row.partWorkId) === keys[0])?.name : `${keys.length} pieces`}`);
+            setPrinting(false);
+          }} />
+      )}
       {marking && (
         <ScoreBookmarks scoreId={score.id} file={marking} pieces={pieces || []} onClose={() => setMarking(null)}
           onSaved={list => {
@@ -373,7 +387,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
       <>
         <ScoreSheet id={score.id} title={title} composer={values.composer} edition={editionLine(values, level)} reference={values.number}
           code={values.code} cover={coverUrl} borrowed={values.borrowed} hasPdf={Boolean(score.ebookFile)} imslpPage={imslpPage}
-          heard={heard} total={total} about={aboutText} pieces={piecesBody} pieceCount={pieces?.length ?? 0} onAddPiece={addPiece}
+          heard={heard} total={total} about={aboutText} pieces={piecesBody} pieceCount={pieces?.length ?? 0} onAddPiece={addPiece} onPrintSeveral={printSeveral}
           notes={notesBody} noteCount={notes.length} onAddNote={writing === null ? () => setWriting('') : null}
           editing={editing != null} editionForm={editionForm} onEdit={() => setEditing(values)}
           onCancelEdit={() => setEditing(null)} writing={writing !== null}
@@ -451,7 +465,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
         <section className="score-card__section">
           <h4>
             {pieces?.length ? 'Its pieces' : 'Its pieces, to find'}
-            {addPiece && <Button size="sm" variant="quiet" className="score-card__add" onClick={addPiece}>+ Add a piece</Button>}
+            {printSeveral && <Button size="sm" variant="quiet" className="score-card__add" icon={<BsPrinter />} onClick={printSeveral}>Print several…</Button>}
+            {addPiece && <Button size="sm" variant="quiet" className={printSeveral ? undefined : 'score-card__add'} onClick={addPiece}>+ Add a piece</Button>}
           </h4>
           {piecesBody}
         </section>
@@ -472,6 +487,37 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
         </section>
       </Dialog.Body>
       {coverModal}
+    </Dialog>
+  );
+};
+
+/** Several of its pieces to print as one: those marked, all of them checked at first. */
+const PrintPieces: React.FC<{
+  rows: Array<{ key: string; pieceId: number; partWorkId: string | null; name: string; group: string | null }>;
+  pageOf: (pieceId: number, partWorkId: string | null) => number | null;
+  onClose: () => void;
+  onPrint: (keys: string[]) => void;
+}> = ({ rows, pageOf, onClose, onPrint }) => {
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const toggle = (key: string) => setPicked(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  return (
+    <Dialog show onClose={onClose} title="Print several of its pieces" icon={<BsPrinter />} className="score-print">
+      <Dialog.Body>
+        {rows.map((row, index) => (
+          <React.Fragment key={row.key}>
+            {row.group && rows[index - 1]?.group !== row.group && <div className="score-print__group">{row.group}</div>}
+            <Form.Check type="checkbox" id={`print-${row.key}`} checked={picked.has(row.key)} onChange={() => toggle(row.key)}
+              label={<>{row.name} <small>p. {pageOf(row.pieceId, row.partWorkId)}</small></>} />
+          </React.Fragment>
+        ))}
+      </Dialog.Body>
+      <Dialog.Footer>
+        <Button variant="quiet" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" icon={<BsPrinter />} disabled={!picked.size}
+          onClick={() => onPrint(rows.filter(row => picked.has(row.key)).map(row => row.key))}>
+          {picked.size ? `Print ${picked.size} piece${picked.size === 1 ? '' : 's'}` : 'Print'}
+        </Button>
+      </Dialog.Footer>
     </Dialog>
   );
 };
@@ -663,10 +709,12 @@ interface PieceBlockProps {
   /** Its first page in the PDF that opens first, a part of a set by its work. */
   pageOf: (pieceId: number, partWorkId: string | null) => number | null;
   onOpenPage?: (page: number) => void;
+  /** Its pages, or a part's, on A4 to print. */
+  onPrint?: (keys: string[], name?: string) => void;
 }
 
 /** A piece: its parts, each with the chosen recording, the others behind +N. */
-const PieceBlock: React.FC<PieceBlockProps> = ({ piece, composer, playing, heard, onHeard, onChoose, onKeep, onRemove, pageOf, onOpenPage }) => {
+const PieceBlock: React.FC<PieceBlockProps> = ({ piece, composer, playing, heard, onHeard, onChoose, onKeep, onRemove, pageOf, onOpenPage, onPrint }) => {
   const chosen = piece.albums.find(album => album.albumId === piece.preferredAlbumId) || piece.albums[0];
   const rows = piece.single
     ? [{ workId: piece.workId || String(piece.id), title: piece.title, name: '', sub: null as string | null, imslp: piece.imslp, recordings: piece.albums.length ? recordingsOfSingle(piece) : [] }]
@@ -731,6 +779,9 @@ const PieceBlock: React.FC<PieceBlockProps> = ({ piece, composer, playing, heard
           <Menu.Item icon={<BsBoxArrowUpRight />} hint={piece.imslp ? 'its page' : 'a search'}
             onSelect={() => window.open(imslpPieceUrl(piece.imslp, composer, piece.title), '_blank', 'noopener')}>On IMSLP</Menu.Item>
           <Menu.Item icon={<BsYoutube />} onSelect={() => window.open(youtubeUrl(composer, piece.title), '_blank', 'noopener')}>On YouTube</Menu.Item>
+          {onPrint && !piece.single && rows.some(row => pageOf(piece.id, row.workId)) && (
+            <Menu.Item icon={<BsPrinter />} onSelect={() => onPrint([`${piece.id}:*`], piece.title)}>Print it all</Menu.Item>
+          )}
           <Menu.Separator />
           {total > 1 && (
             <Menu.Item icon={<BsListCheck />} hint={piece.parts.length < total ? `${total - piece.parts.length} left out` : undefined}
@@ -755,7 +806,13 @@ const PieceBlock: React.FC<PieceBlockProps> = ({ piece, composer, playing, heard
             {(() => {
               const page = pageOf(piece.id, piece.single ? null : row.workId);
               return page && onOpenPage ? (
-                <Button size="sm" variant="quiet" onClick={() => onOpenPage(page)} title={`Open the PDF at page ${page}`}>p. {page}</Button>
+                <>
+                  <Button size="sm" variant="quiet" onClick={() => onOpenPage(page)} title={`Open the PDF at page ${page}`}>p. {page}</Button>
+                  {onPrint && (
+                    <IconButton size="sm" label={`Print ${row.name || piece.title}`}
+                      onClick={() => onPrint([markKey(piece.id, piece.single ? null : row.workId)], row.name || piece.title)}><BsPrinter /></IconButton>
+                  )}
+                </>
               ) : null;
             })()}
             <Recordings recordings={row.recordings} piece={piece} chosenAlbumId={chosen?.albumId ?? null}

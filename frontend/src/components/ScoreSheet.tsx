@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BsBoxArrowUpRight, BsFileEarmarkPdf, BsFileMusic, BsPaperclip, BsPencil, BsThreeDots, BsTrash } from 'react-icons/bs';
+import { BsBoxArrowUpRight, BsFileEarmarkPdf, BsFileMusic, BsPaperclip, BsPencil, BsPrinter, BsThreeDots, BsTrash } from 'react-icons/bs';
 import CoverButton from './shared/CoverButton';
 import CoverTag, { CoverTagStack } from './shared/CoverTag';
 import Segmented from './shared/Segmented';
@@ -31,6 +31,8 @@ interface ScoreSheetProps {
   pieces: React.ReactNode;
   pieceCount: number;
   onAddPiece: (() => void) | null;
+  /** Several of its pieces to print at once, when two are marked at least. */
+  onPrintSeveral?: (() => void) | null;
   notes: React.ReactNode;
   noteCount: number;
   onAddNote: (() => void) | null;
@@ -169,7 +171,10 @@ const ScoreSheet: React.FC<ScoreSheetProps> = props => {
       <section className="phone-sheet-section">
         <h5 className="phone-sheet-section__head">
           <span>{props.pieceCount ? 'Its pieces' : 'Its pieces, to find'}</span>
-          {props.onAddPiece && <Button size="sm" variant="quiet" className="score-sheet-add" onClick={props.onAddPiece}>+ Add a piece</Button>}
+          <span className="score-sheet-heads">
+            {props.onPrintSeveral && <Button size="sm" variant="quiet" icon={<BsPrinter />} onClick={props.onPrintSeveral}>Print several…</Button>}
+            {props.onAddPiece && <Button size="sm" variant="quiet" className="score-sheet-add" onClick={props.onAddPiece}>+ Add a piece</Button>}
+          </span>
         </h5>
         {props.pieces}
       </section>

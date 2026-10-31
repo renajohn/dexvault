@@ -131,6 +131,14 @@ export const scorePdfUrl = (id: number) => `/api/books/${id}/ebook/download?inli
 /** One of its PDFs, opened in the browser. */
 export const scoreFileUrl = (scoreId: number, fileId: number, page?: number) => `/api/scores/${scoreId}/files/${fileId}/pdf${page ? `#page=${page}` : ''}`;
 
+/** Pieces' pages cut from a PDF and set on A4, to print: "12:" a piece whole, "12:w1" a part of its set, "12:*" all its parts. */
+export const scorePrintUrl = (scoreId: number, pieces: string[], options: { file?: number; name?: string } = {}) => {
+  const query = new URLSearchParams({ pieces: pieces.join(',') });
+  if (options.file) query.set('file', String(options.file));
+  if (options.name) query.set('name', options.name);
+  return `/api/scores/${scoreId}/print?${query}`;
+};
+
 /** IMSLP: the page DexVault knows, else its search for the composer and the piece. */
 export const imslpUrl = (score: Pick<Score, 'title' | 'composer' | 'urls'>) =>
   score.urls?.imslp || `https://imslp.org/index.php?search=${encodeURIComponent([score.composer, score.title.replace(/\((?:HN|BA|EB|UT)\s*[\d.]+\)/i, '')].filter(Boolean).join(' '))}`;

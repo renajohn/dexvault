@@ -5,6 +5,8 @@ import app from '../../index';
 import { getDatabase } from '../../src/database';
 import { filesDir, labelOf } from '../../src/services/scoreFilesService';
 import scorePiecesService from '../../src/services/scorePiecesService';
+import { PDFDocument } from 'pdf-lib';
+import { pagesOf } from '../../src/services/scorePrintService';
 import imslpEditionsService, { editionsOf, plateOf, shortPublisher } from '../../src/services/imslpEditionsService';
 
 afterEach(() => jest.restoreAllMocks());
@@ -189,5 +191,63 @@ describe('les pages de chaque pièce dans un PDF', () => {
     await put([{ pieceId: valse, startPage: 0, endPage: 2 }]).expect(400);
     await put([{ pieceId: ballade, startPage: 1, endPage: 2 }]).expect(400);
     expect((await put([{ pieceId: valse, startPage: 4 }]).expect(200)).body).toEqual([{ pieceId: valse, partWorkId: null, startPage: 4, endPage: 4 }]);
+  });
+});
+
+describe('imprimer des pièces', () => {
+  const insertPiece = (bookId: number, title: string, position: number) => new Promise<number>((resolve, reject) =>
+    getDatabase().run('INSERT INTO score_pieces (book_id, title, position) VALUES (?, ?, ?)', [bookId, title, position],
+      function (this: { lastID: number }, err: Error | null) { if (err) reject(err); else resolve(this.lastID); }));
+  // A scan of ten pages, Letter size, its page 9 wider than high, its page 8 blank.
+  const scan = async () => {
+    const doc = await PDFDocument.create();
+    for (let page = 1; page <= 10; page += 1) {
+      const sheet = doc.addPage(page === 9 ? [792, 612] : [612, 792]);
+      if (page !== 8) sheet.drawRectangle({ x: 20, y: 20, width: 100, height: 100 });
+    }
+    return Buffer.from(await doc.save());
+  };
+  const binary = (res: request.Response, callback: (err: Error | null, body: Buffer) => void) => {
+    const chunks: Buffer[] = [];
+    res.on('data', (chunk: Buffer) => chunks.push(chunk));
+    res.on('end', () => callback(null, Buffer.concat(chunks)));
+  };
+
+  it('prend chaque page une fois, dans l’ordre', () => {
+    expect(pagesOf([{ startPage: 3, endPage: 5 }, { startPage: 5, endPage: 6 }, { startPage: 1, endPage: 1 }], 10)).toEqual([3, 4, 5, 6, 1]);
+    expect(pagesOf([{ startPage: 9, endPage: 12 }], 10)).toEqual([9, 10]);
+  });
+
+  it('coupe les pages des pièces demandées et les pose sur A4, dans l’ordre de la partition', async () => {
+    const id = await insertScore(`Suite bergamasque ${tag()}`);
+    const prelude = await insertPiece(id, 'Prélude', 0);
+    const clair = await insertPiece(id, 'Clair de lune', 2);
+    const passepied = await insertPiece(id, 'Passepied', 3);
+    const [file] = (await request(app).post(`/api/scores/${id}/files`).attach('file', await scan(), { filename: 'sb.pdf', contentType: 'application/pdf' }).expect(201)).body;
+    await request(app).put(`/api/scores/${id}/files/${file.id}/bookmarks`).send({ pageCount: 10, bookmarks: [
+      { pieceId: prelude, startPage: 1, endPage: 2 }, { pieceId: clair, startPage: 6, endPage: 7 }, { pieceId: passepied, startPage: 7, endPage: 9 },
+    ] }).expect(200);
+
+    const res = await request(app).get(`/api/scores/${id}/print`).query({ pieces: `${passepied}:,${clair}:` }).buffer(true).parse(binary).expect(200);
+    expect(res.headers['content-type']).toBe('application/pdf');
+    expect(res.headers['content-disposition']).toMatch(/2%20pieces\.pdf$/);
+    const printed = await PDFDocument.load(res.body);
+    // Clair de lune 6–7, then Passepied 7–9: page 7 once.
+    expect(printed.getPageCount()).toBe(4);
+    expect(printed.getPages().map(page => page.getSize()).map(({ width, height }) => [Math.round(width), Math.round(height)]))
+      .toEqual([[595, 842], [595, 842], [595, 842], [842, 595]]);
+
+    const one = await request(app).get(`/api/scores/${id}/print`).query({ pieces: `${prelude}:`, name: 'Suite bergamasque – Prélude' }).buffer(true).parse(binary).expect(200);
+    expect(one.headers['content-disposition']).toBe(`inline; filename*=UTF-8''${encodeURIComponent('Suite bergamasque – Prélude.pdf')}`);
+    expect((await PDFDocument.load(one.body)).getPageCount()).toBe(2);
+  });
+
+  it('dit quand les pages ne sont pas marquées, ou qu’il n’y a pas de PDF', async () => {
+    const id = await insertScore(`Kinderszenen ${tag()}`);
+    const piece = await insertPiece(id, 'Träumerei', 0);
+    await request(app).get(`/api/scores/${id}/print`).query({ pieces: `${piece}:` }).expect(404);
+    await request(app).post(`/api/scores/${id}/files`).attach('file', await scan(), { filename: 'k.pdf', contentType: 'application/pdf' }).expect(201);
+    await request(app).get(`/api/scores/${id}/print`).query({ pieces: `${piece}:` }).expect(400);
+    await request(app).get(`/api/scores/${id}/print`).expect(400);
   });
 });
