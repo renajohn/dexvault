@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
 import ScoresPage from './ScoresPage';
 import bookSectionsService, { Score } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
@@ -12,6 +12,7 @@ vi.mock('../services/bookSectionsService', async importOriginal => ({
 }));
 vi.mock('../services/bookService', () => ({ default: { uploadEbook: vi.fn(), getImageUrl: (p: string | null) => p, getBookById: vi.fn(), updateBook: vi.fn(), deleteBook: vi.fn(), addBook: vi.fn() } }));
 
+const Reading = () => <p>Reading score {useParams().id}</p>;
 const page = (props: React.ComponentProps<typeof ScoresPage> = {}) => <MemoryRouter><ScoresPage {...props} /></MemoryRouter>;
 
 const score = (id: number, title: string, fields: Partial<Score> = {}): Score => ({
@@ -40,12 +41,19 @@ describe('ScoresPage', () => {
     expect(screen.getByText(/ed\. Vladimir Ashkenazy/)).toBeInTheDocument();
   });
 
-  it('ouvre le PDF dans le navigateur, et propose d’en joindre un à celle qui n’en a pas', async () => {
-    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
-    render(page());
+  it('ouvre le PDF dans le lecteur, et propose d’en joindre un à celle qui n’en a pas', async () => {
+    render(<MemoryRouter initialEntries={['/scores']}><Routes>
+      <Route path="/scores" element={<ScoresPage />} />
+      <Route path="/scores/:id/read" element={<Reading />} />
+    </Routes></MemoryRouter>);
 
     fireEvent.click(await screen.findByRole('button', { name: 'PDF' }));
-    expect(open).toHaveBeenCalledWith('/api/books/1/ebook/download?inline=1', '_blank', 'noopener');
+    expect(await screen.findByText('Reading score 1')).toBeInTheDocument();
+  });
+
+  it('propose de joindre un PDF à celle qui n’en a pas', async () => {
+    render(page());
+    await screen.findByRole('button', { name: 'PDF' });
 
     const bach = screen.getByText('Bach : suites françaises BWV 812-817').closest('.scores-page__score') as HTMLElement;
     fireEvent.click(within(bach).getByRole('button', { name: /attach pdf/i }));

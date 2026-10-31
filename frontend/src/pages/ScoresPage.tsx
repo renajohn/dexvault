@@ -73,6 +73,14 @@ const ScoresPage: React.FC<{ searchCriteria?: { searchText?: string } }> = ({ se
     return [...byComposer].sort((a, b) => Number(a[0] === OTHERS) - Number(b[0] === OTHERS) || surname(a[0]).localeCompare(surname(b[0])));
   }, [shown]);
 
+  /** A score read full screen, from its last page read or at one. */
+  const read = (scoreId: number, fileId?: number, page?: number) => {
+    const query = new URLSearchParams();
+    if (fileId) query.set('file', String(fileId));
+    if (page) query.set('page', String(page));
+    navigate(`/scores/${scoreId}/read${query.size ? `?${query}` : ''}`);
+  };
+
   const attach = async (file: File | undefined) => {
     if (!file || !attaching) return;
     try {
@@ -126,7 +134,7 @@ const ScoresPage: React.FC<{ searchCriteria?: { searchText?: string } }> = ({ se
                       {reference && <span className="scores-page__reference">{reference}</span>}
                       <span className="scores-page__actions" onClick={e => e.stopPropagation()}>
                         {score.ebookFile ? (
-                          <Button size="sm" icon={<BsFileEarmarkPdf />} onClick={() => window.open(scorePdfUrl(score.id), '_blank', 'noopener')}>PDF</Button>
+                          <Button size="sm" icon={<BsFileEarmarkPdf />} onClick={() => read(score.id)}>PDF</Button>
                         ) : !narrow && (
                           <Button size="sm" variant="quiet" icon={<BsPaperclip />} onClick={() => { setAttaching(score); fileRef.current?.click(); }}>Attach PDF</Button>
                         )}
@@ -155,6 +163,7 @@ const ScoresPage: React.FC<{ searchCriteria?: { searchText?: string } }> = ({ se
           score={adding ? null : open}
           onClose={() => { setOpen(null); setAdding(false); }}
           onAttach={score => { setAttaching(score); fileRef.current?.click(); }}
+          onRead={read}
           onChanged={() => load()}
           onCreated={id => { setAdding(false); load().then(() => setOpenId(id)); }}
           onDeleted={() => { setOpen(null); load(); }}

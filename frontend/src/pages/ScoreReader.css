@@ -1,0 +1,90 @@
+/* A score full screen: its pages on the dark, the bar over them while it shows. */
+.score-reader {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.score-reader__spread {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+}
+
+.score-reader__page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-reader__page canvas {
+  display: block;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+.score-reader__message {
+  color: var(--dv-text-muted);
+}
+
+.score-reader__bar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: calc(8px + var(--safe-top, 0px)) calc(12px + var(--safe-right, 0px)) 8px calc(12px + var(--safe-left, 0px));
+  border-bottom: 1px solid var(--dv-edge);
+  background: rgba(20, 20, 20, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.score-reader__title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--dv-text);
+  line-height: 1.2;
+}
+
+.score-reader__title span,
+.score-reader__title small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-reader__title small {
+  color: var(--dv-gold);
+}
+
+.score-reader__foot {
+  position: absolute;
+  bottom: calc(10px + var(--safe-foot, 0px));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--dv-edge);
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: var(--dv-text-muted);
+  font-size: 0.85rem;
+  transform: translateX(-50%);
+}

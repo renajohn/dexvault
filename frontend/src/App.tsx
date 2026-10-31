@@ -7,6 +7,7 @@ import WishListPage from './pages/WishListPage';
 import MusicDexPage from './pages/MusicDexPage';
 import BookDexPage from './pages/BookDexPage';
 import ScoresPage from './pages/ScoresPage';
+import ScoreReader from './pages/ScoreReader';
 import AnalyticsPage from './pages/AnalyticsPage';
 import BackupPage from './pages/BackupPage';
 import ShelvesPage from './pages/ShelvesPage';
@@ -711,6 +712,7 @@ function AppContent() {
           <Route path="/musicdex/rip" element={<Navigate to="/musicdex?digital=1" replace />} />
           <Route path="/bookdex" element={<BookDexPage ref={bookDexRef} searchCriteria={searchCriteria} />} />
           <Route path="/scores" element={<ScoresPage searchCriteria={searchCriteria} />} />
+          <Route path="/scores/:id/read" element={<ScoreReader />} />
           <Route path="/wishlist" element={<WishListPage ref={wishListRef} searchCriteria={searchCriteria} onAddMovie={handleWishListAddMovie} onAddAlbum={handleWishListAddAlbum} onAddBook={handleWishListAddBook} onMovieMovedToCollection={handleMovieMovedToCollection} onAlbumMovedToCollection={handleAlbumMovedToCollection} onBookMovedToCollection={handleBookMovedToCollection} onShowAlert={handleShowAlert} onMovieAdded={handleMovieAdded} onAlbumAdded={handleAlbumAdded} onBookAdded={handleBookAdded} onSearch={handleSearchFromMovieDetail} />} />
           <Route path="/shelves" element={<ShelvesPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />

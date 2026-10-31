@@ -7,8 +7,6 @@ import { decodeBarcode } from '../utils/decodeBarcode';
 import { pieceOf, referenceOf, titleWithNumber } from '../utils/scoreTitle';
 import bookSectionsService, { imslpUrl, Score, ScoreBookmark, ScoreFile, scoreFileUrl, scorePdfUrl, scorePrintUrl } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
-import { player, usePlayer } from '../services/player';
-import { loadPlayable } from '../utils/playAlbum';
 import Button, { IconButton } from './shared/Button';
 import CoverTag from './shared/CoverTag';
 import Dialog from './shared/Dialog';
@@ -21,6 +19,7 @@ import { confirm } from './shared/ConfirmDialog';
 import toast from './shared/Toast';
 import CoverModal from './CoverModal';
 import ScoreSheet from './ScoreSheet';
+import { keyOf, mainOf, play, recordingsOfSingle, usePlaying } from '../utils/playPiece';
 import ScoreFiles, { openScoreFile } from './ScoreFiles';
 import ImslpEditions from './ImslpEditions';
 import ScoreBookmarks, { keyOf as markKey, rowsOf as markRowsOf } from './ScoreBookmarks';
@@ -32,30 +31,6 @@ const fmt = (seconds: number | null) => (seconds == null ? '' : `${Math.floor(se
 const surnameOf = (names: string[]) => (names[0] || '').split(' ').slice(-1)[0] || 'Play';
 const WHY: Record<PieceSuggestion['why'], string> = { number: 'by its number', 'your music': 'in your music', wikidata: 'from Wikidata', imslp: 'from IMSLP', title: 'by its title', photo: 'read on the photo', search: '' };
 
-/**
- * Plays recordings of an album, in their order, from the one asked: the
- * album's rip in Navidrome holds the files. False when none of them is ripped.
- */
-const playRecordings = async (recordings: PieceRecording[], start = 0): Promise<boolean> => {
-  if (!recordings.length) return false;
-  const { album, tracks } = await loadPlayable(recordings[0].albumId);
-  const wanted = recordings.map(r => tracks.find(track => track.disc === r.disc && track.no === r.no)).filter(Boolean) as typeof tracks;
-  if (!wanted.length) return false;
-  const first = tracks.find(track => track.disc === recordings[start]?.disc && track.no === recordings[start]?.no);
-  player.playAlbum(album, wanted, Math.max(0, first ? wanted.indexOf(first) : 0));
-  return true;
-};
-
-const play = (recordings: PieceRecording[], start = 0) => {
-  playRecordings(recordings, start)
-    .then(played => { if (!played) toast('Not in Navidrome: this album has no rip to play', { tone: 'warning' }); })
-    .catch(error => toast((error as Error).message, { tone: 'danger' }));
-};
-
-/** Whether this recording is the track the player is on. */
-const usePlaying = () => usePlayer(state => (state.album?.id && state.tracks[state.index]
-  ? `${state.album.id}:${state.tracks[state.index].disc}:${state.tracks[state.index].no}` : null));
-const keyOf = (r: PieceRecording) => `${r.albumId}:${r.disc}:${r.no}`;
 
 const GERMAN = new Set(['der', 'die', 'das', 'und', 'ist', 'nicht', 'mit', 'für', 'sich', 'auch', 'eine', 'einen', 'dem', 'den', 'des', 'zu', 'von', 'wurde', 'werden', 'gelten', 'bei', 'nach', 'aus']);
 const OTHERS = new Set(['the', 'and', 'of', 'is', 'with', 'for', 'to', 'was', 'le', 'la', 'les', 'et', 'est', 'des', 'du', 'une', 'pour', 'dans', 'que', 'qui']);
@@ -77,6 +52,8 @@ interface ScoreCardProps {
   onCreated?: (id: number) => void;
   onDeleted?: () => void;
   onAttach: (score: Score) => void;
+  /** Its PDF read full screen (ScoreReader): one of them, at a page; the browser's own viewer when none is given. */
+  onRead?: (scoreId: number, fileId?: number, page?: number) => void;
 }
 
 /** What one edits of an edition, as typed. */
@@ -144,7 +121,7 @@ const EditionForm: React.FC<{ values: EditionValues; onChange: (values: EditionV
  */
 const ScoreCard: React.FC<ScoreCardProps> = props => (props.score ? <ScoreView {...props} score={props.score} /> : <AddScore {...props} />);
 
-const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose, onChanged, onDeleted, onAttach }) => {
+const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose, onChanged, onDeleted, onAttach, onRead }) => {
   const [pieces, setPieces] = useState<ScorePiece[] | null>(null);
   const [finding, setFinding] = useState(false);
   const [book, setBook] = useState<Record<string, any> | null>(null);
@@ -203,7 +180,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   }, [score.id, first?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   /** A piece's first page in the PDF that opens first, to open it there. */
   const pageOf = (pieceId: number, partWorkId: string | null) => marks.find(mark => markKey(mark.pieceId, mark.partWorkId) === markKey(pieceId, partWorkId))?.startPage ?? null;
-  const openAt = (page: number) => first && window.open(scoreFileUrl(score.id, first.id, page), '_blank', 'noopener');
+  const openAt = (page: number) => first && (onRead ? onRead(score.id, first.id, page) : window.open(scoreFileUrl(score.id, first.id, page), '_blank', 'noopener'));
+  const openFile = (file: ScoreFile) => (onRead ? onRead(score.id, file.id) : openScoreFile(file));
   /** Pieces' pages on A4, opened to print: "12:" a piece, "12:w1" a part, "12:*" a set's parts marked. */
   const print = (keys: string[], name?: string) => first && window.open(scorePrintUrl(score.id, keys, { file: first.id, name }), '_blank', 'noopener');
   const [printing, setPrinting] = useState(false);
@@ -300,9 +278,9 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const about = typeof book?.description === 'string' && !isUnwanted(book.description) ? book.description.trim() : '';
   const title = pieceOf(String(book?.title ?? score.title));
   const coverUrl = cover ? bookService.getImageUrl(String(cover)) || '' : '';
-  const openPdf = () => window.open(scorePdfUrl(score.id), '_blank', 'noopener');
+  const openPdf = () => (onRead ? onRead(score.id) : window.open(scorePdfUrl(score.id), '_blank', 'noopener'));
   const filesBody = <ScoreFiles scoreId={score.id} files={files} onChange={filesChanged} onAdd={() => onAttach(score)} onImslp={() => setEditionsShown(true)}
-    onMark={pieces?.length ? setMarking : undefined} />;
+    onMark={pieces?.length ? setMarking : undefined} onOpen={onRead ? openFile : undefined} />;
   const openImslp = () => window.open(imslp, '_blank', 'noopener');
   const openHenle = henle.url ? () => window.open(henle.url!, '_blank', 'noopener') : null;
   const editionForm = editing && (
@@ -435,7 +413,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
                       <Menu align="start" trigger={(props, open) => (
                         <Button {...props} size="sm" className="ui-button--split" aria-label="Its other PDFs"><MenuChevron open={open} /></Button>
                       )}>
-                        {files.map(file => <Menu.Item key={file.id} icon={<BsFileEarmarkPdf />} hint={file.isDefault ? 'opens first' : undefined} onSelect={() => openScoreFile(file)}>{file.label}</Menu.Item>)}
+                        {files.map(file => <Menu.Item key={file.id} icon={<BsFileEarmarkPdf />} hint={file.isDefault ? 'opens first' : undefined} onSelect={() => openFile(file)}>{file.label}</Menu.Item>)}
                       </Menu>
                     </span>
                   ) : <Button size="sm" icon={<BsFileEarmarkPdf />} onClick={openPdf}>PDF</Button>}
@@ -833,10 +811,6 @@ const PieceBlock: React.FC<PieceBlockProps> = ({ piece, composer, playing, heard
   );
 };
 
-/** A piece of one movement: the first track of each album playing it. */
-const recordingsOfSingle = (piece: ScorePiece): PieceRecording[] =>
-  piece.albums.flatMap(album => piece.whole.filter(r => r.albumId === album.albumId).slice(0, 1));
-
 const RecordingButton: React.FC<{ recording: PieceRecording; label: string; onPlay: (recording: PieceRecording) => void }> = ({ recording, label, onPlay }) => (
   <Button size="sm" className="score-piece__play" icon={<BsPlayFill />}
     onClick={() => { onPlay(recording); play([recording]); }} title={recording.title}>
@@ -844,9 +818,6 @@ const RecordingButton: React.FC<{ recording: PieceRecording; label: string; onPl
   </Button>
 );
 
-/** The recording a row plays: the chosen album's, else its first. */
-const mainOf = (recordings: PieceRecording[], chosenAlbumId: number | null) =>
-  recordings.find(r => r.albumId === chosenAlbumId) || recordings[0] || null;
 
 const Recordings: React.FC<{ recordings: PieceRecording[]; piece: ScorePiece; chosenAlbumId: number | null; onPlay: (recording: PieceRecording) => void; youtube: string; single: boolean }> = ({
   recordings, piece, chosenAlbumId, onPlay, youtube, single,

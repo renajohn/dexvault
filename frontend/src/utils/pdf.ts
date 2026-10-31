@@ -10,6 +10,8 @@ export interface PdfDocument {
   pageCount: number;
   /** Its own bookmarks, the deepest of each branch, in order: what a scan made with a contents has. */
   outline: () => Promise<Array<{ title: string; page: number }>>;
+  /** A page's size, in PDF points. */
+  sizeOf: (page: number) => Promise<{ width: number; height: number }>;
   /** A page drawn in a canvas, at a width in CSS pixels. */
   draw: (page: number, canvas: HTMLCanvasElement, width: number) => Promise<void>;
   close: () => void;
@@ -39,6 +41,10 @@ export const openPdf = async (url: string): Promise<PdfDocument> => {
       };
       await walk(((await doc.getOutline()) || []) as OutlineItem[]);
       return leaves;
+    },
+    sizeOf: async number => {
+      const { width, height } = (await doc.getPage(number)).getViewport({ scale: 1 });
+      return { width, height };
     },
     draw: async (number, canvas, width) => {
       const page = await doc.getPage(number);

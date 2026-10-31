@@ -26,7 +26,10 @@ const ScoreFiles: React.FC<{
   onImslp: () => void;
   /** Its pieces' pages marked in one of them; none before its pieces are known. */
   onMark?: (file: ScoreFile) => void;
-}> = ({ scoreId, files, onChange, onAdd, onImslp, onMark }) => {
+  /** It read full screen; the browser's viewer otherwise. */
+  onOpen?: (file: ScoreFile) => void;
+}> = ({ scoreId, files, onChange, onAdd, onImslp, onMark, onOpen }) => {
+  const open = onOpen || openScoreFile;
   const [renaming, setRenaming] = useState<{ id: number; label: string } | null>(null);
 
   const change = async (file: ScoreFile, changes: { label?: string; isDefault?: true }) => {
@@ -61,14 +64,15 @@ const ScoreFiles: React.FC<{
                   <IconButton size="sm" label="Cancel" onClick={() => setRenaming(null)}><BsX /></IconButton>
                 </span>
               ) : (
-                <button type="button" className="score-files__name" onClick={() => openScoreFile(file)} title="Open it">
+                <button type="button" className="score-files__name" onClick={() => open(file)} title="Open it">
                   {file.label}
                   {file.isDefault && files.length > 1 && <span className="score-files__first">Opens first</span>}
                 </button>
               )}
               <span className="score-files__size">{megabytes(file.size)}</span>
               <Menu align="end" trigger={props => <IconButton {...props} size="sm" label={`More for ${file.label}`}><BsThreeDots /></IconButton>}>
-                <Menu.Item icon={<BsFileEarmarkPdf />} onSelect={() => openScoreFile(file)}>Open</Menu.Item>
+                <Menu.Item icon={<BsFileEarmarkPdf />} onSelect={() => open(file)}>Open</Menu.Item>
+                {onOpen && <Menu.Item icon={<BsBoxArrowUpRight />} onSelect={() => openScoreFile(file)}>Open in the browser</Menu.Item>}
                 {onMark && <Menu.Item icon={<BsBookmarkCheck />} onSelect={() => onMark(file)}>Mark its pieces’ pages…</Menu.Item>}
                 <Menu.Item onSelect={() => setRenaming({ id: file.id, label: file.label })}>Rename</Menu.Item>
                 {!file.isDefault && <Menu.Item onSelect={() => change(file, { isDefault: true })}>Open this one first</Menu.Item>}
