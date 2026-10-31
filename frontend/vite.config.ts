@@ -13,9 +13,14 @@ const pdfjsFiles = (): Plugin => {
   const root = path.resolve(__dirname, 'node_modules/pdfjs-dist');
   const folders = ['wasm', 'cmaps', 'standard_fonts'];
   let outDir = 'build';
+  // Copied by a build alone: Vitest closes its bundle too, into an outDir of its own ("dummy-non-existing-folder").
+  let building = false;
   return {
     name: 'pdfjs-files',
-    configResolved: config => { outDir = path.resolve(config.root, config.build.outDir); },
+    configResolved: config => {
+      outDir = path.resolve(config.root, config.build.outDir);
+      building = config.command === 'build' && !process.env.VITEST;
+    },
     configureServer: server => {
       server.middlewares.use('/pdfjs', (req, res, next) => {
         const [folder, ...rest] = decodeURIComponent((req.url || '').split('?')[0]).replace(/^\/+/, '').split('/');
@@ -26,6 +31,7 @@ const pdfjsFiles = (): Plugin => {
       });
     },
     closeBundle: () => {
+      if (!building) return;
       for (const folder of folders) fs.cpSync(path.join(root, folder), path.join(outDir, 'pdfjs', folder), { recursive: true });
     },
   };
