@@ -36,6 +36,8 @@ const props = (over: Partial<React.ComponentProps<typeof ScoreSheet>> = {}): Rea
   onImslp: vi.fn(),
   onHenle: null,
   onAttach: vi.fn(),
+  files: <p>Its files</p>,
+  fileCount: 0,
   onDelete: vi.fn(),
   onClose: vi.fn(),
   ...over,

@@ -5,7 +5,7 @@ import scorePiecesService, { imslpPieceUrl, PieceRecording, PieceSuggestion, Sco
 import bookCommentService from '../services/bookCommentService';
 import { decodeBarcode } from '../utils/decodeBarcode';
 import { pieceOf, referenceOf, titleWithNumber } from '../utils/scoreTitle';
-import { imslpUrl, Score, scorePdfUrl } from '../services/bookSectionsService';
+import bookSectionsService, { imslpUrl, Score, ScoreFile, scorePdfUrl } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
 import { player, usePlayer } from '../services/player';
 import { loadPlayable } from '../utils/playAlbum';
@@ -21,6 +21,7 @@ import { confirm } from './shared/ConfirmDialog';
 import toast from './shared/Toast';
 import CoverModal from './CoverModal';
 import ScoreSheet from './ScoreSheet';
+import ScoreFiles, { openScoreFile } from './ScoreFiles';
 import { useMedia } from '../utils/useNarrow';
 import { francs } from './PhoneSheet';
 import './ScoreCard.css';
@@ -154,6 +155,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const [imslpPage, setImslpPage] = useState<string | null>(null);
   const [coverShown, setCoverShown] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  // Its PDFs, read again when the page adds one.
+  const [files, setFiles] = useState<ScoreFile[]>([]);
   const playing = usePlaying();
   // On a phone the score is a full screen as a film's or a book's (ScoreSheet), its parts the same.
   const phone = useMedia('(max-width: 767px)');
@@ -178,6 +181,13 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
     return () => { current = false; };
   }, [score.id, pieces?.length]);
   const imslp = imslpPage ? imslpPieceUrl(imslpPage) : imslpUrl(score);
+  useEffect(() => {
+    let current = true;
+    if (!score.ebookFile && !score.fileCount) { setFiles([]); return undefined; }
+    bookSectionsService.files(score.id).then(list => { if (current) setFiles(list); }).catch(() => undefined);
+    return () => { current = false; };
+  }, [score.id, score.fileCount, score.ebookFile]);
+  const filesChanged = (list: ScoreFile[]) => { setFiles(list); onChanged(); };
 
   const load = () => scorePiecesService.pieces(score.id)
     .then(list => { setPieces(list); if (!list.length) setFinding(true); })
@@ -208,6 +218,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
       const price = parseFloat(editing.priceChf.replace(',', '.'));
       await bookService.updateBook(score.id, {
         ...book,
+        // Its PDF is its files' to say: the one read when the card opened may be gone.
+        ebookFile: undefined,
         // Its title as kept when neither its words nor its number changed: "Préludes Vol. 1 - piano - (HN 383)" stays whole.
         title: editing.title === values.title && editing.number === values.number ? book.title : titleWithNumber(editing.title, editing.number),
         composer: editing.composer.trim() || null,
@@ -270,6 +282,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const title = pieceOf(String(book?.title ?? score.title));
   const coverUrl = cover ? bookService.getImageUrl(String(cover)) || '' : '';
   const openPdf = () => window.open(scorePdfUrl(score.id), '_blank', 'noopener');
+  const filesBody = <ScoreFiles scoreId={score.id} files={files} onChange={filesChanged} onAdd={() => onAttach(score)} />;
   const openImslp = () => window.open(imslp, '_blank', 'noopener');
   const openHenle = henle.url ? () => window.open(henle.url!, '_blank', 'noopener') : null;
   const editionForm = editing && (
@@ -337,7 +350,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
           editing={editing != null} editionForm={editionForm} onEdit={() => setEditing(values)}
           onCancelEdit={() => setEditing(null)} writing={writing !== null}
           onShowCover={() => setCoverShown(true)} coverShown={coverShown} onHideCover={() => setCoverShown(false)} onPdf={openPdf} onImslp={openImslp} onHenle={openHenle}
-          onAttach={() => onAttach(score)} onDelete={remove} onClose={onClose}
+          onAttach={() => onAttach(score)} onDelete={remove} onClose={onClose} files={filesBody} fileCount={files.length}
           facts={[
             ['Publisher', values.publisher || null],
             ['Number', values.number || null],
@@ -373,7 +386,17 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
             <div className="score-card__acts">
               {score.ebookFile ? (
                 <>
-                  <Button size="sm" icon={<BsFileEarmarkPdf />} onClick={openPdf}>PDF</Button>
+                  {files.length > 1 ? (
+                    // Several: the one that opens first, the others under its ▾.
+                    <span className="ui-button-group">
+                      <Button size="sm" icon={<BsFileEarmarkPdf />} onClick={openPdf}>PDF</Button>
+                      <Menu align="start" trigger={(props, open) => (
+                        <Button {...props} size="sm" className="ui-button--split" aria-label="Its other PDFs"><MenuChevron open={open} /></Button>
+                      )}>
+                        {files.map(file => <Menu.Item key={file.id} icon={<BsFileEarmarkPdf />} hint={file.isDefault ? 'opens first' : undefined} onSelect={() => openScoreFile(file)}>{file.label}</Menu.Item>)}
+                      </Menu>
+                    </span>
+                  ) : <Button size="sm" icon={<BsFileEarmarkPdf />} onClick={openPdf}>PDF</Button>}
                   <Button size="sm" variant="quiet" icon={<BsBoxArrowUpRight />} onClick={openImslp}>On IMSLP</Button>
                 </>
               ) : (
@@ -387,7 +410,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
               {total > 0 && heard > 0 && <CoverTag variant="gold">♪ {heard} of {total} in your music</CoverTag>}
               <Menu align="end" trigger={props => <IconButton {...props} label="More" size="sm"><BsThreeDots /></IconButton>}>
                 <Menu.Item icon={<BsPencil />} onSelect={() => setEditing(values)}>Change its edition</Menu.Item>
-                {score.ebookFile && <Menu.Item icon={<BsPaperclip />} onSelect={() => onAttach(score)}>Replace the PDF</Menu.Item>}
+                {score.ebookFile && <Menu.Item icon={<BsPaperclip />} onSelect={() => onAttach(score)}>Add a PDF</Menu.Item>}
                 <Menu.Separator />
                 <Menu.Item danger onSelect={remove}>Delete the score</Menu.Item>
               </Menu>
@@ -404,6 +427,13 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
           </h4>
           {piecesBody}
         </section>
+
+        {files.length > 0 && (
+          <section className="score-card__section">
+            <h4>Its PDFs</h4>
+            {filesBody}
+          </section>
+        )}
 
         <section className="score-card__section">
           <h4>

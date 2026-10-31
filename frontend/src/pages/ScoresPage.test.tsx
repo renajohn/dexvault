@@ -8,7 +8,7 @@ import bookService from '../services/bookService';
 
 vi.mock('../services/bookSectionsService', async importOriginal => ({
   ...(await importOriginal<typeof import('../services/bookSectionsService')>()),
-  default: { scores: vi.fn(), setComposers: vi.fn() },
+  default: { scores: vi.fn(), setComposers: vi.fn(), addFile: vi.fn(), files: vi.fn() },
 }));
 vi.mock('../services/bookService', () => ({ default: { uploadEbook: vi.fn(), getImageUrl: (p: string | null) => p, getBookById: vi.fn(), updateBook: vi.fn(), deleteBook: vi.fn(), addBook: vi.fn() } }));
 
@@ -25,7 +25,7 @@ beforeEach(() => {
     score(3, 'Improve your sight-reading !', { authors: ['Paul Harris'], publisher: 'Faber' }),
   ]);
   vi.mocked(bookSectionsService.setComposers).mockReset().mockResolvedValue({ changed: 1 });
-  vi.mocked(bookService.uploadEbook).mockReset().mockResolvedValue({});
+  vi.mocked(bookSectionsService.addFile).mockReset().mockResolvedValue([]);
 });
 
 describe('ScoresPage', () => {
@@ -51,7 +51,7 @@ describe('ScoresPage', () => {
     fireEvent.click(within(bach).getByRole('button', { name: /attach pdf/i }));
     const file = new File(['%PDF'], 'suites.pdf', { type: 'application/pdf' });
     fireEvent.change(screen.getByTestId('score-pdf-input'), { target: { files: [file] } });
-    await waitFor(() => expect(bookService.uploadEbook).toHaveBeenCalledWith(2, file));
+    await waitFor(() => expect(bookSectionsService.addFile).toHaveBeenCalledWith(2, file));
   });
 
   it('mène à IMSLP par le compositeur et la pièce', async () => {

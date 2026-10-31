@@ -50,6 +50,9 @@ interface ScoreSheetProps {
   onImslp: () => void;
   onHenle: (() => void) | null;
   onAttach: () => void;
+  /** Its PDFs, listed (ScoreFiles), and how many. */
+  files: React.ReactNode;
+  fileCount: number;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -92,7 +95,7 @@ const ScoreSheet: React.FC<ScoreSheetProps> = props => {
         <button type="button" {...triggerProps} className="phone-sheet-head__more" aria-label="More"><BsThreeDots aria-hidden="true" /></button>
       )}>
         <Menu.Item icon={<BsPencil />} onSelect={props.onEdit}>Change its edition</Menu.Item>
-        <Menu.Item icon={<BsPaperclip />} onSelect={props.onAttach}>{hasPdf ? 'Replace the PDF' : 'Attach PDF'}</Menu.Item>
+        <Menu.Item icon={<BsPaperclip />} onSelect={props.onAttach}>{hasPdf ? 'Add a PDF' : 'Attach PDF'}</Menu.Item>
         <Menu.Separator />
         <Menu.Item icon={<BsTrash />} danger onSelect={props.onDelete}>Delete the score</Menu.Item>
       </Menu>
@@ -189,12 +192,8 @@ const ScoreSheet: React.FC<ScoreSheetProps> = props => {
       </section>
 
       <section className="phone-sheet-section">
-        <h5>Its PDF</h5>
-        <p className="phone-sheet-muted score-sheet-line">{hasPdf ? 'Kept in DexVault.' : 'None yet: IMSLP may have it.'}</p>
-        <div className="score-sheet-acts score-sheet-acts--start">
-          {hasPdf && <Button size="sm" icon={<BsFileEarmarkPdf />} onClick={props.onPdf}>Open</Button>}
-          <Button size="sm" variant={hasPdf ? 'quiet' : 'secondary'} icon={<BsPaperclip />} onClick={props.onAttach}>{hasPdf ? 'Replace' : 'Attach PDF'}</Button>
-        </div>
+        <h5>{props.fileCount > 1 ? 'Its PDFs' : 'Its PDF'}</h5>
+        {props.files}
       </section>
 
       <div className="phone-sheet-manage score-sheet-manage">

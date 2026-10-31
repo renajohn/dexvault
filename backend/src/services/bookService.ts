@@ -20,6 +20,7 @@ import bookEnrichmentService from './bookEnrichmentService';
 import bookImslpService from './bookImslpService';
 import bookLanguageService from './bookLanguageService';
 import bookBnfService from './bookBnfService';
+import scoreFilesService from './scoreFilesService';
 import {
   normalizeArrayField,
   extractSeriesFromTitle,
@@ -325,6 +326,9 @@ class BookService {
           }
         }
       }
+
+      // A score's other PDFs go with it.
+      if (book?.bookType === 'score') await scoreFilesService.removeAll(id, book.ebookFile ?? null);
 
       return await Book.delete(id);
     } catch (error) {

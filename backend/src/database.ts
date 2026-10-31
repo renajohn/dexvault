@@ -626,6 +626,35 @@ const runAutoMigrations = async (): Promise<void> => {
         }
         console.log(`  ✓ Listen Next is one list again (${rows.length} entries)`);
       }
+    },
+    {
+      name: '034_score_files',
+      up: async () => {
+        // A score holds several PDFs (IMSLP's scan, one's own annotated copy); books.ebook_file stays the one that opens first.
+        await new Promise<void>((resolve, reject) => currentDb.run(
+          `CREATE TABLE IF NOT EXISTS score_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            label TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'upload',
+            is_default INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )`, (err: Error | null) => (err ? reject(err) : resolve())));
+        await new Promise<void>((resolve, reject) => currentDb.run(
+          'CREATE INDEX IF NOT EXISTS idx_score_files_book ON score_files(book_id)', (err: Error | null) => (err ? reject(err) : resolve())));
+        const scores = await new Promise<Array<{ id: number; ebook_file: string }>>((resolve, reject) => currentDb.all(
+          `SELECT id, ebook_file FROM books WHERE book_type = 'score' AND ebook_file IS NOT NULL AND ebook_file != ''
+             AND id NOT IN (SELECT book_id FROM score_files)`,
+          (err: Error | null, rows: Array<{ id: number; ebook_file: string }>) => (err ? reject(err) : resolve(rows || []))));
+        const { labelOf } = await import('./services/scoreFilesService');
+        for (const score of scores) {
+          await new Promise<void>((resolve, reject) => currentDb.run(
+            "INSERT INTO score_files (book_id, filename, label, source, is_default) VALUES (?, ?, ?, 'upload', 1)",
+            [score.id, score.ebook_file, labelOf(score.ebook_file)], (err: Error | null) => (err ? reject(err) : resolve())));
+        }
+        console.log(`  ✓ Added score_files (${scores.length} PDF${scores.length === 1 ? '' : 's'} kept)`);
+      }
     }
   ];
 

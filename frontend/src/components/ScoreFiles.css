@@ -1,0 +1,72 @@
+/* A score's PDFs: a row each, its name opening it. */
+.score-files__list {
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.score-files__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border-bottom: 1px solid var(--dv-edge);
+}
+
+.score-files__icon {
+  flex: none;
+  color: var(--dv-text-faint);
+}
+
+.score-files__name {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dv-text);
+  font-size: 0.9rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.score-files__name:hover {
+  text-decoration: underline;
+}
+
+/* Gold: the one that is on. */
+.score-files__first {
+  flex: none;
+  color: var(--dv-gold);
+  font-size: 0.7rem;
+  font-variant: all-small-caps;
+  letter-spacing: 0.04em;
+}
+
+.score-files__size {
+  flex: none;
+  color: var(--dv-text-faint);
+  font-size: 0.75rem;
+}
+
+.score-files__rename {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.score-files__rename > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.score-files__empty {
+  margin: 0 0 6px;
+  color: var(--dv-text-faint);
+  font-size: 0.85rem;
+}

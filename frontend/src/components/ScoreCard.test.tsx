@@ -5,7 +5,7 @@ import ScoreCard from './ScoreCard';
 import scorePiecesService, { ScorePiece } from '../services/scorePiecesService';
 import { player } from '../services/player';
 import { loadPlayable } from '../utils/playAlbum';
-import type { Score } from '../services/bookSectionsService';
+import bookSectionsService, { type Score, type ScoreFile } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
 import bookCommentService from '../services/bookCommentService';
 import { confirm } from './shared/ConfirmDialog';
@@ -13,6 +13,10 @@ import { confirm } from './shared/ConfirmDialog';
 vi.mock('../services/scorePiecesService', async importOriginal => ({
   ...(await importOriginal<typeof import('../services/scorePiecesService')>()),
   default: { pieces: vi.fn(), addPieces: vi.fn(), removePiece: vi.fn(), keepParts: vi.fn(), choose: vi.fn(), suggestions: vi.fn(), search: vi.fn(), contentsPhoto: vi.fn(), imslpPage: vi.fn(), henle: vi.fn(), lookup: vi.fn(), create: vi.fn() },
+}));
+vi.mock('../services/bookSectionsService', async importOriginal => ({
+  ...(await importOriginal<typeof import('../services/bookSectionsService')>()),
+  default: { files: vi.fn(), changeFile: vi.fn(), removeFile: vi.fn() },
 }));
 vi.mock('../utils/playAlbum', () => ({ loadPlayable: vi.fn() }));
 vi.mock('../services/bookService', () => ({ default: { getImageUrl: (p: string | null) => p, getBookById: vi.fn(), updateBook: vi.fn(), deleteBook: vi.fn() } }));
@@ -60,6 +64,52 @@ beforeEach(() => {
   vi.mocked(bookService.deleteBook).mockReset().mockResolvedValue({});
   vi.mocked(bookCommentService.getCommentsByBookId).mockReset().mockResolvedValue([{ id: 1, name: 'Renault', comment: 'Voiles d’abord', date: '2025-12-02' }]);
   vi.mocked(bookCommentService.createComment).mockReset().mockResolvedValue({});
+});
+
+const pdf = (id: number, label: string, isDefault = false): ScoreFile => ({ id, bookId: 219, filename: `score_219_${id}.pdf`, label, source: 'upload', isDefault, size: 2.5 * 1024 * 1024, createdAt: '2026-10-31' });
+
+describe('ScoreCard, ses PDF', () => {
+  it('en montre plusieurs : le premier sous PDF, les autres sous ▾, chacun renommé, choisi ou effacé', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const durand = pdf(1, 'IMSLP Durand 1910', true);
+    const henle = pdf(2, 'Mon Henle annoté');
+    vi.mocked(bookSectionsService.files).mockReset().mockResolvedValue([durand, henle]);
+    vi.mocked(bookSectionsService.changeFile).mockReset().mockResolvedValue([{ ...henle, label: 'Mon exemplaire', isDefault: true }, { ...durand, isDefault: false }]);
+    vi.mocked(bookSectionsService.removeFile).mockReset().mockResolvedValue([{ ...durand, isDefault: true }]);
+    vi.mocked(confirm).mockResolvedValue(true);
+    const onChanged = vi.fn();
+    card({ score: { ...score, ebookFile: durand.filename, fileCount: 2 }, onChanged });
+
+    const list = (await screen.findByRole('heading', { name: 'Its PDFs' })).closest('section') as HTMLElement;
+    expect(within(list).getByText('Opens first')).toBeInTheDocument();
+    expect(within(list).getAllByText('2.5 MB')).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Its other PDFs' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Mon Henle annoté/ }));
+    expect(open).toHaveBeenCalledWith('/api/scores/219/files/2/pdf', '_blank', 'noopener');
+
+    fireEvent.click(within(list).getByRole('button', { name: 'More for Mon Henle annoté' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+    const name = within(list).getByRole('textbox', { name: 'Its name' });
+    fireEvent.change(name, { target: { value: 'Mon exemplaire' } });
+    fireEvent.keyDown(name, { key: 'Enter' });
+    await waitFor(() => expect(bookSectionsService.changeFile).toHaveBeenCalledWith(219, 2, { label: 'Mon exemplaire' }));
+    expect(await within(list).findByText('Mon exemplaire')).toBeInTheDocument();
+    expect(onChanged).toHaveBeenCalled();
+
+    fireEvent.click(within(list).getByRole('button', { name: 'More for IMSLP Durand 1910' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete the PDF' }));
+    await waitFor(() => expect(bookSectionsService.removeFile).toHaveBeenCalledWith(219, 1));
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }));
+  });
+
+  it('ne demande rien quand la partition n’a pas de PDF', async () => {
+    vi.mocked(bookSectionsService.files).mockReset();
+    card();
+    await screen.findByText('Voiles');
+    expect(bookSectionsService.files).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'Its PDFs' })).not.toBeInTheDocument();
+  });
 });
 
 describe('ScoreCard', () => {

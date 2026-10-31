@@ -76,8 +76,8 @@ const ScoresPage: React.FC<{ searchCriteria?: { searchText?: string } }> = ({ se
   const attach = async (file: File | undefined) => {
     if (!file || !attaching) return;
     try {
-      await bookService.uploadEbook(attaching.id, file);
-      toast(`The PDF of ${attaching.title} is attached`, { tone: 'success' });
+      const files = await bookSectionsService.addFile(attaching.id, file);
+      toast(files.length > 1 ? `A PDF is added to ${attaching.title}` : `The PDF of ${attaching.title} is attached`, { tone: 'success' });
       load();
     } catch (e) {
       toast((e as Error).message, { tone: 'danger' });
@@ -136,7 +136,7 @@ const ScoresPage: React.FC<{ searchCriteria?: { searchText?: string } }> = ({ se
                           {narrow && <Menu.Item icon={<BsBoxArrowUpRight />} onSelect={() => window.open(imslpUrl(score), '_blank', 'noopener')}>On IMSLP</Menu.Item>}
                           {narrow && <Menu.Separator />}
                           <Menu.Item onSelect={() => setComposerOf(score)}>Change the composer</Menu.Item>
-                          {score.ebookFile && <Menu.Item onSelect={() => { setAttaching(score); fileRef.current?.click(); }}>Replace the PDF</Menu.Item>}
+                          {score.ebookFile && <Menu.Item onSelect={() => { setAttaching(score); fileRef.current?.click(); }}>Add a PDF</Menu.Item>}
                         </Menu>
                       </span>
                     </div>

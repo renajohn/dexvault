@@ -19,7 +19,22 @@ export interface Score {
   /** Its pieces, and how many of them the music plays. */
   pieceCount?: number;
   heardCount?: number;
+  /** Its PDFs; ebookFile is the one that opens first. */
+  fileCount?: number;
   [key: string]: unknown;
+}
+
+/** One of a score's PDFs: IMSLP's scan, one's own copy… */
+export interface ScoreFile {
+  id: number;
+  bookId: number;
+  filename: string;
+  label: string;
+  source: 'upload' | 'imslp' | 'scan';
+  /** The one that opens first. */
+  isDefault: boolean;
+  size: number | null;
+  createdAt: string;
 }
 
 export interface ReadingEntry {
@@ -60,6 +75,14 @@ const send = <T>(method: string, url: string, body: unknown) =>
 const bookSectionsService = {
   scores: () => fetch('/api/scores').then(response => json<Score[]>(response)),
   setComposers: (updates: Array<{ id: number; composer: string | null }>) => send<{ changed: number }>('PUT', '/api/scores/composers', { updates }),
+  files: (scoreId: number) => fetch(`/api/scores/${scoreId}/files`).then(response => json<ScoreFile[]>(response)),
+  addFile: (scoreId: number, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetch(`/api/scores/${scoreId}/files`, { method: 'POST', body: form }).then(response => json<ScoreFile[]>(response));
+  },
+  changeFile: (scoreId: number, fileId: number, changes: { label?: string; isDefault?: true }) => send<ScoreFile[]>('PUT', `/api/scores/${scoreId}/files/${fileId}`, changes),
+  removeFile: (scoreId: number, fileId: number) => fetch(`/api/scores/${scoreId}/files/${fileId}`, { method: 'DELETE' }).then(response => json<ScoreFile[]>(response)),
   reading: () => fetch('/api/books/reading').then(response => json<ReadingEntry[]>(response)),
   readingsOf: (bookId: number) => fetch(`/api/books/${bookId}/readings`).then(response => json<BookReading[]>(response)),
   addReading: (bookId: number, date: string) => send<BookReading>('POST', `/api/books/${bookId}/readings`, { date }),
@@ -78,6 +101,9 @@ const bookSectionsService = {
 
 /** A score's PDF, opened in the browser. */
 export const scorePdfUrl = (id: number) => `/api/books/${id}/ebook/download?inline=1`;
+
+/** One of its PDFs, opened in the browser. */
+export const scoreFileUrl = (scoreId: number, fileId: number) => `/api/scores/${scoreId}/files/${fileId}/pdf`;
 
 /** IMSLP: the page DexVault knows, else its search for the composer and the piece. */
 export const imslpUrl = (score: Pick<Score, 'title' | 'composer' | 'urls'>) =>
