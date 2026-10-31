@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DexVault — un livre sur l'iPhone (prototype)</title>
+<style>
+  .proto {
+    --dv-gold: #fbbf24; --dv-gold-ink: #111; --dv-danger: #f87171; --dv-orange: #f59e0b;
+    --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-page: #1a1a1a; --dv-glass: rgba(255,255,255,.06); --dv-glass-hover: rgba(255,255,255,.11);
+    --dv-edge: rgba(255,255,255,.12); --dv-radius-sm: 7px; --dv-radius-md: 9px;
+    color-scheme: dark; background: #0e0e0e; color: var(--dv-text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px; border-radius: 12px;
+  }
+  .proto * { box-sizing: border-box; } .proto button { font: inherit; color: inherit; } .proto [hidden] { display: none !important; }
+  .wrap { display: grid; grid-template-columns: 393px 1fr; gap: 32px; align-items: start; }
+  .note { color: var(--dv-text-muted); } .note h1 { color: var(--dv-text); font-size: 19px; margin: 0 0 6px; }
+  .note h2 { color: var(--dv-text); font-size: 14.5px; margin: 16px 0 4px; } .note ul { padding-left: 18px; margin: 4px 0; } .note li { margin: 3px 0; } .note b { color: var(--dv-text); }
+  .scen { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--dv-radius-md); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); margin: 6px 0; }
+  .scen button { all: unset; cursor: pointer; padding: 5px 11px; border-radius: var(--dv-radius-sm); font-weight: 600; font-size: 13px; color: var(--dv-text-muted); }
+  .scen button.on { background: var(--dv-glass-hover); color: var(--dv-text); }
+
+  .phone { position: relative; width: 393px; height: 852px; border-radius: 54px; overflow: hidden; background: var(--dv-page); box-shadow: 0 0 0 10px #232323, 0 0 0 11px #3a3a3a, 0 30px 80px rgba(0,0,0,.6); }
+  .status { position: absolute; inset: 0 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; font-weight: 600; font-size: 16px; z-index: 40; }
+  .island { position: absolute; left: 50%; top: 11px; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 41; }
+  .home { position: absolute; left: 50%; bottom: 8px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.7); z-index: 41; }
+  .bd { position: absolute; inset: 0; overflow: hidden; }
+  .bd .cv { position: absolute; left: -20%; top: -20%; width: 140%; height: 140%; filter: blur(42px) saturate(1.3); opacity: .5; }
+  .bd::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(26,26,26,.3), rgba(26,26,26,.9) 60%); }
+  .inner { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 56px 18px 0; }
+  .handle { align-self: center; width: 80px; height: 20px; display: grid; place-items: center; flex: none; } .handle span { width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); }
+  .cv { background: linear-gradient(170deg, #f3c74f 0%, #e07a2a 40%, #7d2a17 75%, #2b0f0a 100%); }
+  .cv.b2 { background: linear-gradient(170deg, #8fb6c9, #3f6d86 45%, #13283a); }
+  .cv.b3 { background: linear-gradient(170deg, #c9e3f0, #f0a35b 50%, #e2493a); }
+  .cv.b4 { background: linear-gradient(170deg, #d9d2c0, #8b7d63 50%, #2a251c); }
+  .head { flex: none; display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; min-height: 69px; }
+  .thumb { flex: none; width: 46px; height: 69px; border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+  .on-book .thumb { display: none; }
+  .words { flex: 1; min-width: 0; line-height: 1.3; }
+  .words .t { font-size: 17px; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .words .a { font-size: 13.5px; color: var(--dv-text-muted); } .words .f { font-size: 12.5px; color: var(--dv-text-faint); }
+  .ib { all: unset; cursor: pointer; width: 36px; height: 36px; display: grid; place-items: center; font-size: 20px; flex: none; }
+  .seg { flex: none; display: flex; padding: 3px; border-radius: var(--dv-radius-md); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .seg button { all: unset; cursor: pointer; flex: 1; text-align: center; padding: 5px 0; border-radius: var(--dv-radius-sm); font-weight: 600; font-size: 13.5px; color: var(--dv-text-muted); }
+  .seg button.on { background: var(--dv-glass-hover); color: var(--dv-text); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .seg .n { font-weight: 500; color: var(--dv-text-faint); margin-left: 4px; font-size: 12px; }
+  .zone { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -18px; padding: 14px 18px 50px; scrollbar-width: none; } .zone::-webkit-scrollbar { display: none; }
+
+  .big { position: relative; width: 210px; aspect-ratio: 2/3; margin: 2px auto 0; border-radius: 4px 8px 8px 4px; box-shadow: 0 14px 40px rgba(0,0,0,.55); overflow: hidden; }
+  .big .ttl { position: absolute; left: 14px; right: 14px; top: 30%; font: 700 24px/1.1 Georgia, serif; color: #1c0d08; }
+  .big .au { position: absolute; left: 14px; bottom: 16px; font: 600 12px/1 -apple-system, sans-serif; letter-spacing: .15em; text-transform: uppercase; color: #f6e2c8; }
+  .tags { position: absolute; left: 8px; top: 8px; display: flex; flex-direction: column; gap: 4px; min-width: 38px; }
+  .tag { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 6px; border-radius: 3px; background: rgba(0,0,0,.68); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); text-align: center; color: #fff; }
+  .tag.alert { color: var(--dv-danger); }
+  .cbtn { position: absolute; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.68); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); font-size: 15px; color: #fff; }
+  .cbtn.br { right: 8px; bottom: 8px; }
+
+  .stars { display: flex; justify-content: center; gap: 4px; color: var(--dv-gold); font-size: 22px; margin: 14px 0 2px; } .stars .off { color: rgba(255,255,255,.22); }
+  .read { display: flex; align-items: center; justify-content: space-between; min-height: 30px; font-size: 13px; color: var(--dv-text-faint); }
+  .btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: var(--dv-radius-sm); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); font-weight: 600; font-size: 13.5px; }
+  .btn.sm { height: 28px; padding: 0 10px; font-size: 12.5px; } .btn.quiet { background: none; box-shadow: none; color: var(--dv-text-muted); padding: 0 6px; } .btn.danger { color: var(--dv-danger); }
+  .sec { padding: 12px 2px; border-top: 1px solid rgba(255,255,255,.08); }
+  .sec h5 { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--dv-text-faint); display: flex; justify-content: space-between; }
+  .sec h5 span { letter-spacing: 0; text-transform: none; font-weight: 400; }
+  .muted { color: var(--dv-text-muted); } .faint { color: var(--dv-text-faint); }
+  .desc { line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+  .review { padding: 8px 0; } .review + .review { border-top: 1px solid rgba(255,255,255,.06); }
+  .review .who { font-size: 12.5px; color: var(--dv-text-faint); margin-bottom: 3px; } .review .who b { color: var(--dv-text); }
+  .review p { margin: 0; white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .write { padding: 10px 12px; border-radius: var(--dv-radius-sm); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); color: var(--dv-text-faint); margin-top: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; } .chip { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .chip.gold { color: var(--dv-gold); box-shadow: inset 0 0 0 1px rgba(251,191,36,.45); }
+  dl.facts { margin: 0; display: grid; grid-template-columns: 96px 1fr; gap: 6px 12px; } dl.facts dt { color: var(--dv-text-faint); } dl.facts dd { margin: 0; min-width: 0; }
+  dl.facts dd.edit::after { content: "  ✎"; color: var(--dv-text-faint); font-size: 11px; }
+  code { font: 12.5px ui-monospace, Menlo, monospace; color: var(--dv-text-muted); }
+  .row { display: flex; gap: 10px; overflow-x: auto; margin: 0 -20px; padding: 2px 20px 4px; scrollbar-width: none; } .row::-webkit-scrollbar { display: none; }
+  .mini { flex: none; width: 92px; } .mini .pp { width: 92px; height: 138px; border-radius: 3px 6px 6px 3px; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+  .mini.here .pp { box-shadow: 0 0 0 2px var(--dv-gold), 0 4px 12px rgba(0,0,0,.4); } .mini.missing .pp { opacity: .4; outline: 1px dashed rgba(255,255,255,.3); outline-offset: -1px; }
+  .mini .pp .tag { position: absolute; left: 5px; top: 5px; }
+  .mini .cap { font-size: 12px; margin-top: 5px; line-height: 1.25; } .mini .cap span { color: var(--dv-text-faint); display: block; font-size: 11px; }
+  .acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; } .grow { flex: 1; }
+  .manage { display: flex; gap: 8px; padding: 14px 2px 0; border-top: 1px solid rgba(255,255,255,.08); }
+  .lent { color: var(--dv-danger); }
+</style>
+</head>
+<body style="margin:0">
+<div class="proto">
+<div class="wrap">
+  <div class="phone on-book" id="phone">
+    <div class="island"></div><div class="status"><span>21:14</span><span>100 %</span></div>
+    <div class="bd"><div class="cv" id="bdcv"></div></div>
+    <div class="inner">
+      <div class="handle"><span></span></div>
+      <div class="head">
+        <div class="thumb cv" id="thumb"></div>
+        <div class="words">
+          <div class="t" id="h-t">Parable of the Sower</div>
+          <div class="a" id="h-a">Octavia E. Butler</div>
+          <div class="f" id="h-f">2014 · 300 pages · English</div>
+        </div>
+        <button class="ib">⋯</button>
+      </div>
+      <div class="seg" id="seg">
+        <button data-t="book" class="on">Book</button>
+        <button data-t="series" id="t-series">Series<span class="n">2</span></button>
+        <button data-t="copy" id="t-copy">Borrowed</button>
+      </div>
+
+      <!-- ===== BOOK ===== -->
+      <div class="zone" data-p="book">
+        <div class="big cv" id="bigcv">
+          <div class="tags" id="covertags"><span class="tag">#1</span><span class="tag alert">Borrowed</span></div>
+          <div class="ttl" id="cv-t">Parable of the Sower</div><div class="au" id="cv-a">Octavia E. Butler</div>
+        </div>
+        <div class="stars" title="Your stars: touch and hold, then up or down"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+        <div class="read">
+          <span id="readline">Read on 7 February 2025</span>
+          <button class="btn sm quiet">↻ Read again</button>
+        </div>
+
+        <div class="sec">
+          <h5>About</h5>
+          <div class="desc" id="desc">The extraordinary, prescient New York Times bestseller — a modern classic about a young girl fighting for survival in a post-apocalyptic world.
+
+We are coming apart. We're a rope, breaking, a single strand at a time.
+
+America is a place of chaos, where violence rules and only the rich and powerful are safe. Lauren Olamina, a young woman with the extraordinary power to feel the pain of others as her own, records everything she sees of this broken world in her journal.</div>
+          <button class="btn sm quiet" style="margin-top:4px">More</button>
+        </div>
+
+        <div class="sec">
+          <h5>Reviews <span id="rev-n"></span></h5>
+          <div id="reviews"></div>
+          <div class="write">Write a review…</div>
+        </div>
+
+        <div class="sec">
+          <h5>Genres</h5>
+          <div class="chips" id="genres"><span class="chip">Literary</span><span class="chip">Dystopian</span><span class="chip">Classics</span></div>
+        </div>
+
+        <div class="sec">
+          <h5>The book</h5>
+          <dl class="facts" id="facts">
+            <dt>Publisher</dt><dd>Hachette UK, 2014</dd>
+            <dt>Pages</dt><dd>300</dd>
+            <dt>Language</dt><dd>English</dd>
+            <dt>Kind</dt><dd class="edit">book</dd>
+            <dt>ISBN</dt><dd><code>978-1-4722-1477-5</code></dd>
+          </dl>
+        </div>
+
+        <div class="sec">
+          <h5>Links</h5>
+          <div class="chips"><span class="btn sm">Google Books ↗</span><span class="btn sm">Open Library ↗</span></div>
+        </div>
+      </div>
+
+      <!-- ===== SERIES ===== -->
+      <div class="zone" data-p="series" hidden>
+        <div id="series-yes">
+          <div class="sec" style="border-top:0;padding-top:0">
+            <h5>Earthseed <span>2 of 2 owned</span></h5>
+            <div class="row">
+              <div class="mini here"><div class="pp cv"><span class="tag">#1</span></div><div class="cap">Parable of the Sower<span>this book · read</span></div></div>
+              <div class="mini"><div class="pp cv b2"><span class="tag">#2</span></div><div class="cap">Parable of the Talents<span>read · ★ 4.5</span></div></div>
+            </div>
+            <div class="acts"><button class="btn sm">+ Next volume (#3)</button><button class="btn sm quiet">Change the series…</button></div>
+          </div>
+          <div class="sec">
+            <h5>Notes on the series</h5>
+            <div class="write">Write a note on Earthseed…</div>
+          </div>
+        </div>
+        <div id="series-no" hidden>
+          <div class="sec" style="border-top:0;padding-top:0">
+            <h5>Series</h5>
+            <div class="muted">Not in a series.</div>
+            <div class="acts"><button class="btn sm">Put it in a series…</button></div>
+          </div>
+        </div>
+        <div class="sec">
+          <h5>By Octavia E. Butler <span>2 books</span></h5>
+          <div class="row">
+            <div class="mini here"><div class="pp cv"></div><div class="cap">Parable of the Sower<span>2014</span></div></div>
+            <div class="mini"><div class="pp cv b2"></div><div class="cap">Parable of the Talents<span>2000</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== COPY ===== -->
+      <div class="zone" data-p="copy" hidden>
+        <div class="sec" style="border-top:0;padding-top:0">
+          <h5>The copy</h5>
+          <dl class="facts" id="copyfacts">
+            <dt>Status</dt><dd class="edit lent">Borrowed</dd>
+            <dt>Whose</dt><dd class="edit faint">Whose is it?</dd>
+            <dt>Format</dt><dd class="edit">physical</dd>
+            <dt>Bought</dt><dd class="edit faint">—</dd>
+            <dt>Price</dt><dd class="edit faint">—</dd>
+          </dl>
+        </div>
+        <div class="sec" id="lentsec">
+          <h5>Borrowed</h5>
+          <dl class="facts"><dt>On</dt><dd class="edit">3 February 2025</dd><dt>Back</dt><dd class="edit faint">—</dd><dt>Notes</dt><dd class="edit">from the library</dd></dl>
+        </div>
+        <div class="sec">
+          <h5>Readings <span id="readings-n">1</span></h5>
+          <dl class="facts" id="readings"><dt>7 Feb 2025</dt><dd class="muted">first reading</dd></dl>
+        </div>
+        <div class="sec">
+          <h5>Notes</h5>
+          <div class="write">Write a note…</div>
+        </div>
+        <div class="sec">
+          <h5>In DexVault</h5>
+          <div class="muted" style="font-size:13px">added 6 November 2025 · Copy ref.</div>
+        </div>
+        <div class="manage"><button class="btn grow">✎ Edit…</button><button class="btn danger">Delete</button></div>
+      </div>
+    </div>
+    <div class="home"></div>
+  </div>
+
+  <div class="note">
+    <h1>Un livre sur l'iPhone</h1>
+    <p>Le même plein écran que les films : fond tiré de la couverture (les livres n'ont pas d'image de scène, donc la couverture floutée, comme un album), poignée, tête qui reste (titre sur deux lignes, auteur, année · pages · langue, ⋯), puis trois onglets.</p>
+    <div class="scen" id="scen"><button class="on" data-s="sower">Emprunté, en série</button><button data-s="chem">Possédé, sans série</button></div>
+
+    <h2>Book : ce qu'on lit</h2>
+    <ul>
+      <li><b>La couverture en grand</b>, ses étiquettes aux places de la grille : n° du tome et Borrowed en haut à gauche, le bouton e-book en bas à droite quand il y a un fichier.</li>
+      <li><b>Les étoiles</b> dessous (le cadran au doigt, comme aujourd'hui), puis <b>« Read on … · Read again »</b>.</li>
+      <li>Le résumé replié, <b>les critiques</b> (Reviews) et « Write a review… », les genres en pastilles de recherche, la fiche du livre (éditeur, pages, langue, type modifiable, ISBN), les liens.</li>
+    </ul>
+    <h2>Series</h2>
+    <ul>
+      <li>La rangée des tomes, ouverte sur celui-ci (cerclé d'or), un tome manquant en grisé ; <b>+ Next volume</b>, changer de série.</li>
+      <li>Les notes sur la série. Un livre seul : « Put it in a series… ».</li>
+      <li>En dessous, les autres livres du même auteur (à confirmer).</li>
+    </ul>
+    <h2>Owned / Borrowed / Wished : l'exemplaire</h2>
+    <ul>
+      <li>Statut, à qui il est, format, date d'achat et prix, chacun modifiable en place.</li>
+      <li>L'emprunt : le jour, le retour, la note (ce que la fiche montre aujourd'hui dans « More »).</li>
+      <li>Les lectures, une ligne par lecture ; les notes ; Edit… et Delete.</li>
+    </ul>
+    <h2>À trancher</h2>
+    <ul>
+      <li>Pas de code d'étagère pour les livres : la tête n'a que ⋯. Y mettre plutôt <b>à qui il est</b> (pastille) ?</li>
+      <li>Les critiques dans Book, ou un onglet à elles ?</li>
+      <li>La rangée « du même auteur » : utile ou bruit ?</li>
+    </ul>
+  </div>
+</div>
+</div>
+<script>
+  const proto = document.querySelector('.proto');
+  proto.querySelectorAll('#seg button').forEach(b => b.onclick = () => {
+    proto.querySelectorAll('#seg button').forEach(x => x.classList.toggle('on', x === b));
+    proto.querySelectorAll('.zone').forEach(z => z.hidden = z.dataset.p !== b.dataset.t);
+    proto.querySelector('#phone').classList.toggle('on-book', b.dataset.t === 'book');
+  });
+  const chem = { cls: 'cv b3', t: 'Lessons in Chemistry', a: 'Bonnie Garmus', f: '2022 · 400 pages · English', read: 'Read on 22 November 2025' };
+  const sower = { cls: 'cv', t: 'Parable of the Sower', a: 'Octavia E. Butler', f: '2014 · 300 pages · English', read: 'Read on 7 February 2025' };
+  proto.querySelectorAll('#scen button').forEach(b => b.onclick = () => {
+    proto.querySelectorAll('#scen button').forEach(x => x.classList.toggle('on', x === b));
+    const c = b.dataset.s === 'chem', d = c ? chem : sower;
+    ['#bdcv', '#thumb'].forEach(s => proto.querySelector(s).className = (s === '#thumb' ? 'thumb ' : '') + d.cls);
+    proto.querySelector('#bigcv').className = 'big ' + d.cls;
+    proto.querySelector('#h-t').textContent = d.t; proto.querySelector('#cv-t').textContent = d.t;
+    proto.querySelector('#h-a').textContent = d.a; proto.querySelector('#cv-a').textContent = d.a;
+    proto.querySelector('#h-f').textContent = d.f; proto.querySelector('#readline').textContent = d.read;
+    proto.querySelector('#covertags').innerHTML = c ? '' : '<span class="tag">#1</span><span class="tag alert">Borrowed</span>';
+    proto.querySelector('#t-copy').textContent = c ? 'Owned' : 'Borrowed';
+    proto.querySelector('#t-series').innerHTML = c ? 'Series' : 'Series<span class="n">2</span>';
+    proto.querySelector('#series-yes').hidden = c; proto.querySelector('#series-no').hidden = !c;
+    proto.querySelector('#lentsec').hidden = c;
+    proto.querySelector('#copyfacts').innerHTML = c
+      ? '<dt>Status</dt><dd class="edit">Owned</dd><dt>Whose</dt><dd class="edit">Renault</dd><dt>Format</dt><dd class="edit">physical</dd><dt>Bought</dt><dd class="edit faint">—</dd><dt>Price</dt><dd class="edit faint">—</dd>'
+      : '<dt>Status</dt><dd class="edit lent">Borrowed</dd><dt>Whose</dt><dd class="edit faint">Whose is it?</dd><dt>Format</dt><dd class="edit">physical</dd><dt>Bought</dt><dd class="edit faint">—</dd><dt>Price</dt><dd class="edit faint">—</dd>';
+    proto.querySelector('#readings').innerHTML = c ? '<dt>22 Nov 2025</dt><dd class="muted">first reading</dd>' : '<dt>7 Feb 2025</dt><dd class="muted">first reading</dd>';
+    proto.querySelector('#rev-n').textContent = c ? '1' : '';
+    proto.querySelector('#reviews').innerHTML = c ? '<div class="review"><div class="who"><b>Renault</b> · 22 November 2025</div><p>J\'ai mis du temps à me mettre dedans, mais la deuxième partie était à la fois drôle et captivante.\n\nJ\'ai été choqué par la manière dont les femmes étaient traitées dans les années 60. Une honte dont nous ne parlons pas assez.\n\nLa fin est tellement touchante. Magnifique livre.</p></div>' : '';
+    proto.querySelector('#genres').innerHTML = c ? '<span class="chip">Literary</span><span class="chip">Feminist</span><span class="chip">Fiction</span>' : '<span class="chip">Literary</span><span class="chip">Dystopian</span><span class="chip">Classics</span>';
+    proto.querySelector('#desc').textContent = c ? 'Chemist Elizabeth Zott is not your average woman. In fact, Elizabeth Zott would be the first to point out that there is no such thing as an average woman. But it’s the early 1960s and her all-male team at Hastings Research Institute takes a very unscientific view of equality.' : proto.querySelector('#desc').textContent;
+  });
+</script>
+</body>
+</html>

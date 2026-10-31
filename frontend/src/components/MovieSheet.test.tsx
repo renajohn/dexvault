@@ -57,11 +57,11 @@ beforeEach(() => {
 describe('MovieSheet', () => {
   it('heads every tab with the title, the director, the year, the length and the age', async () => {
     const { container } = sheet();
-    expect(container.querySelector('.movie-sheet-head__title')).toHaveTextContent('Dune part one');
+    expect(container.querySelector('.phone-sheet-head__title')).toHaveTextContent('Dune part one');
     expect(screen.getByText('Denis Villeneuve')).toBeInTheDocument();
     expect(screen.getByText('2021 · 2 h 35 · 14+')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Owned' }));
-    expect(container.querySelector('.movie-sheet-head__title')).toHaveTextContent('Dune part one');
+    expect(container.querySelector('.phone-sheet-head__title')).toHaveTextContent('Dune part one');
     await waitFor(() => expect(apiService.getMovieCast).toHaveBeenCalledWith(1));
   });
 
@@ -107,7 +107,7 @@ describe('MovieSheet', () => {
 
   it('opens on a film the page does not list, before its details are read', () => {
     const { container } = sheet({ movie: null, listMovie: undefined });
-    expect(container.querySelector('.movie-sheet')).toBeInTheDocument();
+    expect(container.querySelector('.phone-sheet')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Film' })).toBeInTheDocument();
   });
 

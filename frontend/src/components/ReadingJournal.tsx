@@ -4,6 +4,7 @@ import bookService from '../services/bookService';
 import bookCommentService from '../services/bookCommentService';
 import AddBookDialog from './AddBookDialog';
 import BookDetailCard from './BookDetailCard';
+import BookSheet from './BookSheet';
 import BookForm from './BookForm';
 import { BsPencil } from 'react-icons/bs';
 import Button, { IconButton } from './shared/Button';
@@ -14,6 +15,7 @@ import { Loading } from './shared/Spinner';
 import { TextArea, TextField } from './shared/TextField';
 import { CollectionHeader } from './shared';
 import toast from './shared/Toast';
+import { useMedia } from '../utils/useNarrow';
 import './ReadingJournal.css';
 
 const plain = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -45,6 +47,10 @@ const ReadingJournal: React.FC<ReadingJournalProps> = ({ viewSwitch, searchCrite
   const filter = (searchCriteria?.searchText || '').replace(/-?\w+:("[^"]*"|\S+)/g, ' ').replace(/\s+/g, ' ').trim();
   const [adding, setAdding] = useState(false);
   const [details, setDetails] = useState<any>(null);
+  // On a phone a book opens full screen at once (BookSheet); the card shows over it for its edit alone.
+  const phone = useMedia('(max-width: 767px)');
+  const [openedId, setOpenedId] = useState<number | null>(null);
+  const [bookView, setBookView] = useState<'edit' | 'volumes' | null>(null);
   const [editing, setEditing] = useState<any>(null);
   // Which reading one writes on: a word on an older reading stays with it.
   const [writing, setWriting] = useState<string | null>(null);
@@ -91,7 +97,8 @@ const ReadingJournal: React.FC<ReadingJournalProps> = ({ viewSwitch, searchCrite
   };
 
   const open = async (bookId: number) => {
-    try { setDetails(await bookService.getBookById(bookId)); } catch (e) { toast((e as Error).message, { tone: 'danger' }); }
+    if (phone) setOpenedId(bookId);
+    try { setDetails(await bookService.getBookById(bookId)); } catch (e) { setOpenedId(null); toast((e as Error).message, { tone: 'danger' }); }
   };
 
   const keepDate = async () => {
@@ -254,14 +261,26 @@ const ReadingJournal: React.FC<ReadingJournalProps> = ({ viewSwitch, searchCrite
         onBookAdded={() => load()}
         onShowAlert={(message: string) => toast(message)}
       />
-      {details && (
+      {phone && openedId != null && (
+        <BookSheet
+          bookId={openedId}
+          book={details?.id === openedId ? details : null}
+          onClose={() => { setOpenedId(null); setBookView(null); setDetails(null); }}
+          onUpdated={book => { setDetails(book); load(); }}
+          onDelete={async id => { await bookService.deleteBook(id); load(); }}
+          onBookClick={open}
+          onOpenView={view => { if (view === 'edit') setBookView(view); }}
+        />
+      )}
+      {details && (!phone || bookView) && (
         <BookDetailCard
           book={details}
-          onClose={() => setDetails(null)}
+          only={phone ? bookView ?? undefined : undefined}
+          onClose={() => { if (phone) setBookView(null); else setDetails(null); }}
           onEdit={() => { setEditing(details); setDetails(null); }}
           onUpdateBook={(id, data) => bookService.updateBook(id, data)}
-          onBookUpdated={() => load()}
-          onDelete={async id => { await bookService.deleteBook(id); setDetails(null); load(); }}
+          onBookUpdated={async () => { load(); if (phone && details) setDetails(await bookService.getBookById(details.id)); }}
+          onDelete={async id => { await bookService.deleteBook(id); setDetails(null); setOpenedId(null); load(); }}
         />
       )}
       {editing && (

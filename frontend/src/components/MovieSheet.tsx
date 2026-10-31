@@ -17,6 +17,7 @@ import Select from './shared/Select';
 import { TextArea, TextField } from './shared/TextField';
 import { confirm } from './shared/ConfirmDialog';
 import toast from './shared/Toast';
+import PhoneSheet, { Fact, SheetRow, daysAgo, francs, isoDate, longDate, today, usePhoneSheet } from './PhoneSheet';
 import './MovieSheet.css';
 
 // As the API gives it: getMovieById's details, the grid's movie for the poster's tags.
@@ -54,28 +55,6 @@ interface MovieSheetProps {
   onMovieClick?: (movieId: number) => void;
 }
 
-const DRAG_FROM_PX = 8;
-const SWIPE_CLOSE_PX = 120;
-const SLIDE_MS = 320;
-
-/** A day as a date field holds it, YYYY-MM-DD, in the owner's time: toISOString's UTC made it the day before. */
-const dayOf = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const today = () => dayOf(new Date());
-const daysAgo = (days: number) => { const date = new Date(); date.setDate(date.getDate() - days); return dayOf(date); };
-
-const longDate = (value: string | null | undefined) => {
-  if (!value) return null;
-  const date = new Date(value);
-  return isNaN(date.getTime()) ? null : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-};
-
-const isoDate = (value: string | null | undefined) => {
-  if (!value) return '';
-  const date = new Date(value);
-  return isNaN(date.getTime()) ? '' : dayOf(date);
-};
-
 const runtimeLabel = (minutes?: number) => {
   if (!minutes) return null;
   const hours = Math.floor(minutes / 60);
@@ -86,13 +65,6 @@ const runtimeLabel = (minutes?: number) => {
 const dollars = (amount?: number) => amount
   ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 0 }).format(amount)
   : null;
-
-const francs = (price?: number | string | null) => {
-  const value = Number(price);
-  return price != null && price !== '' && !isNaN(value) && value > 0
-    ? new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF', minimumFractionDigits: 2 }).format(value)
-    : null;
-};
 
 const genresOf = (genres: Movie['genre']): string[] => {
   if (!genres) return [];
@@ -129,44 +101,10 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
   const [tab, setTab] = useState<Tab>('film');
   useEffect(() => { setTab('film'); }, [id]);
 
-  // In from the foot as it opens, back down as it goes.
-  const [open, setOpen] = useState(false);
-  const closing = useRef<number | null>(null);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setOpen(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  const close = () => {
-    if (closing.current != null) return;
-    setOpen(false);
-    closing.current = window.setTimeout(() => { closing.current = null; onClose(); }, SLIDE_MS);
-  };
-  // Another film touched while it slides away: it stays, on that film.
-  useEffect(() => {
-    if (closing.current == null) return;
-    window.clearTimeout(closing.current);
-    closing.current = null;
-    setOpen(true);
-  }, [id]);
-  useEffect(() => () => { if (closing.current != null) window.clearTimeout(closing.current); }, []);
-  const leaveFor = (then: () => void) => { close(); then(); };
-
-  const sheetRef = useRef<HTMLDivElement>(null);
-  usePullToClose(sheetRef, close);
-  // Escape cancels an edit, then leaves a field, then closes.
   const editingRef = useRef<string | null>(null);
-  useEffect(() => {
-    sheetRef.current?.focus({ preventScroll: true });
-    const key = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('.modal.show, .menu-surface')) return;
-      const field = event.target instanceof HTMLElement && event.target.closest('input, textarea, select, .menu-select');
-      if (editingRef.current) setEditing(null);
-      else if (field) (document.activeElement as HTMLElement | null)?.blur();
-      else close();
-    };
-    document.addEventListener('keydown', key);
-    return () => document.removeEventListener('keydown', key);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Escape cancels an edit before it closes.
+  const sheet = usePhoneSheet(id, onClose, () => { if (!editingRef.current) return false; setEditing(null); return true; });
+  const { close, leaveFor } = sheet;
 
   // The cast, and the collections with their films.
   const [cast, setCast] = useState<CastMember[]>([]);
@@ -310,7 +248,7 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); }
   };
   const editActions = (
-    <span className="movie-sheet-edit__actions">
+    <span className="phone-sheet-edit__actions">
       <IconButton label="Save" tone="confirm" size="sm" onClick={save} disabled={saving}><BsCheck2 /></IconButton>
       <IconButton label="Cancel" size="sm" onClick={() => setEditing(null)}><BsX /></IconButton>
     </span>
@@ -356,24 +294,24 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
   const collectionCount = shownCollections.length + (inWatchNext ? 1 : 0);
 
   const thumbnail = (
-    <MovieThumbnail imdbLink={imdbLink} title={movie.title} year={year} className="movie-sheet-thumb" disableZoom posterPath={movie.poster_path} recommendedAge={null} />
+    <MovieThumbnail imdbLink={imdbLink} title={movie.title} year={year} className="phone-sheet-thumb" disableZoom posterPath={movie.poster_path} recommendedAge={null} />
   );
 
   const head = (
-    <div className="movie-sheet-head">
-      {tab !== 'film' && <button type="button" className="movie-sheet-head__thumb" onClick={() => setTab('film')} aria-label="Back to the film">{thumbnail}</button>}
-      <div className="movie-sheet-head__words">
-        <span className="movie-sheet-head__title" title={movie.title}>{movie.title}</span>
+    <div className="phone-sheet-head">
+      {tab !== 'film' && <button type="button" className="phone-sheet-head__thumb" onClick={() => setTab('film')} aria-label="Back to the film">{thumbnail}</button>}
+      <div className="phone-sheet-head__words">
+        <span className="phone-sheet-head__title" title={movie.title}>{movie.title}</span>
         {director && (
-          <button type="button" className="movie-sheet-head__director" disabled={!search} onClick={() => search?.(`director:"${director}"`)}>{director}</button>
+          <button type="button" className="phone-sheet-head__by" disabled={!search} onClick={() => search?.(`director:"${director}"`)}>{director}</button>
         )}
-        <span className="movie-sheet-head__facts">
+        <span className="phone-sheet-head__facts">
           {[year, runtimeLabel(movie.runtime), age != null ? `${age}+` : null].filter(Boolean).join(' · ')}
         </span>
       </div>
-      {!wished && <ShelfCode kind="movie" id={id} variant="inline" className="movie-sheet-head__shelf" onOpen={close} />}
+      {!wished && <ShelfCode kind="movie" id={id} variant="inline" className="phone-sheet-head__aside" onOpen={close} />}
       <Menu drop="down" align="end" label="More" trigger={props => (
-        <button type="button" {...props} className="movie-sheet-head__more" aria-label="More"><BsThreeDots aria-hidden="true" /></button>
+        <button type="button" {...props} className="phone-sheet-head__more" aria-label="More"><BsThreeDots aria-hidden="true" /></button>
       )}>
         <Menu.Item icon={<BsCopy />} onSelect={() => {
           (navigator.clipboard?.writeText(movie.title ?? '') ?? Promise.reject(new Error('No clipboard')))
@@ -390,7 +328,7 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
   );
 
   const film = (
-    <div className="movie-sheet-scroll" key="film">
+    <div className="phone-sheet-scroll" key="film">
       {/* The poster as the grid shows it: its tags down the left, spiders and snakes among them, Watch Next's star top right. */}
       <div className="movie-sheet-poster">
         <MovieCover movie={movie}>
@@ -410,7 +348,7 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
             <Menu.Item onSelect={() => markWatched(daysAgo(1), true)}>Yesterday</Menu.Item>
             <Menu.Item onSelect={() => { dateInput.current?.showPicker?.(); dateInput.current?.focus(); }}>Another day…</Menu.Item>
           </Menu>
-          <input ref={dateInput} type="date" className="movie-sheet-date" max={today()} aria-label="The day it was watched"
+          <input ref={dateInput} type="date" className="phone-sheet-date" max={today()} aria-label="The day it was watched"
             onChange={event => { if (event.target.value) void markWatched(event.target.value, true); }} />
         </div>
       )}
@@ -428,13 +366,13 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
       </div>
 
       {/* The widget's own head, "Ratings" and ↻, worn as the sections' (MovieSheet.css). */}
-      <section className="movie-sheet-section movie-sheet-ratings">
+      <section className="phone-sheet-section movie-sheet-ratings">
         <CompactRatingsWidget tmdbRating={movie.tmdb_rating} imdbRating={movie.imdb_rating} rottenTomatoRating={movie.rotten_tomato_rating}
           tmdbLink={tmdbLink} imdbLink={imdbLink} rottenTomatoesLink={rtLink} onRefresh={refreshRatings} refreshing={refreshing} />
       </section>
 
       {ready && (
-        <section className="movie-sheet-section">
+        <section className="phone-sheet-section">
           <h5>For whom</h5>
           <MovieFilmages movieId={id} onChange={(data: MovieFilmagesData) => setFilmagesAge({ movieId: data.movieId, age: data.movieAge })} />
           <MovieWarnings key={warningsVersion} movieId={id} onSearch={search || undefined} />
@@ -442,17 +380,17 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
       )}
 
       {plot && (
-        <section className="movie-sheet-section">
+        <section className="phone-sheet-section">
           <h5>Overview</h5>
-          <p className={`movie-sheet-plot${plotOpen ? ' movie-sheet-plot--open' : ''}`}>{plot}</p>
-          {plot.length > 280 && <Button variant="quiet" size="sm" className="movie-sheet-more" onClick={() => setPlotOpen(!plotOpen)}>{plotOpen ? 'Less' : 'More'}</Button>}
+          <p className={`phone-sheet-text${plotOpen ? ' phone-sheet-text--open' : ''}`}>{plot}</p>
+          {plot.length > 280 && <Button variant="quiet" size="sm" className="phone-sheet-more" onClick={() => setPlotOpen(!plotOpen)}>{plotOpen ? 'Less' : 'More'}</Button>}
         </section>
       )}
 
       {cast.length > 0 && (
-        <section className="movie-sheet-section">
+        <section className="phone-sheet-section">
           <h5>Cast</h5>
-          <div className="movie-sheet-row">
+          <div className="phone-sheet-row">
             {cast.map((actor, i) => {
               const photo = actor.local_profile_path || actor.profile_path;
               return (
@@ -470,17 +408,17 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
       )}
 
       {genres.length > 0 && (
-        <section className="movie-sheet-section">
+        <section className="phone-sheet-section">
           <h5>Genres</h5>
-          <div className="movie-sheet-chips">
-            {genres.map(genre => <button key={genre} type="button" className="movie-sheet-chip" disabled={!search} onClick={() => search?.(`genre:"${genre}"`)}>{genre}</button>)}
+          <div className="phone-sheet-chips">
+            {genres.map(genre => <button key={genre} type="button" className="phone-sheet-chip" disabled={!search} onClick={() => search?.(`genre:"${genre}"`)}>{genre}</button>)}
           </div>
         </section>
       )}
 
-      <section className="movie-sheet-section">
+      <section className="phone-sheet-section">
         <h5>The film</h5>
-        <dl className="movie-sheet-facts">
+        <dl className="phone-sheet-facts">
           {movie.original_title && movie.original_title !== movie.title && <Fact label="Original title">{movie.original_title}</Fact>}
           {movie.original_language && <Fact label="Language">{getLanguageName(movie.original_language)}</Fact>}
           {movie.release_date && <Fact label="Released">{longDate(movie.release_date)}</Fact>}
@@ -490,9 +428,9 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
       </section>
 
       {(tmdbLink || imdbLink || trailer) && (
-        <section className="movie-sheet-section">
+        <section className="phone-sheet-section">
           <h5>Links</h5>
-          <div className="movie-sheet-links">
+          <div className="phone-sheet-links">
             {tmdbLink && <LinkButton size="sm" href={tmdbLink} external>TMDB <BsBoxArrowUpRight aria-hidden="true" /></LinkButton>}
             {imdbLink && <LinkButton size="sm" href={imdbLink} external>IMDB <BsBoxArrowUpRight aria-hidden="true" /></LinkButton>}
             {rtLink && <LinkButton size="sm" href={rtLink} external>Rotten Tomatoes <BsBoxArrowUpRight aria-hidden="true" /></LinkButton>}
@@ -503,8 +441,8 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
   );
 
   const collectionsTab = (
-    <div className="movie-sheet-scroll" key="collections">
-      <section className="movie-sheet-section">
+    <div className="phone-sheet-scroll" key="collections">
+      <section className="phone-sheet-section">
         <h5>Watch Next</h5>
         <div className="movie-sheet-next">
           <span className={`movie-sheet-next__star${inWatchNext ? ' movie-sheet-next__star--on' : ''}`} aria-hidden="true">{inWatchNext ? <BsStarFill /> : <BsStar />}</span>
@@ -513,9 +451,9 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
               <>
                 <strong>{ordinal(watchNextPlace + 1)} of {watchNext.length}</strong>
                 {/* The one before alone: two titles joined by "and" read as one ("Ant-Man and the Wasp"). */}
-                {watchNextPlace > 0 && <span className="movie-sheet-muted"> · after {watchNext[watchNextPlace - 1].title}</span>}
+                {watchNextPlace > 0 && <span className="phone-sheet-muted"> · after {watchNext[watchNextPlace - 1].title}</span>}
               </>
-            ) : <span className="movie-sheet-muted">Not in Watch Next</span>}
+            ) : <span className="phone-sheet-muted">Not in Watch Next</span>}
           </span>
           <Button size="sm" onClick={toggleWatchNext} loading={togglingNext}>{inWatchNext ? 'Take out' : 'Add'}</Button>
         </div>
@@ -524,32 +462,32 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
       {shownCollections.map(collection => {
         const films = members[collection.name] ?? [];
         return (
-          <section key={collection.id} className="movie-sheet-section">
-            <h5 className="movie-sheet-section__head">
+          <section key={collection.id} className="phone-sheet-section">
+            <h5 className="phone-sheet-section__head">
               <span>{collection.type === 'box_set' ? `Box set · ${collection.name}` : collection.name}</span>
-              <span className="movie-sheet-muted">{films.length} film{films.length === 1 ? '' : 's'}</span>
+              <span className="phone-sheet-muted">{films.length} film{films.length === 1 ? '' : 's'}</span>
             </h5>
-            <FilmRow>
+            <SheetRow>
               {films.map((other: Movie) => {
                 const otherYear = other.release_date ? new Date(other.release_date).getFullYear() : other.year;
                 const here = other.id === id;
                 return (
-                  <button key={other.id} type="button" title={other.title} className={`movie-sheet-mini${here ? ' movie-sheet-mini--here' : ''}`} disabled={here || !onMovieClick}
+                  <button key={other.id} type="button" title={other.title} className={`phone-sheet-mini${here ? ' phone-sheet-mini--here' : ''}`} disabled={here || !onMovieClick}
                     onClick={() => onMovieClick?.(other.id)}>
                     <MovieThumbnail imdbLink={other.imdb_id ? `https://www.imdb.com/title/${other.imdb_id}` : undefined} title={other.title} year={otherYear}
-                      className="movie-sheet-mini__poster" disableZoom posterPath={other.poster_path} recommendedAge={null} />
-                    <span className="movie-sheet-mini__title">{other.title}</span>
-                    <span className="movie-sheet-muted movie-sheet-mini__year">{here ? 'this film' : otherYear}</span>
+                      className="phone-sheet-mini__cover" disableZoom posterPath={other.poster_path} recommendedAge={null} />
+                    <span className="phone-sheet-mini__title">{other.title}</span>
+                    <span className="phone-sheet-muted phone-sheet-mini__year">{here ? 'this film' : otherYear}</span>
                   </button>
                 );
               })}
-            </FilmRow>
+            </SheetRow>
           </section>
         );
       })}
 
       {!wished && (
-        <section className="movie-sheet-section">
+        <section className="phone-sheet-section">
           <h5>Your collections</h5>
           <CollectionTagsInput value={userCollections} onChange={changeCollections} placeholder="Add to a collection…" movieId={id} />
         </section>
@@ -560,20 +498,20 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
   const fact = (field: string, label: string, shown: React.ReactNode, current: string, input: React.ReactNode) => (
     <Fact label={label}>
       {editing === field ? (
-        <span className="movie-sheet-edit">{input}{editActions}</span>
+        <span className="phone-sheet-edit">{input}{editActions}</span>
       ) : (
-        <button type="button" className="movie-sheet-editable" onClick={() => edit(field, current)}>
-          {shown ?? <span className="movie-sheet-muted">—</span>}<BsPencil aria-hidden="true" />
+        <button type="button" className="phone-sheet-editable" onClick={() => edit(field, current)}>
+          {shown ?? <span className="phone-sheet-muted">—</span>}<BsPencil aria-hidden="true" />
         </button>
       )}
     </Fact>
   );
 
   const owned = (
-    <div className="movie-sheet-scroll" key="owned">
-      <section className="movie-sheet-section">
+    <div className="phone-sheet-scroll" key="owned">
+      <section className="phone-sheet-section">
         <h5>{wished ? 'Wished' : 'The copy'}</h5>
-        <dl className="movie-sheet-facts">
+        <dl className="phone-sheet-facts">
           {fact('format', 'Format', movie.format, movie.format ?? '', (
             <Select size="sm" value={value} onChange={event => setValue(event.target.value)} autoFocus>
               <option value="">Select format</option>
@@ -600,9 +538,9 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
       </section>
 
       {!wished && (
-        <section className="movie-sheet-section">
+        <section className="phone-sheet-section">
           <h5>Watched</h5>
-          <dl className="movie-sheet-facts">
+          <dl className="phone-sheet-facts">
             <Fact label="Times">
               <span className="movie-sheet-count">
                 <IconButton label="Fewer" size="sm" boxed onClick={() => setWatchCount((movie.watch_count || 0) - 1)} disabled={!movie.watch_count}>−</IconButton>
@@ -620,29 +558,29 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
         </section>
       )}
 
-      <section className="movie-sheet-section">
+      <section className="phone-sheet-section">
         <h5>Comments</h5>
         {editing === 'comments' ? (
-          <div className="movie-sheet-comments">
+          <div className="phone-sheet-comments">
             <TextArea rows={4} value={value} onChange={event => setValue(event.target.value)} onKeyDown={keys} autoFocus />
             {editActions}
           </div>
         ) : (
-          <button type="button" className="movie-sheet-note" onClick={() => edit('comments', movie.comments ?? '')}>
-            {movie.comments || <span className="movie-sheet-muted">Write a comment…</span>}
+          <button type="button" className="phone-sheet-note" onClick={() => edit('comments', movie.comments ?? '')}>
+            {movie.comments || <span className="phone-sheet-muted">Write a comment…</span>}
           </button>
         )}
       </section>
 
-      <section className="movie-sheet-section">
+      <section className="phone-sheet-section">
         <h5>In DexVault</h5>
-        <p className="movie-sheet-muted movie-sheet-ids">
+        <p className="phone-sheet-muted movie-sheet-ids">
           {[movie.tmdb_id && `TMDB ${movie.tmdb_id}`, movie.imdb_id && `IMDB ${movie.imdb_id}`].filter(Boolean).join(' · ') || 'No TMDB or IMDB entry'}
         </p>
       </section>
 
       {onDelete && (
-        <div className="movie-sheet-manage">
+        <div className="phone-sheet-manage">
           <Button variant="danger" icon={<BsTrash />} onClick={askDelete}>Delete</Button>
         </div>
       )}
@@ -650,123 +588,17 @@ const MovieSheet: React.FC<MovieSheetProps> = ({ movieId: id, movie: details, li
   );
 
   return (
-    <div ref={sheetRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={movie.title}
-      className={`movie-sheet movie-sheet--${tab}${open ? ' movie-sheet--open' : ''}`}>
-      {/* Under it all, as the card on a computer: the film's scene, faint, fading down; or else its poster, blurred. */}
-      <div className={`movie-sheet-backdrop${scene ? ' movie-sheet-backdrop--scene' : ''}`} aria-hidden="true">
-        {scene ? <img src={scene} alt="" /> : movie.poster_path && <img src={movie.poster_path} alt="" />}
-      </div>
-      <div className="movie-sheet-inner">
-        <button type="button" className="movie-sheet-handle" onClick={close} aria-label="Close"><span /></button>
-        {head}
-        <Segmented<Tab> kind="tabs" size="sm" block label="Show" className="movie-sheet-tabs" value={tab} onChange={setTab} options={[
-          { value: 'film', label: 'Film' },
-          { value: 'collections', label: 'Collections', count: collectionCount > 0 ? collectionCount : undefined },
-          { value: 'owned', label: wished ? 'Wished' : 'Owned' },
-        ]} />
-        {tab === 'film' ? film : tab === 'collections' ? collectionsTab : owned}
-      </div>
-    </div>
+    // Under it all, as the card on a computer: the film's scene, faint, fading down; or else its poster, blurred.
+    <PhoneSheet sheet={sheet} label={movie.title} tab={tab} scene={scene} cover={movie.poster_path}>
+      {head}
+      <Segmented<Tab> kind="tabs" size="sm" block label="Show" className="phone-sheet-tabs" value={tab} onChange={setTab} options={[
+        { value: 'film', label: 'Film' },
+        { value: 'collections', label: 'Collections', count: collectionCount > 0 ? collectionCount : undefined },
+        { value: 'owned', label: wished ? 'Wished' : 'Owned' },
+      ]} />
+      {tab === 'film' ? film : tab === 'collections' ? collectionsTab : owned}
+    </PhoneSheet>
   );
-};
-
-/** A collection's films across, opened on this film's place: in the middle when it can be. */
-const FilmRow: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const row = useRef<HTMLDivElement>(null);
-  const count = React.Children.count(children);
-  useEffect(() => {
-    const here = row.current?.querySelector<HTMLElement>('.movie-sheet-mini--here');
-    if (row.current && here) row.current.scrollLeft = here.offsetLeft - (row.current.clientWidth - here.offsetWidth) / 2;
-  }, [count]);
-  return <div ref={row} className="movie-sheet-row">{children}</div>;
-};
-
-const Fact: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <>
-    <dt>{label}</dt>
-    <dd>{children}</dd>
-  </>
-);
-
-/**
- * A finger drawn down closes the sheet: anywhere off its lists, or on a list
- * at its top. The page under it never scrolls (iOS's Safari scrolls it through
- * a fixed layer unless the move is refused); a list scrolls while it has
- * somewhere to go, and a row across (the cast, a collection) slides its way.
- */
-const usePullToClose = (sheetRef: React.RefObject<HTMLDivElement | null>, close: () => void) => {
-  const closeRef = useRef(close);
-  closeRef.current = close;
-  useEffect(() => {
-    const sheet = sheetRef.current;
-    if (!sheet) return undefined;
-    let touch: { x: number; y: number; at: number; list: HTMLElement | null; mode: 'undecided' | 'pull' | 'native' } | null = null;
-    let frame = 0;
-    const place = (dy: number | null) => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        sheet.classList.toggle('movie-sheet--drag', dy != null);
-        sheet.style.transform = dy != null ? `translateY(${dy}px)` : '';
-      });
-    };
-    const begin = (event: TouchEvent) => {
-      const target = event.target instanceof Element ? event.target : null;
-      touch = event.touches.length === 1 && !target?.closest('input, textarea, .menu-surface')
-        ? { x: event.touches[0].clientX, y: event.touches[0].clientY, at: event.timeStamp, list: target?.closest<HTMLElement>('.movie-sheet-scroll') ?? null, mode: 'undecided' }
-        : null;
-    };
-    const move = (event: TouchEvent) => {
-      if (!touch) return;
-      const dy = event.touches[0].clientY - touch.y;
-      const dx = event.touches[0].clientX - touch.x;
-      const list = touch.list;
-      const atTop = !list || list.scrollTop <= 0;
-      if (touch.mode === 'undecided' && Math.max(Math.abs(dx), Math.abs(dy)) >= 3) {
-        touch.mode = dy > Math.abs(dx) && atTop ? 'pull' : 'native';
-      }
-      if (touch.mode === 'undecided') {
-        if (dy > 0 && atTop && event.cancelable) event.preventDefault();
-        return;
-      }
-      if (touch.mode === 'pull') {
-        if (event.cancelable) event.preventDefault();
-        place(dy >= DRAG_FROM_PX ? dy : null);
-        return;
-      }
-      // Across, in a row that slides: its own.
-      const target = event.target instanceof Element ? event.target : null;
-      if (Math.abs(dx) > Math.abs(dy) && target?.closest('.movie-sheet-row')) return;
-      const room = list ? list.scrollHeight - list.clientHeight : 0;
-      if (event.cancelable && (!list || room <= 1 || (dy < 0 && list.scrollTop >= room - 1))) event.preventDefault();
-    };
-    const end = (event: TouchEvent) => {
-      const from = touch;
-      touch = null;
-      if (from?.mode !== 'pull') return;
-      const dy = (event.changedTouches[0]?.clientY ?? from.y) - from.y;
-      place(null);
-      if (dy > SWIPE_CLOSE_PX || (dy > 30 && dy / Math.max(1, event.timeStamp - from.at) > 0.5)) closeRef.current();
-    };
-    const wheel = (event: WheelEvent) => {
-      const list = event.target instanceof Element ? event.target.closest<HTMLElement>('.movie-sheet-scroll') : null;
-      const room = list ? list.scrollHeight - list.clientHeight : 0;
-      const free = list != null && room > 1 && (event.deltaY < 0 ? list.scrollTop > 0 : event.deltaY > 0 ? list.scrollTop < room - 1 : true);
-      if (!free && Math.abs(event.deltaY) >= Math.abs(event.deltaX)) event.preventDefault();
-    };
-    sheet.addEventListener('touchstart', begin, { passive: true });
-    sheet.addEventListener('touchmove', move, { passive: false });
-    sheet.addEventListener('touchend', end);
-    sheet.addEventListener('touchcancel', end);
-    sheet.addEventListener('wheel', wheel, { passive: false });
-    return () => {
-      cancelAnimationFrame(frame);
-      sheet.removeEventListener('touchstart', begin);
-      sheet.removeEventListener('touchmove', move);
-      sheet.removeEventListener('touchend', end);
-      sheet.removeEventListener('touchcancel', end);
-      sheet.removeEventListener('wheel', wheel);
-    };
-  }, [sheetRef]);
 };
 
 export default MovieSheet;

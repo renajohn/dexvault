@@ -8,6 +8,7 @@ import bookService from '../services/bookService';
 import MovieThumbnail from '../components/MovieThumbnail';
 import MovieDetailCard from '../components/MovieDetailCard';
 import MovieSheet from '../components/MovieSheet';
+import BookSheet from '../components/BookSheet';
 import MusicDetailCard from '../components/MusicDetailCard';
 import { findById, useDetailSteps } from '../utils/detailSteps';
 import { albumImages, bookImages, movieImages } from '../utils/detailImages';
@@ -92,6 +93,9 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
   const [openedMovieId, setOpenedMovieId] = useState<number | null>(null);
   const [selectedAlbumDetails, setSelectedAlbumDetails] = useState<any>(null);
   const [selectedBookDetails, setSelectedBookDetails] = useState<any>(null);
+  // A wished book likewise (BookSheet), the card over it for its edit alone.
+  const [openedBookId, setOpenedBookId] = useState<number | null>(null);
+  const [bookView, setBookView] = useState<'edit' | 'volumes' | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<DeleteModalState>({ show: false, itemId: null, itemType: null });
   const [showAddMusicDialog, setShowAddMusicDialog] = useState(false);
@@ -445,6 +449,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
         setSelectedMovieDetails(null);
         setSelectedBookDetails(null);
       } else if (itemType === 'book') {
+        if (phone) setOpenedBookId(itemId);
         const bookDetails = await bookService.getBookById(itemId);
         setSelectedBookDetails(bookDetails);
         setSelectedMovieDetails(null);
@@ -453,6 +458,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
     } catch (error) {
       console.error(`Failed to load ${itemType} details:`, error);
       if (itemType === 'movie') setOpenedMovieId(null);
+      if (itemType === 'book') setOpenedBookId(null);
       setError(`Failed to load ${itemType} details: ` + (error as Error).message);
     } finally {
       setLoadingDetails(false);
@@ -474,6 +480,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
     { imagesOf: bookImages, summaryOf: id => findById(id, books) });
 
   const handleBookClick = async (bookId: number) => {
+    if (phone) setOpenedBookId(bookId);
     try {
       setLoadingDetails(true);
       const bookDetails = await bookService.getBookById(bookId);
@@ -1268,10 +1275,24 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
         />
       )}
 
-      {(selectedBookDetails && !loadingDetails) && (
+      {phone && openedBookId != null && (
+        <BookSheet
+          bookId={openedBookId}
+          book={selectedBookDetails?.id === openedBookId ? selectedBookDetails : null}
+          listBook={findById(openedBookId, books)}
+          onClose={() => { setOpenedBookId(null); setBookView(null); setSelectedBookDetails(null); }}
+          onUpdated={book => { setSelectedBookDetails(book); handleRefreshForDetailCard(); }}
+          onDelete={async (bookId: number) => { await handleDeleteItemFromDetails(bookId, 'book'); }}
+          onSearch={onSearch}
+          onBookClick={handleBookClick}
+          onOpenView={view => { if (view === 'edit') setBookView(view); }}
+        />
+      )}
+      {(selectedBookDetails && !loadingDetails && (!phone || bookView)) && (
         <BookDetailCard
           book={selectedBookDetails}
-          onClose={handleCloseDetails}
+          only={phone ? bookView ?? undefined : undefined}
+          onClose={phone ? () => setBookView(null) : handleCloseDetails}
           onEdit={() => {}}
           onDelete={() => handleDeleteItemFromDetails(selectedBookDetails.id, 'book')}
           onPrevious={bookSteps.onPrevious}

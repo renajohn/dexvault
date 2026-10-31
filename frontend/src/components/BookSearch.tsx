@@ -4,6 +4,7 @@ import bookService from '../services/bookService';
 import BookForm from './BookForm';
 import BookThumbnail from './BookThumbnail';
 import BookDetailCard from './BookDetailCard';
+import BookSheet from './BookSheet';
 import AddBookDialog from './AddBookDialog';
 import SeriesStack from './SeriesStack';
 import AlphabeticalIndex from './AlphabeticalIndex';
@@ -17,7 +18,7 @@ import { readStored, writeStored } from '../utils/safeStorage';
 import { findById, shownIds, useDetailSteps } from '../utils/detailSteps';
 import { bookImages } from '../utils/detailImages';
 import { chosenOwners, clickOwner as clickOwnerIn, isOwnerIn, withOwners } from '../utils/bookOwners';
-import useNarrow from '../utils/useNarrow';
+import useNarrow, { useMedia } from '../utils/useNarrow';
 import Button from './shared/Button';
 import Chip from './shared/Chip';
 import Menu, { MenuChevron } from './shared/Menu';
@@ -161,6 +162,11 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
   const [addingBook, setAddingBook] = useState(false);
   const [editingBook, setEditingBook] = useState<any>(null);
   const [selectedBookDetails, setSelectedBookDetails] = useState<any>(null);
+  // On a phone a book opens full screen at once (BookSheet), its details filling in as they are read;
+  // the card shows over it for its edit or its next volumes alone.
+  const phone = useMedia('(max-width: 767px)');
+  const [openedBookId, setOpenedBookId] = useState<number | null>(null);
+  const [bookView, setBookView] = useState<'edit' | 'volumes' | null>(null);
   const [bookDetailsBeforeEdit, setBookDetailsBeforeEdit] = useState<any>(null);
   const [showDeleteModal, setShowDeleteModal] = useState<DeleteModalState>({ show: false, bookId: null });
   const [templateBook, setTemplateBook] = useState<Book | null>(null);
@@ -984,12 +990,52 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
     { imagesOf: bookImages, summaryOf: id => findById(id, allBooks) });
 
   const handleBookClick = async (bookId: number | string) => {
+    if (phone) setOpenedBookId(Number(bookId));
     try {
       const details = await bookService.getBookById(bookId);
       setSelectedBookDetails(details);
     } catch (err) {
       if (onShowAlert) {
         onShowAlert('Failed to load book details: ' + (err as Error).message, 'danger');
+      }
+    }
+  };
+
+  // A book saved from its card or its full screen: the page reads its books again, and the book.
+  const handleBookUpdated = async (bookOrId: any) => {
+    try {
+      // Handle both cases: bookOrId can be a book object or just an ID
+      const bookId = typeof bookOrId === 'object' ? bookOrId?.id : bookOrId;
+      console.log('BookSearch: Refreshing book data for ID:', bookId);
+
+      // Save expanded series state before reloading
+      const currentExpanded = expandedSeries;
+      // Refresh the book list to show updated covers
+      await loadBooks();
+      // Restore expanded series state after reload
+      if (currentExpanded) {
+        setExpandedSeries(currentExpanded);
+        sessionStorage.setItem('bookSearchExpandedSeries', currentExpanded);
+      }
+
+      // Also update the detail card if it's open
+      // If we already have the full book object, use it directly; otherwise fetch
+      let updatedBook;
+      if (typeof bookOrId === 'object' && bookOrId?.id) {
+        updatedBook = bookOrId;
+      } else if (bookId) {
+        updatedBook = await bookService.getBookById(bookId);
+      }
+
+      if (updatedBook) {
+        console.log('BookSearch: Updated book data:', updatedBook);
+        console.log('BookSearch: ebookFile value:', updatedBook?.ebookFile);
+        setSelectedBookDetails(updatedBook);
+      }
+    } catch (err) {
+      console.error('Failed to reload book details after update:', err);
+      if (onShowAlert) {
+        onShowAlert('Book updated but failed to refresh details', 'warning');
       }
     }
   };
@@ -1505,10 +1551,28 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
         />
       )}
 
-      {selectedBookDetails && (
+      {phone && openedBookId != null && (
+        <BookSheet
+          bookId={openedBookId}
+          book={selectedBookDetails?.id === openedBookId ? selectedBookDetails : null}
+          listBook={findById(openedBookId, allBooks)}
+          books={allBooks}
+          onClose={() => { setOpenedBookId(null); setBookView(null); setSelectedBookDetails(null); }}
+          onUpdated={handleBookUpdated}
+          onDelete={async (bookId: number) => { await onDeleteBook(bookId); await loadBooks(); }}
+          onSearch={updateSearchViaUrl}
+          onBookClick={handleBookClick}
+          onOpenView={setBookView}
+        />
+      )}
+
+      {selectedBookDetails && (!phone || bookView) && (
         <BookDetailCard
           book={selectedBookDetails}
+          only={phone ? bookView ?? undefined : undefined}
           onClose={() => {
+            // Over a phone's full screen book, its one view done: back to the book.
+            if (phone) { setBookView(null); return; }
             // Save current expanded series before closing (use ref to get latest value)
             const currentExpanded = expandedSeriesRef.current;
             if (currentExpanded) {
@@ -1528,43 +1592,7 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
           onPrevious={bookSteps.onPrevious}
           onNext={bookSteps.onNext}
           onUpdateBook={onUpdateBook}
-          onBookUpdated={async (bookOrId: any) => {
-            try {
-              // Handle both cases: bookOrId can be a book object or just an ID
-              const bookId = typeof bookOrId === 'object' ? bookOrId?.id : bookOrId;
-              console.log('BookSearch: Refreshing book data for ID:', bookId);
-
-              // Save expanded series state before reloading
-              const currentExpanded = expandedSeries;
-              // Refresh the book list to show updated covers
-              await loadBooks();
-              // Restore expanded series state after reload
-              if (currentExpanded) {
-                setExpandedSeries(currentExpanded);
-                sessionStorage.setItem('bookSearchExpandedSeries', currentExpanded);
-              }
-
-              // Also update the detail card if it's open
-              // If we already have the full book object, use it directly; otherwise fetch
-              let updatedBook;
-              if (typeof bookOrId === 'object' && bookOrId?.id) {
-                updatedBook = bookOrId;
-              } else if (bookId) {
-                updatedBook = await bookService.getBookById(bookId);
-              }
-
-              if (updatedBook) {
-                console.log('BookSearch: Updated book data:', updatedBook);
-                console.log('BookSearch: ebookFile value:', updatedBook?.ebookFile);
-                setSelectedBookDetails(updatedBook);
-              }
-            } catch (err) {
-              console.error('Failed to reload book details after update:', err);
-              if (onShowAlert) {
-                onShowAlert('Book updated but failed to refresh details', 'warning');
-              }
-            }
-          }}
+          onBookUpdated={handleBookUpdated}
           onDelete={async () => {
             try {
               // Save expanded series state before reloading

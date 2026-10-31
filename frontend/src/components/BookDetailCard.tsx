@@ -39,6 +39,8 @@ interface BookDetailCardProps {
   /** The book before or after this one on the page; none at either end. */
   onPrevious?: (() => void) | null;
   onNext?: (() => void) | null;
+  /** One view alone, over a phone's full screen book (BookSheet): its edit or its next volumes; done, it closes. */
+  only?: 'edit' | 'volumes';
 }
 
 interface SeriesBookItemProps {
@@ -133,7 +135,7 @@ const SeriesBookItem = ({ bookItem, onBookClick, getCoverUrl, currentBookId }: S
   );
 };
 
-const BookDetailCard = ({ book, onClose, onEdit, onUpdateBook, onBookUpdated, onDelete, onSearch, onAddNextVolume, onAddBooksBatch, onAddStart, onBookAdded, onAddError, onBookClick, onPrevious, onNext }: BookDetailCardProps) => {
+const BookDetailCard = ({ book, onClose, onEdit, onUpdateBook, onBookUpdated, onDelete, onSearch, onAddNextVolume, onAddBooksBatch, onAddStart, onBookAdded, onAddError, onBookClick, onPrevious, onNext, only }: BookDetailCardProps) => {
   const [showCoverModal, setShowCoverModal] = useState(false);
   const [showMore, setShowMore] = useState(false);
   // Every reading of the book, a book read again keeping its first.
@@ -187,7 +189,9 @@ const BookDetailCard = ({ book, onClose, onEdit, onUpdateBook, onBookUpdated, on
   const editFormRef = React.useRef<HTMLDivElement>(null);
   
   // View state: 'detail', 'volumes', or 'edit'
-  const [view, setView] = useState('detail');
+  const [view, setView] = useState<string>(only ?? 'detail');
+  // Back to the details, or, opened on one view alone, closed.
+  const toDetail = () => { if (only) onClose(); else setView('detail'); };
 
   // ← → step through the page's books, but only on the details, never while
   // editing or choosing volumes. Each book starts at the top.
@@ -1242,7 +1246,7 @@ const BookDetailCard = ({ book, onClose, onEdit, onUpdateBook, onBookUpdated, on
             onBookAdded(enrichedVolumes[enrichedVolumes.length - 1]);
           }
           // Return to detail view after successful import
-          setView('detail');
+          toDetail();
         } catch (err) {
           if (onAddError) onAddError(err);
           throw err;
@@ -1271,7 +1275,7 @@ const BookDetailCard = ({ book, onClose, onEdit, onUpdateBook, onBookUpdated, on
   };
 
   const handleBackToDetail = () => {
-    setView('detail');
+    toDetail();
   };
 
   const handleEditSave = async (bookData: any) => {
@@ -1294,7 +1298,7 @@ const BookDetailCard = ({ book, onClose, onEdit, onUpdateBook, onBookUpdated, on
           }
         }
       }
-      setView('detail');
+      toDetail();
     } catch (error) {
       console.error('Error saving book:', error);
       // Don't close the edit view on error - let user fix and retry
@@ -1305,7 +1309,7 @@ const BookDetailCard = ({ book, onClose, onEdit, onUpdateBook, onBookUpdated, on
   };
 
   const handleEditCancel = () => {
-    setView('detail');
+    toDetail();
   };
 
   const handleClose = () => {
@@ -1337,7 +1341,8 @@ const BookDetailCard = ({ book, onClose, onEdit, onUpdateBook, onBookUpdated, on
           }
           handleClose();
         }}
-        zIndex={10100}
+        zIndex={only ? 12000 : 10100}
+        backdropClassName={only ? 'over-player-backdrop' : undefined}
         className="book-detail-modal"
         modalProps={{ restoreFocus: false, autoFocus: false, enforceFocus: false }}
         onBack={view === 'volumes' || view === 'edit' ? handleBackToDetail : undefined}
