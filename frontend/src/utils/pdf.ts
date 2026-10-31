@@ -21,7 +21,10 @@ type OutlineItem = { title: string; dest: string | unknown[] | null; items: Outl
 
 export const openPdf = async (url: string): Promise<PdfDocument> => {
   const pdfjs = await load();
-  const doc = await pdfjs.getDocument({ url }).promise;
+  // Its decoders and fonts, served at /pdfjs/ (vite.config.ts): a scan's CCITT or JBIG2 pages are blank without them.
+  const doc = await pdfjs.getDocument({
+    url, wasmUrl: '/pdfjs/wasm/', cMapUrl: '/pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: '/pdfjs/standard_fonts/',
+  }).promise;
   const pageOf = async (dest: OutlineItem['dest']): Promise<number | null> => {
     const explicit = typeof dest === 'string' ? await doc.getDestination(dest) : dest;
     if (!Array.isArray(explicit) || !explicit[0]) return null;
