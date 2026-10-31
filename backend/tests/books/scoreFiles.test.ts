@@ -143,3 +143,51 @@ describe('les éditions d’une œuvre sur IMSLP', () => {
     expect((await request(app).get(`/api/scores/${id}/imslp/editions`).expect(200)).body).toEqual({ page: null, editions: [] });
   });
 });
+
+describe('les pages de chaque pièce dans un PDF', () => {
+  const insertPiece = (bookId: number, title: string) => new Promise<number>((resolve, reject) =>
+    getDatabase().run('INSERT INTO score_pieces (book_id, title) VALUES (?, ?)', [bookId, title],
+      function (this: { lastID: number }, err: Error | null) { if (err) reject(err); else resolve(this.lastID); }));
+
+  it('les garde toutes à la fois, une partie d’un recueil par son œuvre, et retient le nombre de pages', async () => {
+    const id = await insertScore(`Préludes ${tag()}`);
+    const livre = await insertPiece(id, 'Préludes, Livre I');
+    const clair = await insertPiece(id, 'Clair de lune');
+    const [file] = (await send(id, 'preludes.pdf').expect(201)).body;
+
+    const marks = (await request(app).put(`/api/scores/${id}/files/${file.id}/bookmarks`).send({ pageCount: 60, bookmarks: [
+      { pieceId: clair, partWorkId: null, startPage: 50, endPage: 55 },
+      { pieceId: livre, partWorkId: 'w-danseuses', startPage: 3, endPage: 5 },
+      { pieceId: livre, partWorkId: 'w-voiles', startPage: 5, endPage: 8 },
+    ] }).expect(200)).body;
+    expect(marks).toEqual([
+      { pieceId: livre, partWorkId: 'w-danseuses', startPage: 3, endPage: 5 },
+      { pieceId: livre, partWorkId: 'w-voiles', startPage: 5, endPage: 8 },
+      { pieceId: clair, partWorkId: null, startPage: 50, endPage: 55 },
+    ]);
+    expect((await request(app).get(`/api/scores/${id}/files`).expect(200)).body[0]).toMatchObject({ pageCount: 60 });
+
+    // Kept again: those left out are gone.
+    await request(app).put(`/api/scores/${id}/files/${file.id}/bookmarks`).send({ bookmarks: [{ pieceId: clair, startPage: 50, endPage: 52 }] }).expect(200);
+    expect((await request(app).get(`/api/scores/${id}/files/${file.id}/bookmarks`).expect(200)).body).toEqual([{ pieceId: clair, partWorkId: null, startPage: 50, endPage: 52 }]);
+
+    // A piece taken out takes its pages with it.
+    await request(app).delete(`/api/scores/${id}/pieces/${clair}`).expect(204);
+    expect((await request(app).get(`/api/scores/${id}/files/${file.id}/bookmarks`).expect(200)).body).toEqual([]);
+    await request(app).delete(`/api/scores/${id}/files/${file.id}`).expect(200);
+  });
+
+  it('refuse des pages hors du PDF ou une pièce d’une autre partition', async () => {
+    const id = await insertScore(`Valses ${tag()}`);
+    const other = await insertScore(`Ballades ${tag()}`);
+    const valse = await insertPiece(id, 'Valse');
+    const ballade = await insertPiece(other, 'Ballade');
+    const [file] = (await send(id, 'valses.pdf').expect(201)).body;
+    const put = (bookmarks: unknown[]) => request(app).put(`/api/scores/${id}/files/${file.id}/bookmarks`).send({ pageCount: 20, bookmarks });
+    await put([{ pieceId: valse, startPage: 5, endPage: 21 }]).expect(400);
+    await put([{ pieceId: valse, startPage: 6, endPage: 5 }]).expect(400);
+    await put([{ pieceId: valse, startPage: 0, endPage: 2 }]).expect(400);
+    await put([{ pieceId: ballade, startPage: 1, endPage: 2 }]).expect(400);
+    expect((await put([{ pieceId: valse, startPage: 4 }]).expect(200)).body).toEqual([{ pieceId: valse, partWorkId: null, startPage: 4, endPage: 4 }]);
+  });
+});

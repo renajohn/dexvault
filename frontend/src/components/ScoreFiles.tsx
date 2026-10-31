@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BsBoxArrowUpRight, BsCheck, BsFileEarmarkPdf, BsPaperclip, BsThreeDots, BsX } from 'react-icons/bs';
+import { BsBookmarkCheck, BsBoxArrowUpRight, BsCheck, BsFileEarmarkPdf, BsPaperclip, BsThreeDots, BsX } from 'react-icons/bs';
 import bookSectionsService, { ScoreFile, scoreFileUrl } from '../services/bookSectionsService';
 import Button, { IconButton } from './shared/Button';
 import Menu from './shared/Menu';
@@ -24,7 +24,9 @@ const ScoreFiles: React.FC<{
   onAdd: () => void;
   /** Its editions on IMSLP, to take one. */
   onImslp: () => void;
-}> = ({ scoreId, files, onChange, onAdd, onImslp }) => {
+  /** Its pieces' pages marked in one of them; none before its pieces are known. */
+  onMark?: (file: ScoreFile) => void;
+}> = ({ scoreId, files, onChange, onAdd, onImslp, onMark }) => {
   const [renaming, setRenaming] = useState<{ id: number; label: string } | null>(null);
 
   const change = async (file: ScoreFile, changes: { label?: string; isDefault?: true }) => {
@@ -67,6 +69,7 @@ const ScoreFiles: React.FC<{
               <span className="score-files__size">{megabytes(file.size)}</span>
               <Menu align="end" trigger={props => <IconButton {...props} size="sm" label={`More for ${file.label}`}><BsThreeDots /></IconButton>}>
                 <Menu.Item icon={<BsFileEarmarkPdf />} onSelect={() => openScoreFile(file)}>Open</Menu.Item>
+                {onMark && <Menu.Item icon={<BsBookmarkCheck />} onSelect={() => onMark(file)}>Mark its pieces’ pages…</Menu.Item>}
                 <Menu.Item onSelect={() => setRenaming({ id: file.id, label: file.label })}>Rename</Menu.Item>
                 {!file.isDefault && <Menu.Item onSelect={() => change(file, { isDefault: true })}>Open this one first</Menu.Item>}
                 <Menu.Separator />

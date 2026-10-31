@@ -655,6 +655,31 @@ const runAutoMigrations = async (): Promise<void> => {
         }
         console.log(`  ✓ Added score_files (${scores.length} PDF${scores.length === 1 ? '' : 's'} kept)`);
       }
+    },
+    {
+      name: '035_score_bookmarks',
+      up: async () => {
+        // Where each piece of a score lies in each of its PDFs: a part of a set (a prélude of its book) by its work, '' for a piece whole.
+        const statements = [
+          `CREATE TABLE IF NOT EXISTS score_bookmarks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER NOT NULL,
+            piece_id INTEGER NOT NULL,
+            part_work_id TEXT NOT NULL DEFAULT '',
+            start_page INTEGER NOT NULL,
+            end_page INTEGER NOT NULL,
+            UNIQUE (file_id, piece_id, part_work_id)
+          )`,
+          'CREATE INDEX IF NOT EXISTS idx_score_bookmarks_piece ON score_bookmarks(piece_id)',
+        ];
+        for (const sql of statements) {
+          await new Promise<void>((resolve, reject) => currentDb.run(sql, (err: Error | null) => (err ? reject(err) : resolve())));
+        }
+        // Its number of pages, read by the browser when its pages are marked.
+        await new Promise<void>((resolve, reject) => currentDb.run('ALTER TABLE score_files ADD COLUMN page_count INTEGER', (err: Error | null) =>
+          (err && !err.message.includes('duplicate column') ? reject(err) : resolve())));
+        console.log('  ✓ Added score_bookmarks and score_files.page_count');
+      }
     }
   ];
 

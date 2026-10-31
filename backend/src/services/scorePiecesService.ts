@@ -397,6 +397,8 @@ const addPiecesNow = async (bookId: number, input: { workIds?: string[]; title?:
 
 const removePiece = async (bookId: number, pieceId: number): Promise<void> => {
   if (!(await run('DELETE FROM score_pieces WHERE id = ? AND book_id = ?', [pieceId, bookId])).changes) throw new ScorePiecesError('No such piece', 404);
+  // Its pages in the score's PDFs go with it.
+  await run('DELETE FROM score_bookmarks WHERE piece_id = ?', [pieceId]);
 };
 
 /** The parts of its work a score holds; the others left out. */

@@ -1,0 +1,142 @@
+/* The pages of a score's pieces: the pieces on the left, its pages small on the right. */
+.score-bookmarks .modal-dialog {
+  max-width: min(1100px, 96vw);
+}
+
+.score-bookmarks__hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--dv-text-muted);
+  font-size: 0.85rem;
+}
+
+.score-bookmarks__layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 340px) 1fr;
+  gap: 16px;
+  height: min(70vh, 760px);
+}
+
+@media (max-width: 767px) {
+  .score-bookmarks__layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 40% 1fr;
+    height: 75vh;
+  }
+}
+
+.score-bookmarks__rows {
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.score-bookmarks__group {
+  margin: 10px 0 4px;
+  color: var(--dv-text-faint);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.score-bookmarks__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--dv-radius-sm) var(--dv-radius-sm) 0;
+  cursor: pointer;
+}
+
+.score-bookmarks__row:hover {
+  background: var(--dv-glass);
+}
+
+/* Gold: the one being marked. */
+.score-bookmarks__row--selected {
+  border-left-color: var(--dv-gold);
+  background: var(--dv-gold-tint);
+}
+
+.score-bookmarks__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-bookmarks__field {
+  flex: none;
+  width: 52px;
+}
+
+.score-bookmarks__dash {
+  color: var(--dv-text-faint);
+}
+
+.score-bookmarks__pages {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  align-content: start;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.score-bookmarks__page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px;
+  border: 1px solid var(--dv-edge);
+  border-radius: var(--dv-radius-sm);
+  background: var(--dv-glass);
+  color: var(--dv-text-muted);
+}
+
+.score-bookmarks__page:hover {
+  border-color: var(--dv-edge-hover);
+}
+
+.score-bookmarks__page canvas {
+  width: 112px;
+  min-height: 150px;
+  background: #fff;
+}
+
+.score-bookmarks__page--in {
+  border-color: var(--dv-gold-tint-edge);
+  background: var(--dv-gold-tint);
+}
+
+.score-bookmarks__page--first {
+  border-color: var(--dv-gold);
+}
+
+.score-bookmarks__number {
+  margin-top: 2px;
+  font-size: 0.75rem;
+}
+
+.score-bookmarks__marked {
+  max-width: 112px;
+  overflow: hidden;
+  color: var(--dv-gold);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-bookmarks__count {
+  margin-right: auto;
+  color: var(--dv-text-faint);
+  font-size: 0.8rem;
+}

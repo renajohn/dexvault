@@ -70,6 +70,14 @@ const scoreFilesController = {
   remove: async (req: Request, res: Response): Promise<void> => {
     try { res.json(await scoreFilesService.remove(id(req.params.id), id(req.params.fileId))); } catch (error) { fail(res, error); }
   },
+  // GET: where each piece lies in it
+  bookmarks: async (req: Request, res: Response): Promise<void> => {
+    try { res.json(await scoreFilesService.bookmarks(id(req.params.id), id(req.params.fileId))); } catch (error) { fail(res, error); }
+  },
+  // PUT { bookmarks: [{ pieceId, partWorkId, startPage, endPage }], pageCount }
+  keepBookmarks: async (req: Request, res: Response): Promise<void> => {
+    try { res.json(await scoreFilesService.keepBookmarks(id(req.params.id), id(req.params.fileId), req.body || {})); } catch (error) { fail(res, error); }
+  },
   // GET: the PDF, opened in the browser
   pdf: async (req: Request, res: Response): Promise<void> => {
     try {

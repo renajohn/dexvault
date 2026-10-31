@@ -5,7 +5,7 @@ import scorePiecesService, { imslpPieceUrl, PieceRecording, PieceSuggestion, Sco
 import bookCommentService from '../services/bookCommentService';
 import { decodeBarcode } from '../utils/decodeBarcode';
 import { pieceOf, referenceOf, titleWithNumber } from '../utils/scoreTitle';
-import bookSectionsService, { imslpUrl, Score, ScoreFile, scorePdfUrl } from '../services/bookSectionsService';
+import bookSectionsService, { imslpUrl, Score, ScoreBookmark, ScoreFile, scoreFileUrl, scorePdfUrl } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
 import { player, usePlayer } from '../services/player';
 import { loadPlayable } from '../utils/playAlbum';
@@ -23,6 +23,7 @@ import CoverModal from './CoverModal';
 import ScoreSheet from './ScoreSheet';
 import ScoreFiles, { openScoreFile } from './ScoreFiles';
 import ImslpEditions from './ImslpEditions';
+import ScoreBookmarks, { keyOf as markKey } from './ScoreBookmarks';
 import { useMedia } from '../utils/useNarrow';
 import { francs } from './PhoneSheet';
 import './ScoreCard.css';
@@ -159,6 +160,9 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   // Its PDFs, read again when the page adds one.
   const [files, setFiles] = useState<ScoreFile[]>([]);
   const [editionsShown, setEditionsShown] = useState(false);
+  // The PDF whose pages are being marked, and where each piece lies in the one that opens first.
+  const [marking, setMarking] = useState<ScoreFile | null>(null);
+  const [marks, setMarks] = useState<ScoreBookmark[]>([]);
   const playing = usePlaying();
   // On a phone the score is a full screen as a film's or a book's (ScoreSheet), its parts the same.
   const phone = useMedia('(max-width: 767px)');
@@ -190,6 +194,16 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
     return () => { current = false; };
   }, [score.id, score.fileCount, score.ebookFile]);
   const filesChanged = (list: ScoreFile[]) => { setFiles(list); onChanged(); };
+  const first = files.find(file => file.isDefault) || null;
+  useEffect(() => {
+    let current = true;
+    if (!first) { setMarks([]); return undefined; }
+    bookSectionsService.bookmarks(score.id, first.id).then(list => { if (current) setMarks(list); }).catch(() => undefined);
+    return () => { current = false; };
+  }, [score.id, first?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** A piece's first page in the PDF that opens first, to open it there. */
+  const pageOf = (pieceId: number, partWorkId: string | null) => marks.find(mark => markKey(mark.pieceId, mark.partWorkId) === markKey(pieceId, partWorkId))?.startPage ?? null;
+  const openAt = (page: number) => first && window.open(scoreFileUrl(score.id, first.id, page), '_blank', 'noopener');
 
   const load = () => scorePiecesService.pieces(score.id)
     .then(list => { setPieces(list); if (!list.length) setFinding(true); })
@@ -284,7 +298,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const title = pieceOf(String(book?.title ?? score.title));
   const coverUrl = cover ? bookService.getImageUrl(String(cover)) || '' : '';
   const openPdf = () => window.open(scorePdfUrl(score.id), '_blank', 'noopener');
-  const filesBody = <ScoreFiles scoreId={score.id} files={files} onChange={filesChanged} onAdd={() => onAttach(score)} onImslp={() => setEditionsShown(true)} />;
+  const filesBody = <ScoreFiles scoreId={score.id} files={files} onChange={filesChanged} onAdd={() => onAttach(score)} onImslp={() => setEditionsShown(true)}
+    onMark={pieces?.length ? setMarking : undefined} />;
   const openImslp = () => window.open(imslp, '_blank', 'noopener');
   const openHenle = henle.url ? () => window.open(henle.url!, '_blank', 'noopener') : null;
   const editionForm = editing && (
@@ -307,7 +322,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const piecesBody = !pieces ? <Loading>Reading its pieces…</Loading> : (
     <>
       {pieces.map(piece => (
-        <PieceBlock key={piece.id} piece={piece} composer={score.composer} playing={playing}
+        <PieceBlock key={piece.id} piece={piece} composer={score.composer} playing={playing} pageOf={pageOf} onOpenPage={first ? openAt : undefined}
           heard={playedFrom?.track === playing ? playedFrom.row : null} onHeard={(row, track) => setPlayedFrom({ row, track })}
           onChoose={albumId => choose(piece, albumId)} onKeep={workIds => keepParts(piece, workIds)} onRemove={() => removePiece(piece)} />
       ))}
@@ -342,6 +357,14 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
     <>
       <CoverModal isOpen={coverShown} onClose={() => setCoverShown(false)} coverUrl={coverUrl} title={title} artist={values.composer || undefined} coverType="Cover" />
       {editionsShown && <ImslpEditions scoreId={score.id} reference={values.number || null} onClose={() => setEditionsShown(false)} onAdded={filesChanged} />}
+      {marking && (
+        <ScoreBookmarks scoreId={score.id} file={marking} pieces={pieces || []} onClose={() => setMarking(null)}
+          onSaved={list => {
+            if (marking.id === first?.id) setMarks(list);
+            toast(`${list.length} piece${list.length === 1 ? '' : 's'} marked in ${marking.label}`, { tone: 'success' });
+            bookSectionsService.files(score.id).then(setFiles).catch(() => undefined);
+          }} />
+      )}
     </>
   );
 
@@ -637,10 +660,13 @@ interface PieceBlockProps {
   /** The parts of its work the score holds. */
   onKeep: (workIds: string[]) => Promise<void>;
   onRemove: () => void;
+  /** Its first page in the PDF that opens first, a part of a set by its work. */
+  pageOf: (pieceId: number, partWorkId: string | null) => number | null;
+  onOpenPage?: (page: number) => void;
 }
 
 /** A piece: its parts, each with the chosen recording, the others behind +N. */
-const PieceBlock: React.FC<PieceBlockProps> = ({ piece, composer, playing, heard, onHeard, onChoose, onKeep, onRemove }) => {
+const PieceBlock: React.FC<PieceBlockProps> = ({ piece, composer, playing, heard, onHeard, onChoose, onKeep, onRemove, pageOf, onOpenPage }) => {
   const chosen = piece.albums.find(album => album.albumId === piece.preferredAlbumId) || piece.albums[0];
   const rows = piece.single
     ? [{ workId: piece.workId || String(piece.id), title: piece.title, name: '', sub: null as string | null, imslp: piece.imslp, recordings: piece.albums.length ? recordingsOfSingle(piece) : [] }]
@@ -726,6 +752,12 @@ const PieceBlock: React.FC<PieceBlockProps> = ({ piece, composer, playing, heard
           <span className="score-piece__n">{index === playingAt ? <BsVolumeUpFill aria-label="Playing" /> : piece.single ? '' : index + 1}</span>
           <span className="score-piece__name">{row.name}{row.sub && <small>{row.sub}</small>}</span>
           <span className="score-piece__recs">
+            {(() => {
+              const page = pageOf(piece.id, piece.single ? null : row.workId);
+              return page && onOpenPage ? (
+                <Button size="sm" variant="quiet" onClick={() => onOpenPage(page)} title={`Open the PDF at page ${page}`}>p. {page}</Button>
+              ) : null;
+            })()}
             <Recordings recordings={row.recordings} piece={piece} chosenAlbumId={chosen?.albumId ?? null}
               onPlay={recording => onHeard(rowId(index), keyOf(recording))}
               youtube={youtubeUrl(composer, piece.single ? piece.title : `${piece.title} ${row.name}`)} single={piece.single} />

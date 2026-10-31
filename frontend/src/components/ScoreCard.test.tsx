@@ -16,7 +16,7 @@ vi.mock('../services/scorePiecesService', async importOriginal => ({
 }));
 vi.mock('../services/bookSectionsService', async importOriginal => ({
   ...(await importOriginal<typeof import('../services/bookSectionsService')>()),
-  default: { files: vi.fn(), changeFile: vi.fn(), removeFile: vi.fn(), addFile: vi.fn(), imslpEditions: vi.fn() },
+  default: { files: vi.fn(), changeFile: vi.fn(), removeFile: vi.fn(), addFile: vi.fn(), imslpEditions: vi.fn(), bookmarks: vi.fn() },
 }));
 vi.mock('../utils/playAlbum', () => ({ loadPlayable: vi.fn() }));
 vi.mock('../services/bookService', () => ({ default: { getImageUrl: (p: string | null) => p, getBookById: vi.fn(), updateBook: vi.fn(), deleteBook: vi.fn() } }));
@@ -66,7 +66,7 @@ beforeEach(() => {
   vi.mocked(bookCommentService.createComment).mockReset().mockResolvedValue({});
 });
 
-const pdf = (id: number, label: string, isDefault = false): ScoreFile => ({ id, bookId: 219, filename: `score_219_${id}.pdf`, label, source: 'upload', isDefault, size: 2.5 * 1024 * 1024, createdAt: '2026-10-31' });
+const pdf = (id: number, label: string, isDefault = false): ScoreFile => ({ id, bookId: 219, filename: `score_219_${id}.pdf`, label, source: 'upload', isDefault, size: 2.5 * 1024 * 1024, pageCount: null, createdAt: '2026-10-31' });
 
 describe('ScoreCard, ses PDF', () => {
   it('en montre plusieurs : le premier sous PDF, les autres sous ▾, chacun renommé, choisi ou effacé', async () => {
@@ -76,12 +76,18 @@ describe('ScoreCard, ses PDF', () => {
     vi.mocked(bookSectionsService.files).mockReset().mockResolvedValue([durand, henle]);
     vi.mocked(bookSectionsService.changeFile).mockReset().mockResolvedValue([{ ...henle, label: 'Mon exemplaire', isDefault: true }, { ...durand, isDefault: false }]);
     vi.mocked(bookSectionsService.removeFile).mockReset().mockResolvedValue([{ ...durand, isDefault: true }]);
+    vi.mocked(bookSectionsService.bookmarks).mockReset().mockResolvedValue([{ pieceId: 1, partWorkId: 'w2', startPage: 7, endPage: 9 }]);
     vi.mocked(confirm).mockResolvedValue(true);
     const onChanged = vi.fn();
     card({ score: { ...score, ebookFile: durand.filename, fileCount: 2 }, onChanged });
 
     const list = (await screen.findByRole('heading', { name: 'Its PDFs' })).closest('section') as HTMLElement;
     expect(within(list).getByText('Opens first')).toBeInTheDocument();
+
+    // A piece marked in the PDF that opens first opens it at its page.
+    const voiles = (await screen.findByText('Voiles')).closest('.score-piece__row') as HTMLElement;
+    fireEvent.click(await within(voiles).findByRole('button', { name: 'p. 7' }));
+    expect(open).toHaveBeenCalledWith('/api/scores/219/files/1/pdf#page=7', '_blank', 'noopener');
     expect(within(list).getAllByText('2.5 MB')).toHaveLength(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'Its other PDFs' }));
@@ -212,7 +218,7 @@ describe('ScoreCard', () => {
       edition('Durand, 1910', '1', { files: [{ index: '1', title: 'Complete Score', pages: 60, size: '9MB', downloads: 50000, download: 'https://imslp.org/wiki/Special:ImagefromIndex/1' }] }),
       edition('G. Henle Verlag, 1986', '2', { plate: 'HN 383', editor: 'Ernst-Günter Heinemann' }),
     ] });
-    const pdf = { id: 9, bookId: 219, filename: 'x.pdf', label: 'G. Henle Verlag, 1986', source: 'imslp' as const, isDefault: true, size: 1, createdAt: '' };
+    const pdf = { id: 9, bookId: 219, filename: 'x.pdf', label: 'G. Henle Verlag, 1986', source: 'imslp' as const, isDefault: true, size: 1, pageCount: null, createdAt: '' };
     vi.mocked(bookSectionsService.addFile).mockReset().mockResolvedValue([pdf]);
     const onChanged = vi.fn();
     card({ onChanged });

@@ -19,6 +19,14 @@ export class ScoreFilesError extends Error {
 
 export type ScoreFileSource = 'upload' | 'imslp' | 'scan';
 
+export interface Bookmark {
+  pieceId: number;
+  /** The part of its set (a prélude of its book); null for the piece whole. */
+  partWorkId: string | null;
+  startPage: number;
+  endPage: number;
+}
+
 export interface ScoreFile {
   id: number;
   bookId: number;
@@ -28,10 +36,12 @@ export interface ScoreFile {
   isDefault: boolean;
   /** Its size in bytes; null when the file is missing. */
   size: number | null;
+  /** Its pages, once the browser has read them; null before. */
+  pageCount: number | null;
   createdAt: string;
 }
 
-interface Row { id: number; book_id: number; filename: string; label: string; source: ScoreFileSource; is_default: number; created_at: string }
+interface Row { id: number; book_id: number; filename: string; label: string; source: ScoreFileSource; is_default: number; page_count: number | null; created_at: string }
 
 const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> => new Promise((resolve, reject) => {
   getDatabase().all(sql, params, (err: Error | null, rows: T[]) => (err ? reject(err) : resolve(rows || [])));
@@ -62,6 +72,7 @@ const format = (row: Row): ScoreFile => ({
   source: row.source,
   isDefault: Boolean(row.is_default),
   size: sizeOf(row.filename),
+  pageCount: row.page_count ?? null,
   createdAt: row.created_at,
 });
 
@@ -133,6 +144,7 @@ const scoreFilesService = {
   remove: async (bookId: number, fileId: number): Promise<ScoreFile[]> => {
     const row = await one(bookId, fileId);
     await run('DELETE FROM score_files WHERE id = ?', [fileId]);
+    await run('DELETE FROM score_bookmarks WHERE file_id = ?', [fileId]);
     removeFromDisk(row.filename);
     if (row.is_default) {
       await run('UPDATE score_files SET is_default = 1 WHERE id = (SELECT MIN(id) FROM score_files WHERE book_id = ?)', [bookId]);
@@ -145,7 +157,41 @@ const scoreFilesService = {
   removeAll: async (bookId: number, except: string | null): Promise<void> => {
     const rows = await all<Row>('SELECT * FROM score_files WHERE book_id = ?', [bookId]);
     for (const row of rows) if (row.filename !== except) removeFromDisk(row.filename);
+    await run(`DELETE FROM score_bookmarks WHERE file_id IN (SELECT id FROM score_files WHERE book_id = ?)`, [bookId]);
     await run('DELETE FROM score_files WHERE book_id = ?', [bookId]);
+  },
+
+  /** Where each piece lies in one of its PDFs: a part of a set by its work, '' for a piece whole. */
+  bookmarks: async (bookId: number, fileId: number): Promise<Bookmark[]> => {
+    await one(bookId, fileId);
+    const rows = await all<{ piece_id: number; part_work_id: string; start_page: number; end_page: number }>(
+      'SELECT piece_id, part_work_id, start_page, end_page FROM score_bookmarks WHERE file_id = ? ORDER BY start_page, id', [fileId]);
+    return rows.map(row => ({ pieceId: row.piece_id, partWorkId: row.part_work_id || null, startPage: row.start_page, endPage: row.end_page }));
+  },
+
+  /** Its pieces' pages, all of them at once, and its number of pages read by the browser. */
+  keepBookmarks: async (bookId: number, fileId: number, input: { bookmarks?: unknown; pageCount?: unknown }): Promise<Bookmark[]> => {
+    await one(bookId, fileId);
+    const pageCount = Number.isInteger(input.pageCount) && (input.pageCount as number) > 0 ? input.pageCount as number : null;
+    if (!Array.isArray(input.bookmarks)) throw new ScoreFilesError('Which pages?', 400);
+    const pieceIds = new Set((await all<{ id: number }>('SELECT id FROM score_pieces WHERE book_id = ?', [bookId])).map(row => row.id));
+    const marks = input.bookmarks.map(mark => {
+      const { pieceId, partWorkId, startPage, endPage } = (mark || {}) as Record<string, unknown>;
+      const start = Number(startPage);
+      const end = endPage == null ? start : Number(endPage);
+      if (!pieceIds.has(Number(pieceId))) throw new ScoreFilesError('A piece this score does not hold', 400);
+      if (!Number.isInteger(start) || start < 1 || !Number.isInteger(end) || end < start || (pageCount && end > pageCount)) {
+        throw new ScoreFilesError(`Pages ${startPage}–${endPage}: not in the PDF`, 400);
+      }
+      return { pieceId: Number(pieceId), partWorkId: typeof partWorkId === 'string' ? partWorkId : '', start, end };
+    });
+    await run('DELETE FROM score_bookmarks WHERE file_id = ?', [fileId]);
+    for (const mark of marks) {
+      await run(`INSERT OR REPLACE INTO score_bookmarks (file_id, piece_id, part_work_id, start_page, end_page) VALUES (?, ?, ?, ?, ?)`,
+        [fileId, mark.pieceId, mark.partWorkId, mark.start, mark.end]);
+    }
+    if (pageCount) await run('UPDATE score_files SET page_count = ? WHERE id = ?', [pageCount, fileId]);
+    return scoreFilesService.bookmarks(bookId, fileId);
   },
 
   /** Where a PDF lies, and the name it is given when saved. */

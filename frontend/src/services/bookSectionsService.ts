@@ -34,8 +34,14 @@ export interface ScoreFile {
   /** The one that opens first. */
   isDefault: boolean;
   size: number | null;
+  /** Its pages, once read by the browser. */
+  pageCount: number | null;
   createdAt: string;
 }
+
+/** Where a piece lies in one of its PDFs: a part of a set by its work, null for the piece whole. */
+export interface ScoreBookmark { pieceId: number; partWorkId: string | null; startPage: number; endPage: number }
+
 
 /** An edition IMSLP holds of a work (backend imslpEditionsService). */
 export interface ImslpEdition {
@@ -98,6 +104,9 @@ const bookSectionsService = {
     return fetch(`/api/scores/${scoreId}/files`, { method: 'POST', body: form }).then(response => json<ScoreFile[]>(response));
   },
   imslpEditions: (scoreId: number) => fetch(`/api/scores/${scoreId}/imslp/editions`).then(response => json<{ page: string | null; editions: ImslpEdition[] }>(response)),
+  bookmarks: (scoreId: number, fileId: number) => fetch(`/api/scores/${scoreId}/files/${fileId}/bookmarks`).then(response => json<ScoreBookmark[]>(response)),
+  keepBookmarks: (scoreId: number, fileId: number, bookmarks: ScoreBookmark[], pageCount: number) =>
+    send<ScoreBookmark[]>('PUT', `/api/scores/${scoreId}/files/${fileId}/bookmarks`, { bookmarks, pageCount }),
   changeFile: (scoreId: number, fileId: number, changes: { label?: string; isDefault?: true }) => send<ScoreFile[]>('PUT', `/api/scores/${scoreId}/files/${fileId}`, changes),
   removeFile: (scoreId: number, fileId: number) => fetch(`/api/scores/${scoreId}/files/${fileId}`, { method: 'DELETE' }).then(response => json<ScoreFile[]>(response)),
   reading: () => fetch('/api/books/reading').then(response => json<ReadingEntry[]>(response)),
@@ -120,7 +129,7 @@ const bookSectionsService = {
 export const scorePdfUrl = (id: number) => `/api/books/${id}/ebook/download?inline=1`;
 
 /** One of its PDFs, opened in the browser. */
-export const scoreFileUrl = (scoreId: number, fileId: number) => `/api/scores/${scoreId}/files/${fileId}/pdf`;
+export const scoreFileUrl = (scoreId: number, fileId: number, page?: number) => `/api/scores/${scoreId}/files/${fileId}/pdf${page ? `#page=${page}` : ''}`;
 
 /** IMSLP: the page DexVault knows, else its search for the composer and the piece. */
 export const imslpUrl = (score: Pick<Score, 'title' | 'composer' | 'urls'>) =>

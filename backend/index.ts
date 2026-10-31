@@ -438,6 +438,8 @@ app.post('/api/scores/:id/files', scoreFilesController.uploadMiddleware, scoreFi
 app.put('/api/scores/:id/files/:fileId', scoreFilesController.change);
 app.delete('/api/scores/:id/files/:fileId', scoreFilesController.remove);
 app.get('/api/scores/:id/files/:fileId/pdf', scoreFilesController.pdf);
+app.get('/api/scores/:id/files/:fileId/bookmarks', scoreFilesController.bookmarks);
+app.put('/api/scores/:id/files/:fileId/bookmarks', scoreFilesController.keepBookmarks);
 app.get('/api/books/reading', bookSectionsController.reading);
 app.put('/api/books/readings/:id', bookSectionsController.changeReading);
 app.delete('/api/books/readings/:id', bookSectionsController.removeReading);
