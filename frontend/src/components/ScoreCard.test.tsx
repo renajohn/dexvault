@@ -5,7 +5,7 @@ import ScoreCard from './ScoreCard';
 import scorePiecesService, { ScorePiece } from '../services/scorePiecesService';
 import { player } from '../services/player';
 import { loadPlayable } from '../utils/playAlbum';
-import bookSectionsService, { type Score, type ScoreFile } from '../services/bookSectionsService';
+import bookSectionsService, { type ImslpEdition, type Score, type ScoreFile } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
 import bookCommentService from '../services/bookCommentService';
 import { confirm } from './shared/ConfirmDialog';
@@ -16,7 +16,7 @@ vi.mock('../services/scorePiecesService', async importOriginal => ({
 }));
 vi.mock('../services/bookSectionsService', async importOriginal => ({
   ...(await importOriginal<typeof import('../services/bookSectionsService')>()),
-  default: { files: vi.fn(), changeFile: vi.fn(), removeFile: vi.fn() },
+  default: { files: vi.fn(), changeFile: vi.fn(), removeFile: vi.fn(), addFile: vi.fn(), imslpEditions: vi.fn() },
 }));
 vi.mock('../utils/playAlbum', () => ({ loadPlayable: vi.fn() }));
 vi.mock('../services/bookService', () => ({ default: { getImageUrl: (p: string | null) => p, getBookById: vi.fn(), updateBook: vi.fn(), deleteBook: vi.fn() } }));
@@ -202,13 +202,45 @@ describe('ScoreCard', () => {
     expect(within((screen.getByText('Voiles')).closest('.score-piece__row') as HTMLElement).queryByRole('button', { name: 'Its score on IMSLP' })).toBeNull();
   });
 
-  it('mène à la page IMSLP de la partition pour trouver son PDF', async () => {
+  it('montre ses éditions sur IMSLP, la sienne d’abord : téléchargée là-bas, jointe sous son nom', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const edition = (name: string, index: string, fields: Partial<ImslpEdition> = {}): ImslpEdition => ({
+      section: 'Complete', name, editor: null, publisher: null, reprinted: null, copyright: 'Public Domain', notes: null, plate: null, thumbnail: null,
+      files: [{ index, title: 'Complete Score', pages: 24, size: '2.91MB', downloads: 100, download: `https://imslp.org/wiki/Special:ImagefromIndex/${index}` }], ...fields,
+    });
+    vi.mocked(bookSectionsService.imslpEditions).mockReset().mockResolvedValue({ page: 'Préludes, Livre 1, CD 125 (Debussy, Claude)', editions: [
+      edition('Durand, 1910', '1', { files: [{ index: '1', title: 'Complete Score', pages: 60, size: '9MB', downloads: 50000, download: 'https://imslp.org/wiki/Special:ImagefromIndex/1' }] }),
+      edition('G. Henle Verlag, 1986', '2', { plate: 'HN 383', editor: 'Ernst-Günter Heinemann' }),
+    ] });
+    const pdf = { id: 9, bookId: 219, filename: 'x.pdf', label: 'G. Henle Verlag, 1986', source: 'imslp' as const, isDefault: true, size: 1, createdAt: '' };
+    vi.mocked(bookSectionsService.addFile).mockReset().mockResolvedValue([pdf]);
+    const onChanged = vi.fn();
+    card({ onChanged });
+
+    fireEvent.click(await screen.findByRole('button', { name: /Find the PDF on IMSLP/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Its editions on IMSLP' });
+    const names = within(dialog).getAllByText(/Durand, 1910|G. Henle Verlag, 1986/).map(e => e.textContent);
+    expect(names[0]).toMatch(/Henle/);
+    expect(within(dialog).getByText('Your edition')).toBeInTheDocument();
+
+    const henle = within(dialog).getByText(/G. Henle Verlag, 1986/).closest('.imslp-edition') as HTMLElement;
+    fireEvent.click(within(henle).getByRole('button', { name: /Download on IMSLP/ }));
+    expect(open).toHaveBeenCalledWith('https://imslp.org/wiki/Special:ImagefromIndex/2', '_blank', 'noopener');
+    expect(within(henle).getByRole('button', { name: /Attach it/ })).toBeInTheDocument();
+
+    const file = new File(['%PDF'], 'IMSLP929903-PMLP02397.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByTestId('imslp-pdf-input'), { target: { files: [file] } });
+    await waitFor(() => expect(bookSectionsService.addFile).toHaveBeenCalledWith(219, file, { label: 'G. Henle Verlag, 1986', source: 'imslp' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Its editions on IMSLP' })).not.toBeInTheDocument());
+    expect(onChanged).toHaveBeenCalled();
+    expect(await screen.findByRole('heading', { name: 'Its PDFs' })).toBeInTheDocument();
+  });
+
+  it('dit quand IMSLP ne connaît pas la page de la partition', async () => {
+    vi.mocked(bookSectionsService.imslpEditions).mockReset().mockResolvedValue({ page: null, editions: [] });
     card();
-    const button = await screen.findByRole('button', { name: /Find the PDF on IMSLP/ });
-    await waitFor(() => expect(button).toHaveAttribute('title', expect.stringMatching(/Its page on IMSLP/)));
-    fireEvent.click(button);
-    expect(open).toHaveBeenCalledWith('https://imslp.org/wiki/Pr%C3%A9ludes,_Livre_1,_CD_125_(Debussy,_Claude)', '_blank', 'noopener');
+    fireEvent.click(await screen.findByRole('button', { name: /Find the PDF on IMSLP/ }));
+    expect(await screen.findByText(/does not know its page on IMSLP/)).toBeInTheDocument();
   });
 
   it('propose le contenu d’une partition qui n’en a pas, et garde ce qu’on coche', async () => {

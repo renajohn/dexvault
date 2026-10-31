@@ -4,6 +4,10 @@ import request from 'supertest';
 import app from '../../index';
 import { getDatabase } from '../../src/database';
 import { filesDir, labelOf } from '../../src/services/scoreFilesService';
+import scorePiecesService from '../../src/services/scorePiecesService';
+import imslpEditionsService, { editionsOf, plateOf, shortPublisher } from '../../src/services/imslpEditionsService';
+
+afterEach(() => jest.restoreAllMocks());
 
 const tag = () => Math.random().toString(36).slice(2, 8);
 const PDF = Buffer.from('%PDF-1.4\n%%EOF');
@@ -85,5 +89,57 @@ describe('les PDF d’une partition', () => {
     const left = await new Promise<number>((resolve, reject) =>
       getDatabase().get('SELECT COUNT(*) AS n FROM score_files WHERE book_id = ?', [id], (err: Error | null, row: { n: number }) => (err ? reject(err) : resolve(row.n))));
     expect(left).toBe(0);
+  });
+});
+
+describe('les éditions d’une œuvre sur IMSLP', () => {
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures', 'imslp-suite-bergamasque.html'), 'utf8');
+
+  it('lit les éditions de l’onglet Scores, sans les arrangements, chacune avec son nom, son cotage et ses fichiers', () => {
+    const editions = editionsOf(html);
+    expect(editions.map(e => [e.section, e.name])).toEqual([
+      ['Complete', 'E. Fromont, 1905'],
+      ['Complete', 'Jean Jobert, 1948'],
+      ['Complete', 'G. Henle Verlag, 2011'],
+      ['Clair de lune (No.3)', 'Jean Jobert, 1927'],
+    ]);
+    expect(editions[0]).toMatchObject({
+      editor: 'First edition', copyright: 'Public Domain', plate: 'E. 1404 F',
+      thumbnail: expect.stringMatching(/^https:\/\/cdn\.imslp\.org\//),
+      files: [{ index: '83536', title: 'Complete Score', pages: 33, size: '6.07MB', downloads: 57820, download: 'https://imslp.org/wiki/Special:ImagefromIndex/83536' }],
+    });
+    expect(editions[2]).toMatchObject({ plate: 'HN 381', editor: 'Ernst-Günter Heinemann (b. 1945)' });
+  });
+
+  it.each([
+    ['Leipzig: Edition Peters, 1970. Plate E.P. 12420b.URTEXT EDITION', 'E.P. 12420b'],
+    ['Paris: Durand, 2000. Plate D. & F. 15319.URTEXT EDITION', 'D. & F. 15319'],
+    ['Munich: G. Henle Verlag, 1983. Plate HN 381. URTEXT EDITION  This', 'HN 381'],
+  ])('le cotage de « %s » est %s', (info, plate) => expect(plateOf(info)).toBe(plate));
+
+  it.each([
+    ['Paris: E. Fromont, 1905. Plate E. 1404 F.', 'E. Fromont, 1905'],
+    ['Library of Musical Classics, Vol.1812\nNew York: G. Schirmer, n.d.(ca.1920). Plate 29811.', 'G. Schirmer, n.d.(ca.1920)'],
+    ['Ray Alston, 2020.', 'Ray Alston, 2020'],
+  ])('« %s » s’appelle %s', (info, name) => expect(shortPublisher(info)).toBe(name));
+
+  it('les donne pour la page de la partition, et un PDF joint depuis IMSLP le reste', async () => {
+    const id = await insertScore(`Suite bergamasque ${tag()}`);
+    jest.spyOn(scorePiecesService, 'imslpPage').mockResolvedValue('Suite bergamasque, CD 82 (Debussy, Claude)');
+    const editions = jest.spyOn(imslpEditionsService, 'editions').mockResolvedValue(editionsOf(html));
+    const body = (await request(app).get(`/api/scores/${id}/imslp/editions`).expect(200)).body;
+    expect(body.page).toBe('Suite bergamasque, CD 82 (Debussy, Claude)');
+    expect(body.editions).toHaveLength(4);
+    expect(editions).toHaveBeenCalledWith('Suite bergamasque, CD 82 (Debussy, Claude)');
+
+    const files = (await send(id, 'SIBLEY1802.pdf', 'E. Fromont, 1905').field('source', 'imslp').expect(201)).body;
+    expect(files[0]).toMatchObject({ label: 'E. Fromont, 1905', source: 'imslp' });
+    await request(app).delete(`/api/scores/${id}/files/${files[0].id}`).expect(200);
+  });
+
+  it('ne donne rien quand la partition n’a pas de page', async () => {
+    const id = await insertScore(`A Dozen a Day ${tag()}`);
+    jest.spyOn(scorePiecesService, 'imslpPage').mockResolvedValue(null);
+    expect((await request(app).get(`/api/scores/${id}/imslp/editions`).expect(200)).body).toEqual({ page: null, editions: [] });
   });
 });

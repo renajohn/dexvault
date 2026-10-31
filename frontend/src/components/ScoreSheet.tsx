@@ -50,6 +50,8 @@ interface ScoreSheetProps {
   onImslp: () => void;
   onHenle: (() => void) | null;
   onAttach: () => void;
+  /** Its editions on IMSLP, to take one as its PDF. */
+  onFindPdf: () => void;
   /** Its PDFs, listed (ScoreFiles), and how many. */
   files: React.ReactNode;
   fileCount: number;
@@ -130,8 +132,8 @@ const ScoreSheet: React.FC<ScoreSheetProps> = props => {
           </>
         ) : (
           <>
-            <Button size="sm" icon={<BsBoxArrowUpRight />} onClick={props.onImslp}
-              title={imslpPage ? `Its page on IMSLP: ${imslpPage}` : 'A search on IMSLP'}>Find the PDF on IMSLP</Button>
+            <Button size="sm" icon={<BsBoxArrowUpRight />} onClick={props.onFindPdf}
+              title={imslpPage ? `Its editions on IMSLP: ${imslpPage}` : 'Its editions on IMSLP'}>Find the PDF on IMSLP</Button>
             <Button size="sm" variant="quiet" icon={<BsPaperclip />} onClick={props.onAttach}>Attach PDF</Button>
           </>
         )}

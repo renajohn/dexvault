@@ -2,7 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { Request, Response } from 'express';
 import multer from 'multer';
-import scoreFilesService, { filesDir, ScoreFilesError } from '../services/scoreFilesService';
+import scoreFilesService, { filesDir, ScoreFileSource, ScoreFilesError } from '../services/scoreFilesService';
+import scorePiecesService from '../services/scorePiecesService';
+import imslpEditionsService from '../services/imslpEditionsService';
 import logger from '../logger';
 
 const fail = (res: Response, error: unknown): void => {
@@ -40,14 +42,26 @@ const scoreFilesController = {
   list: async (req: Request, res: Response): Promise<void> => {
     try { res.json(await scoreFilesService.list(id(req.params.id))); } catch (error) { fail(res, error); }
   },
-  // POST multipart { file, label? }: a PDF added
+  // GET: the editions of its page on IMSLP, to download one there and attach it
+  imslpEditions: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const page = await scorePiecesService.imslpPage(id(req.params.id));
+      if (!page) { res.json({ page: null, editions: [] }); return; }
+      res.json({ page, editions: await imslpEditionsService.editions(page) });
+    } catch (error) {
+      if (/IMSLP did not answer/.test((error as Error).message)) { res.status(503).json({ error: (error as Error).message }); return; }
+      fail(res, error);
+    }
+  },
+  // POST multipart { file, label?, source? }: a PDF added
   add: async (req: Request, res: Response): Promise<void> => {
     const file = req.file as Express.Multer.File | undefined;
     if (!file) { res.status(400).json({ error: 'No file sent' }); return; }
     // Its name as the browser gave it, without the characters the disk's name lost.
     const label = typeof req.body?.label === 'string' && req.body.label.trim()
       ? req.body.label : path.basename(file.originalname, path.extname(file.originalname)).replace(/_+/g, ' ');
-    try { res.status(201).json(await scoreFilesService.add(id(req.params.id), file.filename, label)); } catch (error) { fail(res, error); }
+    const source: ScoreFileSource = ['imslp', 'scan'].includes(req.body?.source) ? req.body.source : 'upload';
+    try { res.status(201).json(await scoreFilesService.add(id(req.params.id), file.filename, label, source)); } catch (error) { fail(res, error); }
   },
   // PUT { label?, isDefault? }
   change: async (req: Request, res: Response): Promise<void> => {

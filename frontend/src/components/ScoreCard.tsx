@@ -22,6 +22,7 @@ import toast from './shared/Toast';
 import CoverModal from './CoverModal';
 import ScoreSheet from './ScoreSheet';
 import ScoreFiles, { openScoreFile } from './ScoreFiles';
+import ImslpEditions from './ImslpEditions';
 import { useMedia } from '../utils/useNarrow';
 import { francs } from './PhoneSheet';
 import './ScoreCard.css';
@@ -157,6 +158,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const [aboutOpen, setAboutOpen] = useState(false);
   // Its PDFs, read again when the page adds one.
   const [files, setFiles] = useState<ScoreFile[]>([]);
+  const [editionsShown, setEditionsShown] = useState(false);
   const playing = usePlaying();
   // On a phone the score is a full screen as a film's or a book's (ScoreSheet), its parts the same.
   const phone = useMedia('(max-width: 767px)');
@@ -282,7 +284,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const title = pieceOf(String(book?.title ?? score.title));
   const coverUrl = cover ? bookService.getImageUrl(String(cover)) || '' : '';
   const openPdf = () => window.open(scorePdfUrl(score.id), '_blank', 'noopener');
-  const filesBody = <ScoreFiles scoreId={score.id} files={files} onChange={filesChanged} onAdd={() => onAttach(score)} />;
+  const filesBody = <ScoreFiles scoreId={score.id} files={files} onChange={filesChanged} onAdd={() => onAttach(score)} onImslp={() => setEditionsShown(true)} />;
   const openImslp = () => window.open(imslp, '_blank', 'noopener');
   const openHenle = henle.url ? () => window.open(henle.url!, '_blank', 'noopener') : null;
   const editionForm = editing && (
@@ -337,7 +339,10 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
     </>
   );
   const coverModal = (
-    <CoverModal isOpen={coverShown} onClose={() => setCoverShown(false)} coverUrl={coverUrl} title={title} artist={values.composer || undefined} coverType="Cover" />
+    <>
+      <CoverModal isOpen={coverShown} onClose={() => setCoverShown(false)} coverUrl={coverUrl} title={title} artist={values.composer || undefined} coverType="Cover" />
+      {editionsShown && <ImslpEditions scoreId={score.id} reference={values.number || null} onClose={() => setEditionsShown(false)} onAdded={filesChanged} />}
+    </>
   );
 
   if (phone) {
@@ -349,7 +354,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
           notes={notesBody} noteCount={notes.length} onAddNote={writing === null ? () => setWriting('') : null}
           editing={editing != null} editionForm={editionForm} onEdit={() => setEditing(values)}
           onCancelEdit={() => setEditing(null)} writing={writing !== null}
-          onShowCover={() => setCoverShown(true)} coverShown={coverShown} onHideCover={() => setCoverShown(false)} onPdf={openPdf} onImslp={openImslp} onHenle={openHenle}
+          onShowCover={() => setCoverShown(true)} coverShown={coverShown} onHideCover={() => setCoverShown(false)} onPdf={openPdf} onImslp={openImslp} onFindPdf={() => setEditionsShown(true)} onHenle={openHenle}
           onAttach={() => onAttach(score)} onDelete={remove} onClose={onClose} files={filesBody} fileCount={files.length}
           facts={[
             ['Publisher', values.publisher || null],
@@ -401,8 +406,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
                 </>
               ) : (
                 <>
-                  <Button size="sm" icon={<BsBoxArrowUpRight />} onClick={openImslp}
-                    title={imslpPage ? `Its page on IMSLP: ${imslpPage}` : 'A search on IMSLP'}>Find the PDF on IMSLP</Button>
+                  <Button size="sm" icon={<BsBoxArrowUpRight />} onClick={() => setEditionsShown(true)}
+                    title={imslpPage ? `Its editions on IMSLP: ${imslpPage}` : 'Its editions on IMSLP'}>Find the PDF on IMSLP</Button>
                   <Button size="sm" variant="quiet" icon={<BsPaperclip />} onClick={() => onAttach(score)}>Attach PDF</Button>
                 </>
               )}

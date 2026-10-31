@@ -70,3 +70,9 @@
   color: var(--dv-text-faint);
   font-size: 0.85rem;
 }
+
+.score-files__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

@@ -37,6 +37,20 @@ export interface ScoreFile {
   createdAt: string;
 }
 
+/** An edition IMSLP holds of a work (backend imslpEditionsService). */
+export interface ImslpEdition {
+  section: string;
+  name: string;
+  editor: string | null;
+  publisher: string | null;
+  reprinted: string | null;
+  copyright: string | null;
+  notes: string | null;
+  plate: string | null;
+  thumbnail: string | null;
+  files: Array<{ index: string; title: string; pages: number | null; size: string | null; downloads: number | null; download: string }>;
+}
+
 export interface ReadingEntry {
   id: number;
   title: string;
@@ -76,11 +90,14 @@ const bookSectionsService = {
   scores: () => fetch('/api/scores').then(response => json<Score[]>(response)),
   setComposers: (updates: Array<{ id: number; composer: string | null }>) => send<{ changed: number }>('PUT', '/api/scores/composers', { updates }),
   files: (scoreId: number) => fetch(`/api/scores/${scoreId}/files`).then(response => json<ScoreFile[]>(response)),
-  addFile: (scoreId: number, file: File) => {
+  addFile: (scoreId: number, file: File, as: { label?: string; source?: ScoreFile['source'] } = {}) => {
     const form = new FormData();
     form.append('file', file);
+    if (as.label) form.append('label', as.label);
+    if (as.source) form.append('source', as.source);
     return fetch(`/api/scores/${scoreId}/files`, { method: 'POST', body: form }).then(response => json<ScoreFile[]>(response));
   },
+  imslpEditions: (scoreId: number) => fetch(`/api/scores/${scoreId}/imslp/editions`).then(response => json<{ page: string | null; editions: ImslpEdition[] }>(response)),
   changeFile: (scoreId: number, fileId: number, changes: { label?: string; isDefault?: true }) => send<ScoreFile[]>('PUT', `/api/scores/${scoreId}/files/${fileId}`, changes),
   removeFile: (scoreId: number, fileId: number) => fetch(`/api/scores/${scoreId}/files/${fileId}`, { method: 'DELETE' }).then(response => json<ScoreFile[]>(response)),
   reading: () => fetch('/api/books/reading').then(response => json<ReadingEntry[]>(response)),

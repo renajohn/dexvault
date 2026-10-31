@@ -1,0 +1,77 @@
+/* IMSLP's editions of a work: its first page small, its name, its files. */
+.imslp-editions__hint,
+.imslp-editions__empty {
+  margin: 0 0 12px;
+  color: var(--dv-text-muted);
+  font-size: 0.85rem;
+}
+
+.imslp-editions__section h5 {
+  margin: 16px 0 6px;
+  color: var(--dv-text-faint);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.imslp-edition {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--dv-edge);
+}
+
+.imslp-edition__thumb {
+  flex: none;
+  width: 56px;
+  height: 76px;
+  border-radius: var(--dv-radius-sm);
+  background: var(--dv-glass);
+  object-fit: cover;
+  object-position: top;
+}
+
+.imslp-edition__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.imslp-edition__name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--dv-text);
+  font-weight: 600;
+}
+
+/* Gold: the one that is on, one's own edition. */
+.imslp-edition__own {
+  color: var(--dv-gold);
+  font-size: 0.7rem;
+  font-weight: 400;
+  font-variant: all-small-caps;
+  letter-spacing: 0.04em;
+}
+
+.imslp-edition__meta {
+  margin-top: 2px;
+  color: var(--dv-text-faint);
+  font-size: 0.8rem;
+}
+
+.imslp-edition__file {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.imslp-edition__facts {
+  flex: 1;
+  min-width: 160px;
+  color: var(--dv-text-muted);
+  font-size: 0.8rem;
+}

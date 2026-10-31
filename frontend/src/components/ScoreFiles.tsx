@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BsCheck, BsFileEarmarkPdf, BsPaperclip, BsThreeDots, BsX } from 'react-icons/bs';
+import { BsBoxArrowUpRight, BsCheck, BsFileEarmarkPdf, BsPaperclip, BsThreeDots, BsX } from 'react-icons/bs';
 import bookSectionsService, { ScoreFile, scoreFileUrl } from '../services/bookSectionsService';
 import Button, { IconButton } from './shared/Button';
 import Menu from './shared/Menu';
@@ -22,7 +22,9 @@ const ScoreFiles: React.FC<{
   files: ScoreFile[];
   onChange: (files: ScoreFile[]) => void;
   onAdd: () => void;
-}> = ({ scoreId, files, onChange, onAdd }) => {
+  /** Its editions on IMSLP, to take one. */
+  onImslp: () => void;
+}> = ({ scoreId, files, onChange, onAdd, onImslp }) => {
   const [renaming, setRenaming] = useState<{ id: number; label: string } | null>(null);
 
   const change = async (file: ScoreFile, changes: { label?: string; isDefault?: true }) => {
@@ -74,7 +76,10 @@ const ScoreFiles: React.FC<{
           ))}
         </ul>
       )}
-      <Button size="sm" variant="quiet" icon={<BsPaperclip />} onClick={onAdd}>{files.length ? 'Add a PDF' : 'Attach PDF'}</Button>
+      <div className="score-files__add">
+        <Button size="sm" variant="quiet" icon={<BsPaperclip />} onClick={onAdd}>{files.length ? 'Add a PDF' : 'Attach PDF'}</Button>
+        <Button size="sm" variant="quiet" icon={<BsBoxArrowUpRight />} onClick={onImslp}>From IMSLP…</Button>
+      </div>
     </div>
   );
 };
