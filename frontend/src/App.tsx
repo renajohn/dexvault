@@ -11,6 +11,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import BackupPage from './pages/BackupPage';
 import ShelvesPage from './pages/ShelvesPage';
 import CogDropdown from './components/CogDropdown';
+import PhoneSections from './components/PhoneSections';
 import Menu, { MenuChevron } from './components/shared/Menu';
 import SearchPills from './components/shared/search/SearchPills';
 import { getSearchSchema } from './components/shared/search/schemas';
@@ -21,7 +22,7 @@ import ScrollToTop from './components/ScrollToTop';
 import apiService from './services/api';
 import bookService from './services/bookService';
 import bookSectionsService from './services/bookSectionsService';
-import { BsX, BsCollectionFill, BsBookmark, BsDisc, BsArrowLeft, BsFilm, BsBook, BsFileMusic, BsBookshelf } from 'react-icons/bs';
+import { BsX, BsCollectionFill, BsBookmark, BsDisc, BsArrowLeft, BsFilm, BsBook, BsFileMusic, BsBookshelf, BsBarChart, BsGear } from 'react-icons/bs';
 import 'bootstrap/dist/css/bootstrap.min.css';
 // After Bootstrap, so that its radios and checkboxes wear DexVault's look.
 import './components/shared/check.css';
@@ -602,9 +603,78 @@ function AppContent() {
   }, [hasCheckedBackfill]);
 
 
+  // The search, in pills (components/shared/search): on its own row, or beside the sections on a phone.
+  const searchField = searchSchema && (
+    <SearchPills
+      schema={searchSchema}
+      value={searchCriteria.searchText}
+      onChange={searchText => setSearchCriteria({ searchText })}
+      inputRef={searchInputRef}
+      recentKey={product ? `dexvault-${product}-recent-searches` : undefined}
+      onFocus={() => setIsSearchFocused(true)}
+      onBlur={() => setIsSearchFocused(false)}
+      endAdornment={<>
+        {searchCriteria.searchText && (
+          <IconButton label="Clear the search" size="sm" onClick={() => setSearchCriteria({ searchText: '' })}><BsX /></IconButton>
+        )}
+        {location.pathname !== '/wishlist' && (
+          <Menu align="end" label="Advanced filters" onOpenChange={open => { if (open) fetchFilterData(); }}
+            trigger={(props, open) => (
+              <IconButton {...props} label="Advanced filters" size="sm"><MenuChevron open={open} /></IconButton>
+            )}>
+            {filterSections().map((section, index) => (
+              <React.Fragment key={section.title}>
+                {index > 0 && <Menu.Separator />}
+                <Menu.Section title={section.title} />
+                {section.options.map(option => (
+                  <Menu.Item key={option.label} onSelect={() => handleFilterSelection(option.type, option.value)}>{option.label}</Menu.Item>
+                ))}
+              </React.Fragment>
+            ))}
+          </Menu>
+        )}
+      </>}
+    />
+  );
+
+  const cog = (phoneStrip?: { close: () => void }) => (
+    <CogDropdown
+      onSyncNavidrome={handleSyncNavidrome}
+      syncingNavidrome={navidrome.syncing}
+      onBackup={handleBackup}
+      onAnalytics={handleAnalytics}
+      showAnalytics={!phoneStrip}
+      onOpenChange={phoneStrip ? open => { if (!open) phoneStrip.close(); } : undefined}
+      currentPage={location.pathname === '/musicdex' ? 'musicdex' : location.pathname === '/bookdex' ? 'bookdex' : 'filmdex'}
+    />
+  );
+
   return (
     <div className="App">
       <header ref={headerRef} className="App-header">
+        {phone && showNavigationPills ? (
+        /* On a phone, one row: the sections in one button, then the search where the page has one (its title is its own). */
+        <div className="App-header-content App-header-content--phone">
+          <div ref={searchRowRef} className="App-phone-row">
+            <PhoneSections
+              value={location.pathname.startsWith('/musicdex') ? 'musicdex' : SECTIONS.includes(location.pathname) ? location.pathname.slice(1) : null}
+              onChange={section => navigate(`/${section}`)}
+              restIcon={<BsGear />}
+              sections={[
+                { value: 'filmdex', icon: <BsFilm />, label: 'FilmDex' },
+                { value: 'musicdex', icon: <BsDisc />, label: 'MusicDex' },
+                { value: 'bookdex', icon: <BsBook />, label: 'BookDex' },
+                { value: 'scores', icon: <BsFileMusic />, label: 'Scores' },
+                { value: 'wishlist', icon: <BsBookmark />, label: 'Wish List' },
+                { value: 'shelves', icon: <BsBookshelf />, label: 'Shelves' },
+                { value: 'analytics', icon: <BsBarChart />, label: 'Analytics' },
+              ]}
+              tools={close => cog({ close })}
+            />
+            {showSearchBar && searchField && <div className="App-search">{searchField}</div>}
+          </div>
+        </div>
+        ) : (
         <div className={`App-header-content ${!showSearchBar ? 'no-search' : ''} ${isSearchFocused ? 'search-focused' : ''}`}>
           {/* First row: Navigation and toolbar */}
           <div className="App-header-top">
@@ -635,52 +705,18 @@ function AppContent() {
               </div>
             )}
             <div className="App-toolbar">
-              <CogDropdown
-                onSyncNavidrome={handleSyncNavidrome}
-                syncingNavidrome={navidrome.syncing}
-                onBackup={handleBackup}
-                onAnalytics={handleAnalytics}
-                currentPage={location.pathname === '/musicdex' ? 'musicdex' : location.pathname === '/bookdex' ? 'bookdex' : 'filmdex'}
-              />
+              {cog()}
             </div>
           </div>
 
-          {/* Second row on a phone: the search, in pills (components/shared/search). */}
+          {/* Second row: the search, in pills (components/shared/search). */}
           {showSearchBar && searchSchema && (
             <div ref={searchRowRef} className="App-search">
-              <SearchPills
-                schema={searchSchema}
-                value={searchCriteria.searchText}
-                onChange={searchText => setSearchCriteria({ searchText })}
-                inputRef={searchInputRef}
-                recentKey={product ? `dexvault-${product}-recent-searches` : undefined}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                endAdornment={<>
-                  {searchCriteria.searchText && (
-                    <IconButton label="Clear the search" size="sm" onClick={() => setSearchCriteria({ searchText: '' })}><BsX /></IconButton>
-                  )}
-                  {location.pathname !== '/wishlist' && (
-                    <Menu align="end" label="Advanced filters" onOpenChange={open => { if (open) fetchFilterData(); }}
-                      trigger={(props, open) => (
-                        <IconButton {...props} label="Advanced filters" size="sm"><MenuChevron open={open} /></IconButton>
-                      )}>
-                      {filterSections().map((section, index) => (
-                        <React.Fragment key={section.title}>
-                          {index > 0 && <Menu.Separator />}
-                          <Menu.Section title={section.title} />
-                          {section.options.map(option => (
-                            <Menu.Item key={option.label} onSelect={() => handleFilterSelection(option.type, option.value)}>{option.label}</Menu.Item>
-                          ))}
-                        </React.Fragment>
-                      ))}
-                    </Menu>
-                  )}
-                </>}
-              />
+              {searchField}
             </div>
           )}
         </div>
+        )}
       </header>
 
       <ShelfMovesNotice />

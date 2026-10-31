@@ -10,6 +10,9 @@ interface CogDropdownProps {
   onBackup?: () => void;
   onAnalytics?: () => void;
   currentPage?: string;
+  /** Off on a phone, where Analytics has its own button among the sections. */
+  showAnalytics?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** ⚙︎ in the header: what each collection offers, then what DexVault does for all of them. */
@@ -18,10 +21,12 @@ const CogDropdown: React.FC<CogDropdownProps> = ({
   syncingNavidrome = false,
   onBackup,
   onAnalytics,
-  currentPage = 'dexvault'
+  currentPage = 'dexvault',
+  showAnalytics = true,
+  onOpenChange
 }) => (
   <div className="cog-dropdown">
-    <Menu align="end" label="Menu" trigger={props => (
+    <Menu align="end" label="Menu" onOpenChange={onOpenChange} trigger={props => (
       <button type="button" {...props} className="cog-button" aria-label="Menu">
         <BsGear />
       </button>
@@ -36,7 +41,7 @@ const CogDropdown: React.FC<CogDropdownProps> = ({
         </>
       )}
       <Menu.Section title="DexVault" />
-      <Menu.Item icon={<BsBarChart />} hint="⌘7" onSelect={onAnalytics}>Analytics</Menu.Item>
+      {showAnalytics && <Menu.Item icon={<BsBarChart />} hint="⌘7" onSelect={onAnalytics}>Analytics</Menu.Item>}
       <Menu.Item icon={<BsArchive />} onSelect={onBackup}>Backups</Menu.Item>
     </Menu>
   </div>

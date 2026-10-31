@@ -190,6 +190,11 @@ if (await confirm({ title: 'Delete this backup?', message: '“x.zip” goes for
 
 - A dark groove, the options in it; the one chosen wears a light veil, or
   plain gold with `tone="gold"` (the app's sections, a filter).
+- On a phone the app's sections are not a `Segmented` but **`PhoneSections`**
+  (`components/PhoneSections.tsx`): one button beside the search, the section
+  in gold; touched, a strip in the menus' glass over the search, every section
+  (Analytics too) and ⚙︎, closed once one is chosen, on a touch beside it, a
+  scroll or Escape. The header is then one row, which holds at the top.
 - `kind="choice"` (default, a radio group) or `kind="tabs"` (one panel among
   several). `size` sm/md/lg, `block` to fill its place, `count` after the
   words, `tooltip` for an option with an icon alone (it names it, too).

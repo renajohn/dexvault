@@ -46,6 +46,35 @@
   }
 }
 
+/*
+ * On a phone, one row (PhoneSections.tsx): the sections in one button, then
+ * the search where the page has one; the strip of sections opens over the row.
+ */
+.App-header:has(.App-header-content--phone) {
+  padding-top: calc(10px + var(--safe-top));
+  padding-bottom: 10px;
+  padding-left: max(12px, var(--safe-left));
+  padding-right: max(12px, var(--safe-right));
+}
+
+.App-phone-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.App-phone-row .App-search {
+  flex: 1;
+  margin: 0;
+}
+
+/* Its words say it is a search: no lens, the room to them. */
+.App-phone-row .search-pills__lens {
+  display: none;
+}
+
 .App-header-content {
   display: flex;
   flex-direction: column;
