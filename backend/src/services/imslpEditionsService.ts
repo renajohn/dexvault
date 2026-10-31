@@ -123,7 +123,8 @@ export const editionsOf = (html: string): ImslpEdition[] => {
       copyright: field(/^Copyright/)?.replace(/\s*\[tag\/del\]/, '') ?? null,
       notes: field(/^Misc/),
       plate: plateOf(publisher) ?? plateOf(reprinted),
-      thumbnail: thumbnail?.startsWith('//') ? `https:${thumbnail}` : thumbnail,
+      // IMSLP writes its own images' paths from its root ("/images/thumb/…") or without their scheme.
+      thumbnail: !thumbnail ? null : thumbnail.startsWith('//') ? `https:${thumbnail}` : thumbnail.startsWith('/') ? `https://imslp.org${thumbnail}` : thumbnail,
       files,
     });
   }

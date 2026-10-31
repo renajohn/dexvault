@@ -53,7 +53,7 @@ interface ScoreCardProps {
   onDeleted?: () => void;
   onAttach: (score: Score) => void;
   /** Its PDF read full screen (ScoreReader): one of them, at a page; the browser's own viewer when none is given. */
-  onRead?: (scoreId: number, fileId?: number, page?: number) => void;
+  onRead?: (scoreId: number, fileId?: number, page?: number, piece?: string) => void;
 }
 
 /** What one edits of an edition, as typed. */
@@ -180,7 +180,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   }, [score.id, first?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   /** A piece's first page in the PDF that opens first, to open it there. */
   const pageOf = (pieceId: number, partWorkId: string | null) => marks.find(mark => markKey(mark.pieceId, mark.partWorkId) === markKey(pieceId, partWorkId))?.startPage ?? null;
-  const openAt = (page: number) => first && (onRead ? onRead(score.id, first.id, page) : window.open(scoreFileUrl(score.id, first.id, page), '_blank', 'noopener'));
+  const openAt = (page: number, piece?: string) => first && (onRead ? onRead(score.id, first.id, page, piece) : window.open(scoreFileUrl(score.id, first.id, page), '_blank', 'noopener'));
   const openFile = (file: ScoreFile) => (onRead ? onRead(score.id, file.id) : openScoreFile(file));
   /** Pieces' pages on A4, opened to print: "12:" a piece, "12:w1" a part, "12:*" a set's parts marked. */
   const print = (keys: string[], name?: string) => first && window.open(scorePrintUrl(score.id, keys, { file: first.id, name }), '_blank', 'noopener');
@@ -686,7 +686,7 @@ interface PieceBlockProps {
   onRemove: () => void;
   /** Its first page in the PDF that opens first, a part of a set by its work. */
   pageOf: (pieceId: number, partWorkId: string | null) => number | null;
-  onOpenPage?: (page: number) => void;
+  onOpenPage?: (page: number, piece: string) => void;
   /** Its pages, or a part's, on A4 to print. */
   onPrint?: (keys: string[], name?: string) => void;
 }
@@ -785,7 +785,7 @@ const PieceBlock: React.FC<PieceBlockProps> = ({ piece, composer, playing, heard
               const page = pageOf(piece.id, piece.single ? null : row.workId);
               return page && onOpenPage ? (
                 <>
-                  <Button size="sm" variant="quiet" onClick={() => onOpenPage(page)} title={`Open the PDF at page ${page}`}>p. {page}</Button>
+                  <Button size="sm" variant="quiet" onClick={() => onOpenPage(page, markKey(piece.id, piece.single ? null : row.workId))} title={`Open the PDF at page ${page}`}>p. {page}</Button>
                   {onPrint && (
                     <IconButton size="sm" label={`Print ${row.name || piece.title}`}
                       onClick={() => onPrint([markKey(piece.id, piece.single ? null : row.workId)], row.name || piece.title)}><BsPrinter /></IconButton>

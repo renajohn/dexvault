@@ -128,7 +128,12 @@ const ScoreBookmarks: React.FC<{
     setMarks(prev => ({ ...prev, [key]: { start: prev?.[key]?.start ?? null, end: prev?.[key]?.end ?? null, [field]: value } }));
   const pick = (page: number, end: boolean) => {
     if (!selected) return;
-    if (end) { set(selected, 'end', page); return; }
+    if (end) {
+      const start = marks?.[selected]?.start;
+      if (start != null && page < start) { toast(`Page ${page} comes before its first, ${start}`, { tone: 'warning' }); return; }
+      set(selected, 'end', page);
+      return;
+    }
     // Its first page set again: its last follows the next piece again.
     setMarks(prev => ({ ...prev, [selected]: { start: page, end: null } }));
     const at = rows.findIndex(row => row.key === selected);
@@ -150,6 +155,8 @@ const ScoreBookmarks: React.FC<{
     const bookmarks = rows.filter(row => marks[row.key]?.start != null).map(row => ({
       pieceId: row.pieceId, partWorkId: row.partWorkId, startPage: marks[row.key].start!, endPage: Math.max(marks[row.key].start!, ends[row.key]),
     }));
+    const backwards = rows.find(row => marks[row.key]?.start != null && marks[row.key]?.end != null && marks[row.key].end! < marks[row.key].start!);
+    if (backwards) { toast(`${backwards.name}: its last page comes before its first`, { tone: 'warning' }); return; }
     const wrong = bookmarks.find(mark => mark.startPage > pageCount || mark.endPage > pageCount);
     if (wrong) { toast(`Page ${wrong.endPage} is past the PDF's ${pageCount}`, { tone: 'warning' }); return; }
     setSaving(true);
@@ -190,6 +197,7 @@ const ScoreBookmarks: React.FC<{
                                 onChange={e => set(row.key, 'start', number(e.target.value))} />
                               <span className="score-bookmarks__dash">–</span>
                               <TextField size="sm" inputMode="numeric" className="score-bookmarks__field" aria-label={`Last page of ${row.name}`}
+                                isInvalid={mark?.start != null && mark?.end != null && mark.end < mark.start}
                                 value={mark?.end != null ? String(mark.end) : ''} placeholder={ends[row.key] ? String(ends[row.key]) : ''}
                                 onChange={e => set(row.key, 'end', number(e.target.value))} />
                             </li>

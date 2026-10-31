@@ -29,9 +29,16 @@ export const turned = (page: number, by: 1 | -1, pageCount: number, twoUp: boole
   return Math.min(Math.max(1, page + by * step), Math.max(1, pageCount - (twoUp && pageCount > 1 ? 1 : 0)));
 };
 
-/** The piece a page is in: the last marked that begins on or before it and has not ended. */
-export const pieceAt = (page: number, marks: ScoreBookmark[]): ScoreBookmark | null =>
-  [...marks].filter(mark => mark.startPage <= page && mark.endPage >= page).sort((a, b) => b.startPage - a.startPage)[0] ?? null;
+/**
+ * The piece a page is in: the one asked (opened at, chosen in ☰) while the page
+ * is in it, else the last to begin on or before it that has not ended, the
+ * later in the score of two beginning on the same page.
+ */
+export const pieceAt = (page: number, marks: ScoreBookmark[], asked: string | null = null): ScoreBookmark | null => {
+  const holding = marks.filter(mark => mark.startPage <= page && mark.endPage >= page);
+  return holding.find(mark => markKey(mark.pieceId, mark.partWorkId) === asked)
+    ?? holding.reduce<ScoreBookmark | null>((last, mark) => (!last || mark.startPage >= last.startPage ? mark : last), null);
+};
 
 /** A page drawn to fit its box, swapped in once drawn so a turn never shows a blank. */
 const Page: React.FC<{ pdf: PdfDocument; page: number; box: { width: number; height: number } }> = ({ pdf, page, box }) => {
@@ -69,6 +76,8 @@ const ScoreReader: React.FC = () => {
   const [pdf, setPdf] = useState<PdfDocument | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  // The piece asked for, by its key ("12:w1"): it names a page it shares with another.
+  const [asked, setAsked] = useState<string | null>(() => params.get('piece'));
   const [barShown, setBarShown] = useState(true);
   const [oneUp, setOneUp] = useState(() => stored(LAYOUT_KEY) === 'one');
   const [box, setBox] = useState({ width: window.innerWidth, height: window.innerHeight });
@@ -156,7 +165,7 @@ const ScoreReader: React.FC = () => {
   const nameOf = (mark: ScoreBookmark) => rows.find(row => row.key === markKey(mark.pieceId, mark.partWorkId))?.name ?? null;
   const marked = rows.map(row => ({ row, mark: marks.find(mark => markKey(mark.pieceId, mark.partWorkId) === row.key) }))
     .filter((entry): entry is { row: typeof rows[number]; mark: ScoreBookmark } => Boolean(entry.mark));
-  const here = pieceAt(shown[0], marks);
+  const here = pieceAt(shown[0], marks, asked);
   const herePiece = here ? pieces.find(piece => piece.id === here.pieceId) : null;
   const recording = here && herePiece ? recordingOf(herePiece, here.partWorkId) : null;
   const thisPlays = Boolean(recording && playingKey === recordingKey(recording));
@@ -200,7 +209,7 @@ const ScoreReader: React.FC = () => {
           {marked.length > 0 && (
             <Menu align="end" trigger={props => <IconButton {...props} label="Go to a piece"><BsListUl /></IconButton>}>
               {marked.map(({ row, mark }) => (
-                <Menu.Choice key={row.key} selected={here === mark} hint={`p. ${mark.startPage}`} onSelect={() => setPage(mark.startPage)}>
+                <Menu.Choice key={row.key} selected={here === mark} hint={`p. ${mark.startPage}`} onSelect={() => { setAsked(row.key); setPage(mark.startPage); }}>
                   {row.name}
                 </Menu.Choice>
               ))}

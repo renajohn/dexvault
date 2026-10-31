@@ -113,6 +113,18 @@ describe('ScoreCard, ses PDF', () => {
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }));
   });
 
+  it('ouvre le lecteur à la page d’une pièce, en disant laquelle', async () => {
+    vi.mocked(bookSectionsService.files).mockReset().mockResolvedValue([pdf(1, 'Durand', true)]);
+    vi.mocked(bookSectionsService.bookmarks).mockReset().mockResolvedValue([{ pieceId: 1, partWorkId: 'w2', startPage: 7, endPage: 9 }]);
+    const onRead = vi.fn();
+    card({ score: { ...score, ebookFile: 'score_219_1.pdf', fileCount: 1 }, onRead });
+    const voiles = (await screen.findByText('Voiles')).closest('.score-piece__row') as HTMLElement;
+    fireEvent.click(await within(voiles).findByRole('button', { name: 'p. 7' }));
+    expect(onRead).toHaveBeenCalledWith(219, 1, 7, '1:w2');
+    fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
+    expect(onRead).toHaveBeenLastCalledWith(219);
+  });
+
   it('imprime plusieurs pièces marquées, choisies parmi elles', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null);
     vi.mocked(bookSectionsService.files).mockReset().mockResolvedValue([pdf(1, 'Durand', true)]);

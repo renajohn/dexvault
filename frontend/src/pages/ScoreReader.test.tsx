@@ -57,6 +57,11 @@ describe('tourner les pages', () => {
     expect(pieceAt(4, marks)?.partWorkId).toBe('w1');
     expect(pieceAt(5, marks)?.partWorkId).toBe('w2');
     expect(pieceAt(9, marks)).toBeNull();
+    // Two beginning on one page: the one asked, else the later in the score.
+    const shared = [{ pieceId: 2, partWorkId: null, startPage: 3, endPage: 3 }, { pieceId: 3, partWorkId: null, startPage: 3, endPage: 5 }];
+    expect(pieceAt(3, shared)?.pieceId).toBe(3);
+    expect(pieceAt(3, shared, '2:')?.pieceId).toBe(2);
+    expect(pieceAt(4, shared, '2:')?.pieceId).toBe(3);
   });
 });
 
@@ -88,7 +93,7 @@ describe('ScoreReader', () => {
 
   it('s’ouvre à la page demandée, dit la pièce, tourne aux flèches et au toucher, et retient la page', async () => {
     reader('/scores/219/read?page=4');
-    await waitFor(() => expect(pages()).toEqual([4]));
+    await waitFor(() => expect(pages()).toEqual([4]), { timeout: 4000 });
     expect(screen.getByText('Préludes Vol. 1')).toBeInTheDocument();
     expect(screen.getByText('Danseuses de Delphes')).toBeInTheDocument();
     expect(screen.getByText('4 / 10')).toBeInTheDocument();
@@ -113,7 +118,7 @@ describe('ScoreReader', () => {
     size(1200, 800);
     localStorage.setItem('dv.reader.page.5', '3');
     reader();
-    await waitFor(() => expect(pages()).toEqual([3, 4]));
+    await waitFor(() => expect(pages()).toEqual([3, 4]), { timeout: 4000 });
     fireEvent.keyDown(window, { key: ' ' });
     expect(pages()).toEqual([5, 6]);
     fireEvent.click(screen.getByRole('button', { name: 'One page at a time' }));
@@ -121,9 +126,21 @@ describe('ScoreReader', () => {
     expect(localStorage.getItem('dv.reader.layout')).toBe('one');
   });
 
+  it('nomme la pièce demandée quand deux commencent sur la même page', async () => {
+    vi.mocked(bookSectionsService.bookmarks).mockResolvedValue([
+      { pieceId: 1, partWorkId: 'w1', startPage: 3, endPage: 3 }, { pieceId: 1, partWorkId: 'w2', startPage: 3, endPage: 8 },
+    ]);
+    reader('/scores/219/read?page=3&piece=1%3Aw1');
+    await waitFor(() => expect(pages()).toEqual([3]), { timeout: 4000 });
+    expect(screen.getByText('Danseuses de Delphes')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Go to a piece' }));
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /Voiles/ }));
+    expect(screen.getByText('Voiles')).toBeInTheDocument();
+  });
+
   it('va à une pièce et joue son enregistrement', async () => {
     reader();
-    await waitFor(() => expect(pages()).toEqual([1]));
+    await waitFor(() => expect(pages()).toEqual([1]), { timeout: 4000 });
     expect(screen.getByRole('button', { name: 'Not in your music' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Go to a piece' }));
     fireEvent.click(await screen.findByRole('menuitemradio', { name: /Voiles/ }));

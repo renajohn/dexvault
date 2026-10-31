@@ -74,10 +74,11 @@ const ScoresPage: React.FC<{ searchCriteria?: { searchText?: string } }> = ({ se
   }, [shown]);
 
   /** A score read full screen, from its last page read or at one. */
-  const read = (scoreId: number, fileId?: number, page?: number) => {
+  const read = (scoreId: number, fileId?: number, page?: number, piece?: string) => {
     const query = new URLSearchParams();
     if (fileId) query.set('file', String(fileId));
     if (page) query.set('page', String(page));
+    if (piece) query.set('piece', piece);
     navigate(`/scores/${scoreId}/read${query.size ? `?${query}` : ''}`);
   };
 

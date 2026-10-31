@@ -74,6 +74,18 @@ describe('ScoreBookmarks', () => {
     expect(onSaved).toHaveBeenCalled();
   });
 
+  it('refuse une dernière page avant la première', async () => {
+    render(<ScoreBookmarks scoreId={219} file={file} pieces={[livre, clair]} onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.click(await screen.findByLabelText('First page of Clair de lune'));
+    expect(screen.getByLabelText('First page of Clair de lune').closest('li')).toHaveClass('score-bookmarks__row--selected');
+    // It begins on page 10, kept 10–12: page 8 cannot be its last.
+    fireEvent.click(screen.getByRole('button', { name: 'Page 8' }), { shiftKey: true });
+    expect(screen.getByLabelText('Last page of Clair de lune')).toHaveValue('12');
+    fireEvent.change(screen.getByLabelText('Last page of Clair de lune'), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Keep the pages' }));
+    expect(bookSectionsService.keepBookmarks).not.toHaveBeenCalled();
+  });
+
   it('prend les signets du PDF lui-même, dans l’ordre', async () => {
     render(<ScoreBookmarks scoreId={219} file={file} pieces={[livre, clair]} onClose={vi.fn()} onSaved={vi.fn()} />);
     fireEvent.click(await screen.findByRole('button', { name: /Take the PDF’s own 2 bookmarks/ }));

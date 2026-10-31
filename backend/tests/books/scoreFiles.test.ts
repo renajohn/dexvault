@@ -73,6 +73,10 @@ describe('les PDF d’une partition', () => {
   it('ne prend qu’un PDF, et seulement pour une partition', async () => {
     const id = await insertScore(`Kinderszenen ${tag()}`);
     await request(app).post(`/api/scores/${id}/files`).attach('file', Buffer.from('hello'), { filename: 'notes.txt', contentType: 'text/plain' }).expect(400);
+    // A PDF by its name only.
+    await request(app).post(`/api/scores/${id}/files`).attach('file', Buffer.from('hello'), { filename: 'fake.pdf', contentType: 'application/pdf' }).expect(400);
+    expect((await request(app).get(`/api/scores/${id}/files`).expect(200)).body).toEqual([]);
+    expect(fs.readdirSync(filesDir()).some(name => name.startsWith(`score_${id}_`))).toBe(false);
     await send(999999, 'lost.pdf').expect(404);
     expect(fs.readdirSync(filesDir()).some(name => name.startsWith('score_999999_'))).toBe(false);
     await request(app).get(`/api/scores/${id}/files/999999/pdf`).expect(404);
@@ -111,6 +115,8 @@ describe('les éditions d’une œuvre sur IMSLP', () => {
       files: [{ index: '83536', title: 'Complete Score', pages: 33, size: '6.07MB', downloads: 57820, download: 'https://imslp.org/wiki/Special:ImagefromIndex/83536' }],
     });
     expect(editions[2]).toMatchObject({ plate: 'HN 381', editor: 'Ernst-Günter Heinemann (b. 1945)' });
+    // Every first page from IMSLP itself, whether it writes its path from its root or without its scheme.
+    for (const edition of editions) expect(edition.thumbnail).toMatch(/^https:\/\/(cdn\.)?imslp\.org\//);
   });
 
   it.each([
@@ -240,6 +246,16 @@ describe('imprimer des pièces', () => {
     const one = await request(app).get(`/api/scores/${id}/print`).query({ pieces: `${prelude}:`, name: 'Suite bergamasque – Prélude' }).buffer(true).parse(binary).expect(200);
     expect(one.headers['content-disposition']).toBe(`inline; filename*=UTF-8''${encodeURIComponent('Suite bergamasque – Prélude.pdf')}`);
     expect((await PDFDocument.load(one.body)).getPageCount()).toBe(2);
+  });
+
+  it('compte les pages du PDF lui-même, pas celles que le navigateur dit', async () => {
+    const id = await insertScore(`Arabesques ${tag()}`);
+    const piece = await insertPiece(id, 'Arabesque 1', 0);
+    const [file] = (await request(app).post(`/api/scores/${id}/files`).attach('file', await scan(), { filename: 'a.pdf', contentType: 'application/pdf' }).expect(201)).body;
+    expect(file.pageCount).toBe(10);
+    await request(app).put(`/api/scores/${id}/files/${file.id}/bookmarks`).send({ pageCount: 30, bookmarks: [{ pieceId: piece, startPage: 1, endPage: 20 }] }).expect(400);
+    await request(app).put(`/api/scores/${id}/files/${file.id}/bookmarks`).send({ pageCount: 30, bookmarks: [{ pieceId: piece, startPage: 1, endPage: 10 }] }).expect(200);
+    expect((await request(app).get(`/api/scores/${id}/files`).expect(200)).body[0].pageCount).toBe(10);
   });
 
   it('dit quand les pages ne sont pas marquées, ou qu’il n’y a pas de PDF', async () => {

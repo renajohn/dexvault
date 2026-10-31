@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDatabase } from '../database';
 import configManager from '../config';
+import { PDFDocument } from 'pdf-lib';
 
 /**
  * A score's PDFs: IMSLP's scan of its first edition, one's own copy scanned
@@ -60,6 +61,25 @@ export const labelOf = (filename: string): string => {
   return name.replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim() || 'PDF';
 };
 
+/** Whether a file is a PDF by what it holds: "%PDF-" at its start, not its name. */
+const isPdf = (filename: string): boolean => {
+  try {
+    const fd = fs.openSync(path.join(filesDir(), filename), 'r');
+    const head = Buffer.alloc(1024);
+    const read = fs.readSync(fd, head, 0, 1024, 0);
+    fs.closeSync(fd);
+    return head.subarray(0, read).includes('%PDF-');
+  } catch { return false; }
+};
+
+/** Its number of pages as the file says it; null when pdf-lib cannot read it (the browser may). */
+const pagesIn = async (filename: string): Promise<number | null> => {
+  try {
+    const doc = await PDFDocument.load(await fs.promises.readFile(path.join(filesDir(), filename)), { ignoreEncryption: true, updateMetadata: false });
+    return doc.getPageCount();
+  } catch { return null; }
+};
+
 const sizeOf = (filename: string): number | null => {
   try { return fs.statSync(path.join(filesDir(), filename)).size; } catch { return null; }
 };
@@ -114,13 +134,14 @@ const scoreFilesService = {
   add: async (bookId: number, filename: string, label: string | null, source: ScoreFileSource = 'upload'): Promise<ScoreFile[]> => {
     try {
       await scoreExists(bookId);
+      if (!isPdf(filename)) throw new ScoreFilesError('This file is not a PDF', 400);
     } catch (error) {
       removeFromDisk(filename);
       throw error;
     }
     const [{ n }] = await all<{ n: number }>('SELECT COUNT(*) AS n FROM score_files WHERE book_id = ?', [bookId]);
-    await run('INSERT INTO score_files (book_id, filename, label, source, is_default) VALUES (?, ?, ?, ?, ?)',
-      [bookId, filename, label?.trim() || labelOf(filename), source, n === 0 ? 1 : 0]);
+    await run('INSERT INTO score_files (book_id, filename, label, source, is_default, page_count) VALUES (?, ?, ?, ?, ?, ?)',
+      [bookId, filename, label?.trim() || labelOf(filename), source, n === 0 ? 1 : 0, await pagesIn(filename)]);
     await follow(bookId);
     return scoreFilesService.list(bookId);
   },
@@ -169,10 +190,15 @@ const scoreFilesService = {
     return rows.map(row => ({ pieceId: row.piece_id, partWorkId: row.part_work_id || null, startPage: row.start_page, endPage: row.end_page }));
   },
 
-  /** Its pieces' pages, all of them at once, and its number of pages read by the browser. */
+  /**
+   * Its pieces' pages, all of them at once. Its number of pages is the file's
+   * own, read on the server; the browser's only for a PDF pdf-lib cannot read.
+   */
   keepBookmarks: async (bookId: number, fileId: number, input: { bookmarks?: unknown; pageCount?: unknown }): Promise<Bookmark[]> => {
-    await one(bookId, fileId);
-    const pageCount = Number.isInteger(input.pageCount) && (input.pageCount as number) > 0 ? input.pageCount as number : null;
+    const row = await one(bookId, fileId);
+    const own = row.page_count ?? await pagesIn(row.filename);
+    const told = Number.isInteger(input.pageCount) && (input.pageCount as number) > 0 ? input.pageCount as number : null;
+    const pageCount = own ?? told;
     if (!Array.isArray(input.bookmarks)) throw new ScoreFilesError('Which pages?', 400);
     const pieceIds = new Set((await all<{ id: number }>('SELECT id FROM score_pieces WHERE book_id = ?', [bookId])).map(row => row.id));
     const marks = input.bookmarks.map(mark => {
@@ -190,7 +216,7 @@ const scoreFilesService = {
       await run(`INSERT OR REPLACE INTO score_bookmarks (file_id, piece_id, part_work_id, start_page, end_page) VALUES (?, ?, ?, ?, ?)`,
         [fileId, mark.pieceId, mark.partWorkId, mark.start, mark.end]);
     }
-    if (pageCount) await run('UPDATE score_files SET page_count = ? WHERE id = ?', [pageCount, fileId]);
+    if (pageCount && pageCount !== row.page_count) await run('UPDATE score_files SET page_count = ? WHERE id = ?', [pageCount, fileId]);
     return scoreFilesService.bookmarks(bookId, fileId);
   },
 
