@@ -331,7 +331,11 @@ const ripStatusService = {
           || (album.titleStatus === 'digital' && album.musicbrainzReleaseId === releaseId));
         const inCollection = sameGroup.filter(owned);
         const wished = sameGroup.filter(album => album.titleStatus === 'wish');
-        const digital = sameGroup.filter(album => album.titleStatus === 'digital');
+        // An older copy of the same album (MP3, iTunes) is a digital album of the
+        // same group too: the one this rip made is the one of its edition.
+        const digitalOfGroup = sameGroup.filter(album => album.titleStatus === 'digital');
+        const ofEdition = digitalOfGroup.filter(album => album.musicbrainzReleaseId === releaseId);
+        const digital = ofEdition.length === 1 ? ofEdition : digitalOfGroup;
         if (inCollection.length > 1 || (inCollection.length === 0 && (wished.length > 1 || (wished.length === 0 && digital.length > 1)))) {
           results.push({ albumId: null, title: name, releaseId, skipped: 'several_albums' });
           continue;

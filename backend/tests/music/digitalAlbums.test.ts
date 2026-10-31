@@ -205,6 +205,23 @@ describe('rip FLAC d’un album digital', () => {
     expect(await Album.findById(digital.id)).toMatchObject({ titleStatus: 'owned', format: 'CD' });
   });
 
+  it('fait un CD de l’album du rip quand une ancienne copie MP3 du même album est aussi digitale', async () => {
+    const [name, releaseId, oldReleaseId, groupId] = [`Twice ${tag()}`, `rel-${tag()}`, `rel-${tag()}`, `rg-${tag()}`];
+    navidrome([album('n-mp3', name, 'Moby', oldReleaseId)], songsOf('n-mp3'));
+    await digitalAlbumService.reconcile();
+    const old = (await digitalOf('n-mp3'))!;
+    await run('UPDATE albums SET musicbrainz_release_group_id = ? WHERE id = ?', [groupId, old.id]);
+
+    navidrome([album('n-mp3', name, 'Moby', oldReleaseId), album('n-flac', name, 'Moby', releaseId)], [...songsOf('n-mp3'), ...songsOf('n-flac', 'flac')]);
+    jest.spyOn(musicbrainzService, 'getReleaseDetails').mockResolvedValue({ 'release-group': { id: groupId }, media: [{ format: 'CD' }] } as never);
+    await digitalAlbumService.reconcile();
+    const rip = (await digitalOf('n-flac'))!;
+    await run('UPDATE albums SET musicbrainz_release_group_id = ? WHERE id = ?', [groupId, rip.id]);
+
+    expect(await ripStatusService.adoptEditions()).toEqual([expect.objectContaining({ albumId: rip.id, action: 'promoted' })]);
+    expect(await Album.findById(rip.id)).toMatchObject({ titleStatus: 'owned', format: 'CD' });
+  });
+
   it('laisse digital l’album dont l’édition n’est pas un CD (un FLAC acheté en ligne)', async () => {
     const [name, releaseId] = [`Shop ${tag()}`, `rel-${tag()}`];
     flacRip('n-shop', name, releaseId);
