@@ -550,6 +550,11 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     return sortCds([...filteredCds, ...extraCds.filter(inNavidrome)], sortBy);
   }, [digitalOn, filteredCds, extraCds, hybridFound, digital.byAlbumId, searchText, sortCds, sortBy]);
 
+  /** The albums the grid shows with Digital on and no search: the "of" of its count, a search or not. */
+  const hybridTotal = useMemo(() => (digitalOn
+    ? allCds.length + extraCds.filter(cd => hasCd(cd) || digital.byAlbumId.has(Number(cd.id))).length
+    : 0), [digitalOn, allCds, extraCds, digital.byAlbumId]);
+
   const filterCounts = useMemo((): Record<DigitalFilter, number> => ({
     all: hybridCds.length,
     buy: hybridCds.filter(cd => !hasCd(cd) && isToBuy(digitalOf(cd).album)).length,
@@ -1384,7 +1389,7 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
         <CollectionHeader
           // On a phone the Buy list says how many there are to buy, and has no sort or grouping of its own to offer.
           filteredCount={buyOnPhone ? filterCounts.buy : digitalOn || mixtapesOn ? shownCds.length : cdCount.filtered}
-          totalCount={buyOnPhone ? filterCounts.buy : (digitalOn ? filterCounts.all : cdCount.total) + (mixtapesOn && !(digitalOn && digitalFilter === 'buy') ? mixtapes.length : 0)}
+          totalCount={buyOnPhone ? filterCounts.buy : (digitalOn ? hybridTotal : cdCount.total) + (mixtapesOn && !(digitalOn && digitalFilter === 'buy') ? mixtapes.length : 0)}
           itemLabel={buyOnPhone ? 'to buy' : 'albums'}
           sortBy={sortBy}
           sortOptions={buyOnPhone ? [] : sortOptions}
