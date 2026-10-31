@@ -130,3 +130,22 @@
 .phone-sheet .score-card__about-text > .ui-button {
   margin-left: -6px;
 }
+
+/* A piece on a phone's width: its title beside its ⋯, its other buttons going under it, a part's recordings under its name rather than beside. */
+.phone-sheet .score-piece__head {
+  flex-wrap: wrap;
+}
+
+.phone-sheet .score-piece__title {
+  flex: 1 1 60%;
+}
+
+.phone-sheet .score-piece__row {
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.phone-sheet .score-piece__row > .score-piece__recs {
+  grid-column: 2;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}

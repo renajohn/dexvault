@@ -70,17 +70,20 @@ const CoverModal = ({ isOpen, onClose, coverUrl, title, artist, coverType }: Cov
     pointerEvents: 'none'
   };
 
+  // "Back Cover" said once, not "Back Cover Cover"; none said is the front's.
+  const side = !coverType ? 'Cover' : /cover$/i.test(coverType) ? coverType : `${coverType} Cover`;
+  const by = Array.isArray(artist) ? artist.join(', ') : artist;
   const modalContent = (
     <div style={overlayStyle} onClick={onClose}>
       <img
         src={coverUrl}
-        alt={`${title} ${coverType} cover`}
+        alt={`${title}, ${side.toLowerCase()}`}
         style={imageStyle}
       />
       <div style={titleStyle}>
-        {artist && Array.isArray(artist) ? artist.join(', ') : artist} - {title}
+        {by ? `${by} - ${title}` : title}
         <br />
-        <span style={{ fontSize: '14px', opacity: 0.8 }}>{coverType} Cover</span>
+        <span style={{ fontSize: '14px', opacity: 0.8 }}>{side}</span>
       </div>
     </div>
   );

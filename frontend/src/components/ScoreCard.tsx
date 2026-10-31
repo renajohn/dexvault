@@ -22,6 +22,7 @@ import toast from './shared/Toast';
 import CoverModal from './CoverModal';
 import ScoreSheet from './ScoreSheet';
 import { useMedia } from '../utils/useNarrow';
+import { francs } from './PhoneSheet';
 import './ScoreCard.css';
 
 const fmt = (seconds: number | null) => (seconds == null ? '' : `${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, '0')}`);
@@ -115,7 +116,8 @@ const EditionForm: React.FC<{ values: EditionValues; onChange: (values: EditionV
       <label>Whose</label>
       <div className="score-edition__whose">
         <Segmented label="Whose" size="sm" value={values.borrowed ? 'borrowed' : 'mine'}
-          onChange={value => onChange({ ...values, borrowed: value === 'borrowed' })}
+          // Borrowed: whom from, typed afresh; the owner of one's own is not its lender.
+          onChange={value => onChange({ ...values, borrowed: value === 'borrowed', owner: value === 'borrowed' && !values.borrowed ? '' : values.owner })}
           options={[{ value: 'mine', label: 'Mine' }, { value: 'borrowed', label: 'Borrowed' }]} />
         {values.borrowed
           ? <TextField size="sm" value={values.owner} onChange={set('owner')} placeholder="From whom" aria-label="Borrowed from" />
@@ -211,7 +213,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
         publisher: editing.publisher.trim() || null,
         isbn13: editing.code.replace(/[\s-]/g, '') || null,
         titleStatus: editing.borrowed ? 'borrowed' : 'owned',
-        owner: editing.owner.trim() || null,
+        // The owner is the lender of a score borrowed: one kept as one's own again has none of it left.
+        owner: editing.borrowed ? editing.owner.trim() || null : values.borrowed ? null : book.owner ?? null,
         priceChf: editing.borrowed || !Number.isFinite(price) ? null : price,
         purchasedAt: editing.borrowed ? null : editing.purchasedAt || null,
       });
@@ -306,7 +309,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
     </>
   );
   const coverModal = (
-    <CoverModal isOpen={coverShown} onClose={() => setCoverShown(false)} coverUrl={coverUrl} title={title} artist={values.composer || undefined} />
+    <CoverModal isOpen={coverShown} onClose={() => setCoverShown(false)} coverUrl={coverUrl} title={title} artist={values.composer || undefined} coverType="Cover" />
   );
 
   if (phone) {
@@ -318,7 +321,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
           notes={notesBody} noteCount={notes.length} onAddNote={writing === null ? () => setWriting('') : null}
           editing={editing != null} editionForm={editionForm} onEdit={() => setEditing(values)}
           onCancelEdit={() => setEditing(null)} writing={writing !== null}
-          onShowCover={() => setCoverShown(true)} onPdf={openPdf} onImslp={openImslp} onHenle={openHenle}
+          onShowCover={() => setCoverShown(true)} coverShown={coverShown} onHideCover={() => setCoverShown(false)} onPdf={openPdf} onImslp={openImslp} onHenle={openHenle}
           onAttach={() => onAttach(score)} onDelete={remove} onClose={onClose}
           facts={[
             ['Publisher', values.publisher || null],
@@ -327,7 +330,7 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
             ['Henle level', level ? String(level) : null],
             ...(values.borrowed
               ? [['Borrowed', values.owner ? `from ${values.owner}` : 'yes'] as [string, string]]
-              : [['Paid', values.priceChf ? `CHF ${values.priceChf}` : null], ['Bought', values.purchasedAt ? new Date(values.purchasedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null]] as Array<[string, string | null]>),
+              : [['Paid', francs(values.priceChf.replace(',', '.'))], ['Bought', values.purchasedAt ? new Date(values.purchasedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null]] as Array<[string, string | null]>),
           ]} />
         {coverModal}
       </>

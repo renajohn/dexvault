@@ -30,6 +30,8 @@ const props = (over: Partial<React.ComponentProps<typeof ScoreSheet>> = {}): Rea
   onCancelEdit: vi.fn(),
   writing: false,
   onShowCover: vi.fn(),
+  coverShown: false,
+  onHideCover: vi.fn(),
   onPdf: vi.fn(),
   onImslp: vi.fn(),
   onHenle: null,
@@ -82,6 +84,15 @@ describe('ScoreSheet', () => {
     expect(screen.getByText('The form')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onCancelEdit).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('closes its cover shown whole at Escape, not the sheet', () => {
+    const onHideCover = vi.fn();
+    const onClose = vi.fn();
+    render(<ScoreSheet {...props({ coverShown: true, onHideCover, onClose })} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onHideCover).toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 });

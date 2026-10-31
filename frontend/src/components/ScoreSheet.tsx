@@ -43,6 +43,9 @@ interface ScoreSheetProps {
   /** A note being written: Escape keeps it, the sheet open. */
   writing: boolean;
   onShowCover: () => void;
+  /** Its cover shown whole (CoverModal, which has no Escape of its own): Escape closes it first. */
+  coverShown: boolean;
+  onHideCover: () => void;
   onPdf: () => void;
   onImslp: () => void;
   onHenle: (() => void) | null;
@@ -65,9 +68,12 @@ const ScoreSheet: React.FC<ScoreSheetProps> = props => {
   // The edition being changed opens on its tab.
   useEffect(() => { if (editing) setTab('copy'); }, [editing]);
 
+  // Escape closes the cover shown whole, then cancels an edition being changed; a note being written, or the parts
+  // a piece holds being chosen, hold the sheet open.
   const sheet = usePhoneSheet(id, props.onClose, () => {
+    if (props.coverShown) { props.onHideCover(); return true; }
     if (editing) { onCancelEdit(); return true; }
-    return writing;
+    return writing || document.querySelector('.phone-sheet .score-piece__keeping') != null;
   });
 
   const head = (
@@ -94,7 +100,7 @@ const ScoreSheet: React.FC<ScoreSheetProps> = props => {
   );
 
   const scoreTab = (
-    <div className="phone-sheet-scroll" key="score">
+    <div className="phone-sheet-scroll" key={`score-${id}`}>
       {/* The cover large, its number and its loan where a cover's tags go, its PDF bottom right. A touch shows it whole. */}
       <div className="score-sheet-cover">
         {cover ? (
@@ -154,7 +160,7 @@ const ScoreSheet: React.FC<ScoreSheetProps> = props => {
   );
 
   const piecesTab = (
-    <div className="phone-sheet-scroll score-sheet-pieces" key="pieces">
+    <div className="phone-sheet-scroll score-sheet-pieces" key={`pieces-${id}`}>
       <section className="phone-sheet-section">
         <h5 className="phone-sheet-section__head">
           <span>{props.pieceCount ? 'Its pieces' : 'Its pieces, to find'}</span>
@@ -167,7 +173,7 @@ const ScoreSheet: React.FC<ScoreSheetProps> = props => {
 
   const shownFacts = props.facts.filter((fact): fact is [string, string] => Boolean(fact[0] && fact[1]));
   const copyTab = (
-    <div className="phone-sheet-scroll" key="copy">
+    <div className="phone-sheet-scroll" key={`copy-${id}`}>
       <section className="phone-sheet-section">
         <h5>Its edition</h5>
         {editing ? props.editionForm : (
