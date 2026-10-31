@@ -944,7 +944,12 @@ class MusicService {
     }
   }
 
-  async addAlbumFromMusicBrainz(releaseId: string, additionalData: AlbumData = {}): Promise<AlbumFormatted> {
+  /**
+   * `waitForCover` waits for the cover work to end rather than for its short
+   * head start: an album no click waits for (a CD found from its rip) comes
+   * back with its cover, or with none to be had.
+   */
+  async addAlbumFromMusicBrainz(releaseId: string, additionalData: AlbumData = {}, { waitForCover = false } = {}): Promise<AlbumFormatted> {
     try {
       // Checked before anything is fetched or written to disk, so a duplicate
       // attempt leaves no orphan files behind.
@@ -1009,8 +1014,12 @@ class MusicService {
         logger.error(`Failed to attach cover art for album ${album.id}: ${err.message}`);
       });
 
-      const grace = new Promise<void>(resolve => setTimeout(resolve, COVER_GRACE_MS));
-      await Promise.race([coverWork, grace]);
+      if (waitForCover) {
+        await coverWork;
+      } else {
+        const grace = new Promise<void>(resolve => setTimeout(resolve, COVER_GRACE_MS));
+        await Promise.race([coverWork, grace]);
+      }
 
       return (await Album.findById(album.id)) || album;
     } catch (error) {

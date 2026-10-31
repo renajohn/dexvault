@@ -192,13 +192,32 @@ describe('adoption des éditions depuis les rips', () => {
     const exact = `new-${Math.random()}`;
     library(exact);
     jest.spyOn(musicbrainzService, 'getReleaseDetails').mockResolvedValue({ 'release-group': { id: `rg-new-${Math.random()}` }, media: [{ format: 'CD' }] });
-    const add = jest.spyOn(musicService, 'addAlbumFromMusicBrainz').mockResolvedValue({ id: 4242, title: 'Aja' } as any);
+    const add = jest.spyOn(musicService, 'addAlbumFromMusicBrainz').mockResolvedValue({ id: 4242, title: 'Aja', cover: '/images/cd/aja.jpg' } as any);
+    const ripCover = jest.spyOn(navidromeService, 'getCoverArt');
 
     const [result] = await ripStatusService.adoptEditions();
 
-    expect(add).toHaveBeenCalledWith(exact, { titleStatus: 'owned' });
+    // Its cover waited for, so the banner of Listen Next reads the album with it.
+    expect(add).toHaveBeenCalledWith(exact, { titleStatus: 'owned' }, { waitForCover: true });
     expect(result).toMatchObject({ albumId: 4242, action: 'added' });
     expect(musicbrainzRefreshService.refreshAlbum).toHaveBeenCalledWith(4242);
+    expect(ripCover).not.toHaveBeenCalled();
+  });
+
+  it('donne au CD ajouté depuis son rip la pochette de ses fichiers quand aucune archive n’en a', async () => {
+    const exact = `bare-${Math.random()}`;
+    library(exact);
+    jest.spyOn(musicbrainzService, 'getReleaseDetails').mockResolvedValue({ 'release-group': { id: `rg-bare-${Math.random()}` }, media: [{ format: 'CD' }] });
+    jest.spyOn(musicService, 'addAlbumFromMusicBrainz').mockResolvedValue({ id: 4343, title: 'Aja', cover: null } as any);
+    const ripCover = jest.spyOn(navidromeService, 'getCoverArt').mockResolvedValue({ data: Buffer.from('jpeg'), contentType: 'image/jpeg' });
+    const imageService = require('../../src/services/imageService').default;
+    jest.spyOn(imageService, 'saveImage').mockResolvedValue('/images/cd/custom/navidrome_4343.jpg');
+    const setCover = jest.spyOn(Album, 'updateFrontCover').mockResolvedValue(undefined);
+
+    await ripStatusService.adoptEditions();
+
+    expect(ripCover).toHaveBeenCalledWith('nd-x');
+    expect(setCover).toHaveBeenCalledWith(4343, '/images/cd/custom/navidrome_4343.jpg');
   });
 
   it('n’ajoute pas un album acheté en téléchargement lossless', async () => {
