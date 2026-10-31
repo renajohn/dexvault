@@ -10,9 +10,10 @@
   background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
   color: #f8f9fa;
   padding: 20px;
-  /* On an iPhone the page runs under the status bar and the camera
-     (viewport-fit=cover, a translucent status bar): the header starts below
-     them, and clear of the notch on the sides when the phone lies down. */
+  /* On an iPhone the status bar is iOS's own black band, the page starting
+     under it (index.html): no covers scrolling under the clock, and so no
+     blurred fade iOS lays there. The header keeps clear of the notch on the
+     sides when the phone lies down (viewport-fit=cover). */
   padding-top: calc(20px + var(--safe-top));
   padding-left: max(20px, var(--safe-left));
   padding-right: max(20px, var(--safe-right));
