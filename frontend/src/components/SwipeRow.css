@@ -73,9 +73,12 @@
   align-items: center;
   gap: 4px;
   width: 88px;
+  /* Its width whatever the row's: a label of two words ("Listen Next") stays on one line. */
+  flex: none;
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+  white-space: nowrap;
 }
 
 .swipe-row__deed svg {
