@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import PlayerBar from './PlayerBar';
+import { HOLD_MS, TOLD_MS } from './PlayerFold';
 import outputs, { resetOutputs, takeState, type Output, type OutputState } from '../services/outputs';
 import { player, resetPlayer } from '../services/player';
+import { resetPhoneDoor } from '../services/phoneDoor';
 
 const album = { id: 7, title: 'Come Away With Me', artist: 'Norah Jones', cover: null };
 const tracks = [
@@ -128,6 +130,73 @@ describe('PlayerBar on an appliance', () => {
     expect(document.querySelector('.now-playing')).toHaveClass('now-playing--away');
     act(() => { takeState(session({ status: 'playing' })); });
     expect(document.querySelector('.now-playing')).not.toHaveClass('now-playing--away');
+  });
+
+  it('on an iPhone, shows what plays as its round cover in place of the pill, and opens the full screen from it', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('767'), addEventListener() {}, removeEventListener() {} }));
+    act(() => { takeState(session()); });
+    renderBar();
+    const fold = document.body.querySelector(':scope > .player-fold');
+    expect(fold).not.toBeNull();
+    expect(document.querySelector('.now-playing')).not.toHaveClass('now-playing--open');
+    fireEvent.click(fold!.querySelector('button')!);
+    expect(document.querySelector('.now-playing')).toHaveClass('now-playing--open');
+    act(() => { resetPhoneDoor(); });
+  });
+
+  it('on an iPhone, unrolls the track\'s words beside the round as the track changes, and rolls them back after a while', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('767'), addEventListener() {}, removeEventListener() {} }));
+      act(() => { takeState(session({ index: 0 })); });
+      renderBar();
+      const fold = document.body.querySelector(':scope > .player-fold')!;
+      expect(fold).toHaveClass('player-fold--told');
+      expect(fold.querySelector('.player-fold__track')).toHaveTextContent('Don’t Know Why');
+      act(() => { vi.advanceTimersByTime(TOLD_MS); });
+      expect(fold).not.toHaveClass('player-fold--told');
+      act(() => { takeState(session({ index: 1 })); });
+      expect(fold).toHaveClass('player-fold--told');
+      expect(fold.querySelector('.player-fold__track')).toHaveTextContent('Seven Years');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('on an iPhone, tells no new track while the full screen player is open', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('767'), addEventListener() {}, removeEventListener() {} }));
+    act(() => { takeState(session({ index: 0 })); });
+    renderBar();
+    const fold = document.body.querySelector(':scope > .player-fold')!;
+    fireEvent.click(fold.querySelector('button')!);
+    expect(fold).not.toHaveClass('player-fold--told');
+    act(() => { takeState(session({ index: 1 })); });
+    expect(fold).not.toHaveClass('player-fold--told');
+    act(() => { resetPhoneDoor(); });
+  });
+
+  it('on an iPhone, a finger held on the round pauses, and the touch that ends the hold opens nothing', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('767'), addEventListener() {}, removeEventListener() {} }));
+      act(() => { takeState(session()); });
+      renderBar();
+      const drop = document.body.querySelector('.player-fold__drop')!;
+      fireEvent.pointerDown(drop, { clientX: 10, clientY: 10 });
+      act(() => { vi.advanceTimersByTime(HOLD_MS); });
+      expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/toggle', body: { playing: false } });
+      fireEvent.pointerUp(drop);
+      fireEvent.click(drop.querySelector('button')!);
+      expect(document.querySelector('.now-playing')).not.toHaveClass('now-playing--open');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('has no round cover to fold into on a computer', () => {
+    act(() => { takeState(session()); });
+    renderBar();
+    expect(document.querySelector('.player-fold')).toBeNull();
   });
 
   it('is not there while Salon plays nothing', () => {

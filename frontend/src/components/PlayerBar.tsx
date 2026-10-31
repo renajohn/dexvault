@@ -13,6 +13,7 @@ import OutputMenu, { OutputEntries } from './OutputMenu';
 import OutputSettings from './OutputSettings';
 import { leaveForPlaying, showAlbum, showPlaying, useLeftAlbum, useShownAlbum } from '../services/phoneDoor';
 import PhonePlayer from './PhonePlayer';
+import PlayerFold from './PlayerFold';
 import NowPlayingDisc, { LeftAlbumDisc } from './NowPlayingDisc';
 import { useAlbumActions, useAlbumAtRest } from './useAlbumAtRest';
 import { useMedia } from '../utils/useNarrow';
@@ -154,8 +155,10 @@ const PlayerBar: React.FC = () => {
 
   // The room the bar takes, for the pages and the cards: --player-h on the root.
   useEffect(() => {
-    document.documentElement.style.setProperty('--player-h', shown || idle ? 'var(--player-bar-room)' : '0px');
-  }, [shown, idle]);
+    // On a phone, what plays is a round at the foot on the left, smaller than the bar (PlayerFold).
+    document.documentElement.style.setProperty('--player-h',
+      phone && shown && !idle ? 'var(--player-fold-room)' : shown || idle ? 'var(--player-bar-room)' : '0px');
+  }, [shown, idle, phone]);
 
   // What the bar last showed, kept while it slides away after ✕.
   const last = useRef<{ album: NonNullable<typeof album>; track: NonNullable<typeof track> } | null>(null);
@@ -378,6 +381,8 @@ const PlayerBar: React.FC = () => {
       {nowActions?.dialog}
       <PlayerTracks show={tracksOpen && out} onClose={() => setTracksOpen(false)} />
       {settingsFor && <OutputSettings output={settingsFor} onClose={() => setSettingsFor(null)} />}
+      {/* On a phone, what plays is its round cover at the foot on the left, in place of the pill. */}
+      {phone && out && <PlayerFold />}
     </div>
   );
 };

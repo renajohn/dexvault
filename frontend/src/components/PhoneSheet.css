@@ -1,8 +1,9 @@
 /*
  * A record on a phone, full screen as an album's in the player (PhoneSheet):
  * a film (MovieSheet), a book (BookSheet). Over the page and under the dialogs
- * and menus it opens; it ends above the player's bar, which stays in reach, as
- * a record's card does. What is a film's or a book's alone is in its own sheet.
+ * and menus it opens; to the foot of the screen, the player's pill folded into
+ * its round cover at the foot on the left (App.css, PlayerBar.css). What is a
+ * film's or a book's alone is in its own sheet.
  */
 .phone-sheet {
   position: fixed;
@@ -212,6 +213,11 @@
   padding: 14px max(18px, var(--safe-right)) calc(var(--safe-foot) + 24px) max(18px, var(--safe-left));
   scrollbar-width: none;
   font-size: 0.92rem;
+}
+
+/* What plays, folded round at the foot on the left (PlayerBar.css): the end of a tab scrolls clear of it. */
+html:has(.player-fold) .phone-sheet-scroll {
+  padding-bottom: calc(var(--safe-foot) + 76px);
 }
 
 .phone-sheet-scroll::-webkit-scrollbar {
