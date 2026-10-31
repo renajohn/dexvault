@@ -593,8 +593,8 @@ const BookForm: React.FC<BookFormProps> = ({ book = null, availableBooks = null,
         }
         console.log('[BookForm] Auto-detected bookType for new book:', bookTypeToUse);
       } else {
-        // Same book - preserve existing formData.bookType
-        bookTypeToUse = formData.bookType || book.bookType || 'book';
+        // Same book: the kind the owner chose, else the book's own (the form's default made a comic edited a book).
+        bookTypeToUse = (userSelectedBookTypeRef.current ? formData.bookType : book.bookType) || formData.bookType || 'book';
         console.log('[BookForm] Preserving existing bookType:', bookTypeToUse);
       }
       

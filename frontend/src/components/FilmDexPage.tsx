@@ -375,14 +375,16 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
     setSelectedMovieDetails,
     { imagesOf: movieImages, summaryOf: id => findById(id, allMovies, watchNextMovies) });
 
+  // The movie asked last: an answer for one asked before it comes too late and is left.
+  const askedMovie = useRef<number | null>(null);
   const handleMovieClick = async (movieId: number, siblings?: Id[]) => {
     setStepIds(siblings ?? null);
     setOpenedId(movieId);
+    askedMovie.current = movieId;
     try {
       setLoadingDetails(true);
-      console.log('Loading movie details for ID:', movieId);
       const details = await apiService.getMovieDetails(movieId);
-      console.log('Movie details loaded:', details);
+      if (askedMovie.current !== movieId) return;
       setSelectedMovieDetails(details);
     } catch (err) {
       console.error('Error loading movie details:', err);

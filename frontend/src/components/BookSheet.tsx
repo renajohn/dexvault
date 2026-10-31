@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BsBook, BsBoxArrowUpRight, BsCheck2, BsDownload, BsFiles, BsPencil, BsPlus, BsThreeDots, BsTrash, BsX } from 'react-icons/bs';
+import { BsBook, BsBoxArrowUpRight, BsCamera, BsCheck2, BsDownload, BsFiles, BsPencil, BsPlus, BsThreeDots, BsTrash, BsX } from 'react-icons/bs';
 import bookService from '../services/bookService';
 import bookCommentService from '../services/bookCommentService';
 import bookSectionsService from '../services/bookSectionsService';
 import { BookStarRating } from './RecordStarRating';
 import SeriesNotes from './SeriesNotes';
+import CoverModal from './CoverModal';
+import InlineCoverSelector from './InlineCoverSelector';
 import CoverButton from './shared/CoverButton';
 import CoverTag, { CoverTagStack } from './shared/CoverTag';
 import Segmented from './shared/Segmented';
@@ -44,8 +46,12 @@ interface BookSheetProps {
   onDelete?: (bookId: number) => Promise<void>;
   onSearch?: (query: string) => void;
   onBookClick?: (bookId: number) => void;
-  /** The card's edit or its next volumes, over the sheet (BookDetailCard `only`). */
-  onOpenView?: (view: 'edit' | 'volumes') => void;
+  /** The card's edit, over the sheet (BookDetailCard `only`). */
+  onEdit?: () => void;
+  /** The card's next volumes of the series, over the sheet: the library only. */
+  onNextVolumes?: () => void;
+  /** The series in the page's search: the library only, which knows `series:`. */
+  onShowSeries?: (series: string) => void;
 }
 
 const COMMENTER = 'dv.readingName';
@@ -82,7 +88,7 @@ const isbnShown = (isbn?: string) => {
  * pages, language), and three tabs: the book, all that one reads; its series;
  * the copy (owned, borrowed or wished).
  */
-const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBook, books = [], onClose, onUpdated, onDelete, onSearch, onBookClick, onOpenView }) => {
+const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBook, books = [], onClose, onUpdated, onDelete, onSearch, onBookClick, onEdit, onNextVolumes, onShowSeries }) => {
   const [local, setLocal] = useState<Book | null>(details);
   useEffect(() => { setLocal(details); }, [details]);
   const book: Book = { ...(listBook ?? {}), ...(local ?? {}), id };
@@ -92,8 +98,15 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
   useEffect(() => { setTab('book'); }, [id]);
 
   const editingRef = useRef<string | null>(null);
-  // Escape cancels an edit before it closes.
-  const sheet = usePhoneSheet(id, onClose, () => { if (!editingRef.current) return false; setEditing(null); return true; });
+  // Escape cancels an edit before it closes; a review or a reading being written holds it open, its words kept.
+  const draftRef = useRef(false);
+  // A cover shown whole goes first (CoverModal has no Escape of its own).
+  const showingRef = useRef(false);
+  const sheet = usePhoneSheet(id, onClose, () => {
+    if (showingRef.current) { setShown(null); return true; }
+    if (editingRef.current) { setEditing(null); return true; }
+    return draftRef.current;
+  });
   const { close, leaveFor } = sheet;
   const search = onSearch && ((query: string) => leaveFor(() => onSearch(query)));
 
@@ -267,11 +280,15 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
   const cover = bookService.getImageUrl(book.cover);
   const status: string = book.titleStatus || 'owned';
   const wished = status === 'wish';
-  const lent = Boolean(book.borrowed) || status === 'borrowed';
   const hasEbook = Boolean(book.ebookFile && String(book.ebookFile).trim());
   const links = Object.entries(book.urls || {}).filter((entry): entry is [string, string] => Boolean(entry[1]) && !isSecondaryLink(entry[0]));
+  const backCover = bookService.getImageUrl(book.backCover);
+  // The cover large on a touch, the back too; another cover chosen under it.
+  const [shown, setShown] = useState<{ url: string; type: string } | null>(null);
+  showingRef.current = shown != null;
+  const [choosingCover, setChoosingCover] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
-  useEffect(() => { setAboutOpen(false); setWriting(null); setRereading(null); setEditing(null); }, [id]);
+  useEffect(() => { setAboutOpen(false); setWriting(null); setRereading(null); setEditing(null); setChoosingCover(false); }, [id]);
   const firstAuthor = authors[0];
   // The author's other books, out of this one's series: shown only when there are some, this one among them.
   const othersByAuthor = firstAuthor ? books.filter(one => one.id !== id && listOf(one.authors).includes(firstAuthor) && (!book.series || one.series !== book.series)) : [];
@@ -280,8 +297,7 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
   const tags = (
     <CoverTagStack className="book-sheet-cover__tags">
       {book.seriesNumber && <CoverTag>#{book.seriesNumber}</CoverTag>}
-      {book.borrowed && <CoverTag variant="alert">Read &amp; Gone</CoverTag>}
-      {status === 'borrowed' && !book.borrowed && <CoverTag variant="alert">Borrowed</CoverTag>}
+      {status === 'borrowed' && <CoverTag variant="alert">Borrowed</CoverTag>}
       {wished && <CoverTag variant="on">Wishlist</CoverTag>}
     </CoverTagStack>
   );
@@ -313,7 +329,7 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
         <button type="button" {...props} className="phone-sheet-head__more" aria-label="More"><BsThreeDots aria-hidden="true" /></button>
       )}>
         <Menu.Item icon={<BsFiles />} onSelect={copyRef}>Copy the reference</Menu.Item>
-        {onOpenView && <Menu.Item icon={<BsPencil />} disabled={!ready} onSelect={() => onOpenView('edit')}>Edit…</Menu.Item>}
+        {onEdit && <Menu.Item icon={<BsPencil />} disabled={!ready} onSelect={onEdit}>Edit…</Menu.Item>}
         {onDelete && (
           <>
             <Menu.Separator />
@@ -324,16 +340,61 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
     </div>
   );
 
+  draftRef.current = writing != null || rereading !== null;
+
+  const reviewForm = writing && (
+    <div className="book-sheet-write">
+      <TextField size="sm" value={writing.name} onChange={event => setWriting({ ...writing, name: event.target.value })} placeholder="Who" aria-label="Who writes it" />
+      <TextArea rows={5} value={writing.comment} autoFocus onChange={event => setWriting({ ...writing, comment: event.target.value })}
+        placeholder={`What you thought of ${book.title}…`} aria-label="The review" />
+      <div className="book-sheet-reread__actions">
+        <Button variant="quiet" size="sm" onClick={() => setWriting(null)}>Cancel</Button>
+        <Button size="sm" onClick={saveReview} disabled={!writing.comment.trim() || !writing.name.trim()}>Save</Button>
+      </div>
+    </div>
+  );
+
   const bookTab = (
     <div className="phone-sheet-scroll" key="book">
-      {/* The cover large, its tags where the grid puts them: the volume and the loan top left, the e-book bottom right. */}
+      {/* The cover large, its tags where the grid puts them: the volume and the loan top left, the e-book bottom right;
+          another cover top right, where the grid has its ⋯. A touch shows it whole. */}
       <div className="book-sheet-cover">
-        {cover ? <img src={cover} alt={`${book.title} cover`} /> : <span className="book-sheet-nocover"><BsBook aria-hidden="true" /></span>}
+        {cover ? (
+          <button type="button" className="book-sheet-cover__show" onClick={() => setShown({ url: cover, type: 'Cover' })} aria-label="Show the cover">
+            <img src={cover} alt={`${book.title} cover`} />
+          </button>
+        ) : <span className="book-sheet-nocover"><BsBook aria-hidden="true" /></span>}
         {tags}
+        {ready && (
+          <CoverButton className="book-sheet-cover__change" reveal="always" size="small" active={choosingCover} label="Change the cover" onClick={() => setChoosingCover(!choosingCover)}>
+            <BsCamera aria-hidden="true" />
+          </CoverButton>
+        )}
         {hasEbook && (
           <CoverButton className="book-sheet-cover__ebook" reveal="always" label="Download the e-book" onClick={downloadEbook}><BsDownload aria-hidden="true" /></CoverButton>
         )}
       </div>
+      {backCover && (
+        <button type="button" className="book-sheet-back" onClick={() => setShown({ url: backCover, type: 'Back Cover' })} title="Its back">
+          <img src={backCover} alt={`${book.title} back`} />
+          <span>Back</span>
+        </button>
+      )}
+      {choosingCover && local && (
+        <div className="book-sheet-covers">
+          <InlineCoverSelector book={local} isOpen currentCover={local.cover}
+            onCoverSelected={(next: string) => {
+              setLocal((current: Book) => current && { ...current, cover: next });
+              setChoosingCover(false);
+              onUpdated?.({ ...local, cover: next });
+            }}
+            onBackSelected={(next: string) => {
+              setLocal((current: Book) => current && { ...current, backCover: next });
+              onUpdated?.({ ...local, backCover: next });
+            }}
+            onClose={() => setChoosingCover(false)} />
+        </div>
+      )}
 
       {!wished && book.bookType !== 'score' && (
         <div className="book-sheet-stars">
@@ -377,7 +438,8 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
           <span>Reviews</span>
           {reviews.length > 0 && <span className="phone-sheet-muted">{reviews.length}</span>}
         </h5>
-        {reviews.map(review => (writing?.id === review.id ? null : (
+        {/* A review being changed is changed in its place; a new one under the others. */}
+        {reviews.map(review => (writing?.id === review.id ? <React.Fragment key={review.id}>{reviewForm}</React.Fragment> : (
           <div key={review.id} className="book-sheet-review">
             <div className="book-sheet-review__who">
               <strong>{review.name}</strong>
@@ -392,17 +454,7 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
             <p className="book-sheet-review__words">{review.comment}</p>
           </div>
         )))}
-        {writing ? (
-          <div className="book-sheet-write">
-            <TextField size="sm" value={writing.name} onChange={event => setWriting({ ...writing, name: event.target.value })} placeholder="Who" aria-label="Who writes it" />
-            <TextArea rows={5} value={writing.comment} autoFocus onChange={event => setWriting({ ...writing, comment: event.target.value })}
-              placeholder={`What you thought of ${book.title}…`} aria-label="The review" />
-            <div className="book-sheet-reread__actions">
-              <Button variant="quiet" size="sm" onClick={() => setWriting(null)}>Cancel</Button>
-              <Button size="sm" onClick={saveReview} disabled={!writing.comment.trim() || !writing.name.trim()}>Save</Button>
-            </div>
-          </div>
-        ) : (
+        {writing ? writing.id == null && reviewForm : (
           <button type="button" className="phone-sheet-note" onClick={() => setWriting({ id: null, name: readName(), comment: '' })}>
             <span className="phone-sheet-muted">Write a review…</span>
           </button>
@@ -422,6 +474,17 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
         <h5>The book</h5>
         <dl className="phone-sheet-facts">
           {book.subtitle && <Fact label="Subtitle">{book.subtitle}</Fact>}
+          {/* The head cuts them after two: all of them here, each a search. */}
+          {authors.length > 2 && (
+            <Fact label="Authors">
+              {authors.map((author, i) => (
+                <React.Fragment key={author}>
+                  {i > 0 && ', '}
+                  <button type="button" className="book-sheet-filter" disabled={!search} onClick={() => search?.(`author:"${author}"`)}>{author}</button>
+                </React.Fragment>
+              ))}
+            </Fact>
+          )}
           {artists.length > 0 && (
             <Fact label={artists.length > 1 ? 'Artists' : 'Artist'}>
               {artists.map((artist, i) => (
@@ -436,7 +499,9 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
           {book.pageCount && <Fact label="Pages">{book.pageCount}</Fact>}
           {book.language && <Fact label="Language">{languageOf(book.language)}</Fact>}
           {fact('bookType', 'Kind', KINDS[book.bookType || 'book'], book.bookType || 'book', choice(KINDS))}
-          {(book.isbn13 || book.isbn) && <Fact label="ISBN"><code className="book-sheet-code">{isbnShown(book.isbn13 || book.isbn)}</code></Fact>}
+          {(book.isbn13 || book.isbn) && (
+            <Fact label="ISBN"><code className="book-sheet-code">{[book.isbn13, book.isbn].filter(Boolean).map(isbnShown).join(' · ')}</code></Fact>
+          )}
           {book.narrator && <Fact label="Narrator">{book.narrator}</Fact>}
           {book.runtime && <Fact label="Runtime">{Math.floor(book.runtime / 60)} h {book.runtime % 60} min</Fact>}
           {listOf(book.tags).length > 0 && <Fact label="Tags">{listOf(book.tags).join(' · ')}</Fact>}
@@ -471,7 +536,7 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
           <section className="phone-sheet-section">
             <h5 className="phone-sheet-section__head">
               <span>{book.series}</span>
-              <span className="phone-sheet-muted">{volumes.length} owned</span>
+              <span className="phone-sheet-muted">{volumes.length} volume{volumes.length === 1 ? '' : 's'}</span>
             </h5>
             <SheetRow>
               {volumes.map(volume => {
@@ -494,9 +559,12 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
             </SheetRow>
             {editing === 'series' ? seriesEdit : (
               <div className="book-sheet-actions">
-                {onOpenView && <Button size="sm" icon={<BsPlus />} disabled={!ready} onClick={() => onOpenView('volumes')}>Next volumes…</Button>}
+                {onNextVolumes && <Button size="sm" icon={<BsPlus />} disabled={!ready} onClick={onNextVolumes}>Next volumes…</Button>}
                 <Button variant="quiet" size="sm" disabled={!ready} onClick={() => edit('series', book.series ?? '', book.seriesNumber != null ? String(book.seriesNumber) : '')}>Change the series…</Button>
-                <Button variant="quiet" size="sm" disabled={!search} onClick={() => search?.(`series:"${book.series}"`)}>Show in the library</Button>
+                {/* The library holds the books owned alone: a series only borrowed or wished would show none. */}
+                {onShowSeries && volumes.some(volume => (volume.titleStatus || 'owned') === 'owned') && (
+                  <Button variant="quiet" size="sm" onClick={() => leaveFor(() => onShowSeries(book.series))}>Show in the library</Button>
+                )}
               </div>
             )}
           </section>
@@ -560,17 +628,6 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
         </dl>
       </section>
 
-      {lent && (
-        <section className="phone-sheet-section">
-          <h5>{book.borrowed ? 'Lent' : 'Borrowed'}</h5>
-          <dl className="phone-sheet-facts">
-            {fact('borrowedDate', 'On', longDate(book.borrowedDate), isoDate(book.borrowedDate), textInput({ type: 'date' }))}
-            {fact('returnedDate', 'Back', longDate(book.returnedDate), isoDate(book.returnedDate), textInput({ type: 'date' }))}
-            {fact('borrowedNotes', 'Notes', book.borrowedNotes, book.borrowedNotes ?? '', textInput())}
-          </dl>
-        </section>
-      )}
-
       {readDays.length > 0 && (
         <section className="phone-sheet-section">
           <h5 className="phone-sheet-section__head">
@@ -615,9 +672,9 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
         </p>
       </section>
 
-      {(onOpenView || onDelete) && (
+      {(onEdit || onDelete) && (
         <div className="phone-sheet-manage book-sheet-manage">
-          {onOpenView && <Button icon={<BsPencil />} disabled={!ready} onClick={() => onOpenView('edit')}>Edit…</Button>}
+          {onEdit && <Button icon={<BsPencil />} disabled={!ready} onClick={onEdit}>Edit…</Button>}
           {onDelete && <Button variant="danger" icon={<BsTrash />} onClick={askDelete}>Delete</Button>}
         </div>
       )}
@@ -625,15 +682,18 @@ const BookSheet: React.FC<BookSheetProps> = ({ bookId: id, book: details, listBo
   );
 
   return (
-    <PhoneSheet sheet={sheet} label={book.title ?? 'Book'} tab={tab} cover={cover}>
-      {head}
-      <Segmented<Tab> kind="tabs" size="sm" block label="Show" className="phone-sheet-tabs" value={tab} onChange={setTab} options={[
-        { value: 'book', label: 'Book' },
-        { value: 'series', label: 'Series', count: book.series && volumes.length > 1 ? volumes.length : undefined },
-        { value: 'copy', label: wished ? 'Wished' : status === 'borrowed' ? 'Borrowed' : 'Owned' },
-      ]} />
-      {tab === 'book' ? bookTab : tab === 'series' ? seriesTab : copyTab}
-    </PhoneSheet>
+    <>
+      <PhoneSheet sheet={sheet} label={book.title ?? 'Book'} tab={tab} cover={cover}>
+        {head}
+        <Segmented<Tab> kind="tabs" size="sm" block label="Show" className="phone-sheet-tabs" value={tab} onChange={setTab} options={[
+          { value: 'book', label: 'Book' },
+          { value: 'series', label: 'Series', count: book.series && volumes.length > 1 ? volumes.length : undefined },
+          { value: 'copy', label: wished ? 'Wished' : status === 'borrowed' ? 'Borrowed' : 'Owned' },
+        ]} />
+        {tab === 'book' ? bookTab : tab === 'series' ? seriesTab : copyTab}
+      </PhoneSheet>
+      <CoverModal isOpen={shown != null} onClose={() => setShown(null)} coverUrl={shown?.url ?? ''} title={book.title} artist={authors.join(', ')} coverType={shown?.type ?? 'Cover'} />
+    </>
   );
 };
 

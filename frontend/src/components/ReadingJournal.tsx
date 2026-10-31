@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import bookSectionsService, { ReadingEntry } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
 import bookCommentService from '../services/bookCommentService';
@@ -96,9 +96,15 @@ const ReadingJournal: React.FC<ReadingJournalProps> = ({ viewSwitch, searchCrite
     } catch (e) { toast((e as Error).message, { tone: 'danger' }); }
   };
 
+  // The book asked last: an answer for one asked before it comes too late and is left.
+  const asked = useRef<number | null>(null);
   const open = async (bookId: number) => {
     if (phone) setOpenedId(bookId);
-    try { setDetails(await bookService.getBookById(bookId)); } catch (e) { setOpenedId(null); toast((e as Error).message, { tone: 'danger' }); }
+    asked.current = bookId;
+    try {
+      const book = await bookService.getBookById(bookId);
+      if (asked.current === bookId) setDetails(book);
+    } catch (e) { setOpenedId(null); toast((e as Error).message, { tone: 'danger' }); }
   };
 
   const keepDate = async () => {
@@ -269,7 +275,7 @@ const ReadingJournal: React.FC<ReadingJournalProps> = ({ viewSwitch, searchCrite
           onUpdated={book => { setDetails(book); load(); }}
           onDelete={async id => { await bookService.deleteBook(id); load(); }}
           onBookClick={open}
-          onOpenView={view => { if (view === 'edit') setBookView(view); }}
+          onEdit={() => setBookView('edit')}
         />
       )}
       {details && (!phone || bookView) && (

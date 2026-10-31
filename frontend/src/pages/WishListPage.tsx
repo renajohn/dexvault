@@ -432,12 +432,17 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
     }
   };
 
+  // The item asked last: an answer for one asked before it comes too late and is left.
+  const askedItem = useRef<string | null>(null);
   const handleItemClick = async (itemId: number, itemType: string) => {
+    const key = `${itemType}:${itemId}`;
+    askedItem.current = key;
     try {
       setLoadingDetails(true);
       if (itemType === 'movie') {
         if (phone) setOpenedMovieId(itemId);
         const movieDetails = await apiService.getMovieDetails(itemId);
+        if (askedItem.current !== key) return;
         setSelectedMovieDetails(movieDetails);
         setSelectedAlbumDetails(null);
         setSelectedBookDetails(null);
@@ -451,6 +456,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
       } else if (itemType === 'book') {
         if (phone) setOpenedBookId(itemId);
         const bookDetails = await bookService.getBookById(itemId);
+        if (askedItem.current !== key) return;
         setSelectedBookDetails(bookDetails);
         setSelectedMovieDetails(null);
         setSelectedAlbumDetails(null);
@@ -481,9 +487,12 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
 
   const handleBookClick = async (bookId: number) => {
     if (phone) setOpenedBookId(bookId);
+    const key = `book:${bookId}`;
+    askedItem.current = key;
     try {
       setLoadingDetails(true);
       const bookDetails = await bookService.getBookById(bookId);
+      if (askedItem.current !== key) return;
       setSelectedBookDetails(bookDetails);
       setSelectedMovieDetails(null);
       setSelectedAlbumDetails(null);
@@ -1285,7 +1294,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
           onDelete={async (bookId: number) => { await handleDeleteItemFromDetails(bookId, 'book'); }}
           onSearch={onSearch}
           onBookClick={handleBookClick}
-          onOpenView={view => { if (view === 'edit') setBookView(view); }}
+          onEdit={() => setBookView('edit')}
         />
       )}
       {(selectedBookDetails && !loadingDetails && (!phone || bookView)) && (

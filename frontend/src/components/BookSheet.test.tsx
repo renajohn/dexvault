@@ -90,7 +90,7 @@ describe('BookSheet', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Series/ }));
     expect(await screen.findByText('Parable of the Talents')).toBeInTheDocument();
     expect(screen.getByText('this book')).toBeInTheDocument();
-    expect(screen.getByText('2 owned')).toBeInTheDocument();
+    expect(screen.getByText('2 volumes')).toBeInTheDocument();
   });
 
   it('saves a field of the copy with the whole book, as the server wants it', async () => {
@@ -115,11 +115,39 @@ describe('BookSheet', () => {
   });
 
   it('opens the card over it to edit the book', () => {
-    const onOpenView = vi.fn();
-    sheet({ onOpenView });
+    const onEdit = vi.fn();
+    sheet({ onEdit });
     fireEvent.click(screen.getByRole('tab', { name: 'Borrowed' }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit…' }));
-    expect(onOpenView).toHaveBeenCalledWith('edit');
+    expect(onEdit).toHaveBeenCalled();
+  });
+
+  it('offers the next volumes and the series in the library only where the page can', async () => {
+    const { unmount } = sheet();
+    fireEvent.click(screen.getByRole('tab', { name: /Series/ }));
+    await screen.findByText('Parable of the Talents');
+    expect(screen.queryByRole('button', { name: 'Next volumes…' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show in the library' })).not.toBeInTheDocument();
+    unmount();
+    sheet({ onNextVolumes: vi.fn(), onShowSeries: vi.fn() });
+    fireEvent.click(screen.getByRole('tab', { name: /Series/ }));
+    await screen.findByText('Parable of the Talents');
+    expect(screen.getByRole('button', { name: 'Next volumes…' })).toBeInTheDocument();
+    // The series' volumes are owned (no status): the library shows them.
+    expect(screen.getByRole('button', { name: 'Show in the library' })).toBeInTheDocument();
+  });
+
+  it('keeps no loan of its own: the days and the note of a loan are no longer kept', () => {
+    sheet();
+    fireEvent.click(screen.getByRole('tab', { name: 'Borrowed' }));
+    expect(screen.queryByText('On')).not.toBeInTheDocument();
+    expect(screen.queryByText('Back')).not.toBeInTheDocument();
+  });
+
+  it('lists every author when the head cuts them', () => {
+    sheet({ book: book({ authors: ['Ann', 'Bea', 'Cid'] }) });
+    expect(screen.getByText('Authors')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Cid' }).length).toBeGreaterThan(0);
   });
 
   it('opens on a book the page does not list, before its details are read', () => {

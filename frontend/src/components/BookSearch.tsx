@@ -989,10 +989,14 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
     setSelectedBookDetails,
     { imagesOf: bookImages, summaryOf: id => findById(id, allBooks) });
 
+  // The book asked last: an answer for one asked before it comes too late and is left.
+  const askedBook = useRef<number | string | null>(null);
   const handleBookClick = async (bookId: number | string) => {
     if (phone) setOpenedBookId(Number(bookId));
+    askedBook.current = bookId;
     try {
       const details = await bookService.getBookById(bookId);
+      if (askedBook.current !== bookId) return;
       setSelectedBookDetails(details);
     } catch (err) {
       if (onShowAlert) {
@@ -1562,7 +1566,9 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
           onDelete={async (bookId: number) => { await onDeleteBook(bookId); await loadBooks(); }}
           onSearch={updateSearchViaUrl}
           onBookClick={handleBookClick}
-          onOpenView={setBookView}
+          onEdit={() => setBookView('edit')}
+          onNextVolumes={() => setBookView('volumes')}
+          onShowSeries={series => updateSearchViaUrl(`series:"${series}"`)}
         />
       )}
 

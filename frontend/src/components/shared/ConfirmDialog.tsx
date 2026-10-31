@@ -69,6 +69,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     modal
     role="alertdialog"
     zIndex={12000}
+    // Its shade over all, a full screen record (10100) too: a page's card sets every backdrop under it.
+    backdropClassName="over-player-backdrop"
     describedBy={message ? messageId : undefined}
     onClose={() => onAnswer(false)}
     title={title}

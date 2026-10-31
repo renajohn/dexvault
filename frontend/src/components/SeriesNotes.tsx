@@ -53,7 +53,7 @@ const SeriesNotes: React.FC<{ series: string }> = ({ series }) => {
       ))}
       <form className="series-notes__form" onSubmit={add}>
         <TextField size="sm" className="series-notes__field" value={note} onChange={e => setNote(e.target.value)}
-          placeholder="A note on the series: Oriane loved it…" aria-label="A note on the series" />
+          placeholder="A note on the series…" aria-label="A note on the series" />
         <TextField size="sm" className="series-notes__name" value={name} onChange={e => setName(e.target.value)} placeholder="Who" aria-label="Who says it" />
         <Button size="sm" type="submit" loading={saving} disabled={!note.trim()}>Add</Button>
       </form>
