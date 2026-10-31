@@ -7,7 +7,6 @@ import BookDetailCard from './BookDetailCard';
 import BookSheet from './BookSheet';
 import AddBookDialog from './AddBookDialog';
 import SeriesStack from './SeriesStack';
-import AlphabeticalIndex from './AlphabeticalIndex';
 import { CollectionHeader, EmptyState } from './shared';
 import { hasMatchScores, stacksMatchFirst, useBestMatch } from './shared/search/bestMatch';
 import { useOpenItem } from '../services/openItem';
@@ -183,11 +182,8 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Ref and state for scroll container (for alphabetical index)
+  // The page's root
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // The page scrolls as a whole: the alphabetical index follows the document, known from the first render
-  // (found in an effect, it drew the whole grid a second time as the section opened).
-  const scrollContainer: HTMLElement = document.documentElement;
 
 
   // Expose methods to parent component
@@ -1454,31 +1450,6 @@ const BookSearch = forwardRef<any, BookSearchProps>(({
 
   return (
     <div className="book-search" ref={scrollContainerRef}>
-      {/* Alphabetical Index - shows when sorted alphabetically */}
-      <AlphabeticalIndex
-        items={filteredBooks}
-        getTitle={(book: Record<string, unknown>) => {
-          if (sortBy === 'author' || sortBy === 'authorReverse') {
-            // Handle authors field (can be array or string)
-            if (Array.isArray(book.authors) && book.authors.length > 0) {
-              return String(book.authors[0] || '');
-            } else if (typeof book.authors === 'string') {
-              return book.authors;
-            } else {
-              return String(book.author || '');
-            }
-          }
-          return String(book.series || book.title || '');
-        }}
-        scrollContainer={scrollContainer}
-        sortBy={
-          sortBy === 'series' || sortBy === 'authorSeries' ? 'title' :
-          sortBy === 'seriesReverse' ? 'titleReverse' :
-          sortBy
-        }
-        // Keep available during search/filter (e.g. "-type:score"); disable only when grouping is enabled
-        disabled={groupBy !== 'none'}
-      />
 
       <div className="books-results">
         <CollectionHeader
