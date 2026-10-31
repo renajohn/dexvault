@@ -55,6 +55,8 @@ export interface LineItem {
   kind: ShelfKind;
   id: number;
   title: string;
+  /** A CD's artist, to name it among the others. */
+  artist?: string;
   orderKey: string;
 }
 
@@ -64,7 +66,11 @@ export type LevelState = Pick<ShelfLevelRow, 'id' | 'capacity' | 'break_before' 
 export interface ShelfMove {
   kind: ShelfKind;
   id: number;
+  /** A CD's artist and title, "Ayọ – Joyful". */
   title: string;
+  /** A CD's artist and its title alone, to name several of one artist once. */
+  artist?: string;
+  name?: string;
   /** The shelf or place it stood on; null for an object new to the collection. */
   from: string | null;
   /** Null when the shelves have no more room for it. */
@@ -458,8 +464,11 @@ const shelvingService = {
       const row = item.levelId != null && !item.pinned ? onShelf.get(item.levelId) || [] : [];
       const at = row.indexOf(item);
       if (at < 0) return { after: null, before: null };
-      if (at > 0) return { after: row[at - 1].title, before: null };
-      return { after: null, before: row[1]?.title ?? null };
+      // A CD next to another artist's says whose it is; next to one of its own artist, its title is enough.
+      const named = (other: Ordered | undefined): string | null =>
+        !other ? null : other.kind === 'album' && other.subtitle && other.subtitle !== item.subtitle ? `${other.subtitle} – ${other.title}` : other.title;
+      if (at > 0) return { after: named(row[at - 1]), before: null };
+      return { after: null, before: named(row[1]) };
     };
     const moves: ShelfMove[] = [];
     const placed: Array<{ kind: ShelfKind; id: number; place: string | null }> = [];
@@ -476,6 +485,7 @@ const shelvingService = {
       moves.push({
         kind: item.kind, id: item.id, from: was ?? null, to: where,
         title: item.kind === 'album' && item.subtitle ? `${item.subtitle} – ${item.title}` : item.title,
+        ...(item.kind === 'album' && item.subtitle ? { artist: item.subtitle, name: item.title } : {}),
         ...nextTo,
         toLevelId: onPlan ? item.levelId : null,
       });
@@ -605,7 +615,10 @@ const shelvingService = {
     const code = codeOf(units.find(unit => unit.id === level.unit_id)!, level);
     const there = new Set((await ShelfItem.standing()).filter(row => row.place === code).map(row => `${row.kind}:${row.item_id}`));
     const line = items.filter(item => !item.pinned && item.placeId == null && (item.levelId === id || there.has(`${item.kind}:${item.id}`)));
-    return { code, items: line.sort(byKey).map(item => ({ kind: item.kind, id: item.id, title: item.title, orderKey: item.orderKey })) };
+    return { code, items: line.sort(byKey).map(item => ({
+      kind: item.kind, id: item.id, title: item.title, orderKey: item.orderKey,
+      ...(item.kind === 'album' && item.subtitle ? { artist: item.subtitle } : {}),
+    })) };
   },
 
   /**

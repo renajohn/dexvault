@@ -15,6 +15,17 @@ const LINE = { code: 'A-4', items: [
   { kind: 'movie', id: 1, title: 'Jurassic World' },
   { kind: 'movie', id: 2, title: 'King Kong' },
 ] };
+// Two CDs of one artist arrive on A-6: the artist is named once, in the list and among the shelf's last ones.
+const CD_MOVES = [
+  { kind: 'album', id: 21, title: 'Adele – 19', artist: 'Adele', name: '19', from: null, to: 'A-6', after: 'Ayọ – Joyful', before: null, toLevelId: 6 },
+  { kind: 'album', id: 22, title: 'Adele – 21', artist: 'Adele', name: '21', from: null, to: 'A-6', after: '19', before: null, toLevelId: 6 },
+];
+const CD_LINE = { code: 'A-6', items: [
+  { kind: 'album', id: 20, title: 'Joyful', artist: 'Ayọ' },
+  { kind: 'album', id: 21, title: '19', artist: 'Adele' },
+  { kind: 'album', id: 22, title: '21', artist: 'Adele' },
+  { kind: 'album', id: 23, title: 'Abbey Road', artist: 'The Beatles' },
+] };
 const LEVELS = [{ id: 4, capacity: null, break_before: null, extend_through: null, locked: 0, locked_from: null, locked_through: null }];
 
 let moves: Array<Record<string, unknown>> = MOVES;
@@ -46,6 +57,7 @@ beforeEach(() => {
       return ok({ ok: true });
     }
     if (url === '/api/shelving/levels/4/line') return ok(LINE);
+    if (url === '/api/shelving/levels/6/line') return ok(CD_LINE);
     if (url === '/api/shelving/levels/5/line') return ok({ code: 'A-5', items: [{ kind: 'movie', id: 2, title: 'King Kong' }] });
     if (url === '/api/shelving/levels/state' && !init?.method) return ok({ levels: LEVELS });
     if (init?.method) return ok({ ok: true });
@@ -76,6 +88,17 @@ describe('ShelfMovesNotice', () => {
     expect(body('/api/shelving/levels/4/take-off')).toEqual({ count: 1 });
     expect(body('/api/shelving/moves/done')).toEqual({ moves: [{ kind: 'movie', id: 1, to: 'A-4' }] });
     expect(screen.getByRole('status')).toHaveTextContent('King Kong from A-4, first, before Kung Fu Panda');
+  });
+
+  it('nomme l’artiste des CD, une fois pour plusieurs du même', async () => {
+    moves = CD_MOVES;
+    await show();
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('Adele19 (new), after Ayọ – Joyful21 (new), after 19');
+    expect(notice.querySelectorAll('.shelf-moves-put > li')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Adele – 21' })).toHaveTextContent(/^21$/);
+    expect(screen.getByRole('button', { name: 'The Beatles – Abbey Road' })).toHaveTextContent('The Beatles – Abbey Road');
+    expect(notice.querySelector('.shelf-moves-artist')).toHaveTextContent(/^Adele1921$/);
   });
 
   it('change d’un toucher combien de films sortent : un de plus, ou aucun', async () => {

@@ -21,7 +21,7 @@ import ScrollToTop from './components/ScrollToTop';
 import apiService from './services/api';
 import bookService from './services/bookService';
 import bookSectionsService from './services/bookSectionsService';
-import { BsX, BsCollectionFill, BsBookmark, BsDisc, BsArrowLeft, BsBarChart, BsFilm, BsBook, BsFileMusic } from 'react-icons/bs';
+import { BsX, BsCollectionFill, BsBookmark, BsDisc, BsArrowLeft, BsFilm, BsBook, BsFileMusic, BsBookshelf } from 'react-icons/bs';
 import 'bootstrap/dist/css/bootstrap.min.css';
 // After Bootstrap, so that its radios and checkboxes wear DexVault's look.
 import './components/shared/check.css';
@@ -55,8 +55,8 @@ const DigitalRedirect = () => {
   return <Navigate to={search ? `/musicdex?digital=1&search=${encodeURIComponent(search)}` : '/musicdex?digital=1&filter=buy'} replace />;
 };
 
-/** The sections of the header's buttons, in their order, Shelves last. */
-const SECTIONS = ['/filmdex', '/musicdex', '/bookdex', '/scores', '/wishlist', '/analytics', '/shelves'];
+/** The sections of the header's buttons, in their order, Analytics last (under ⚙︎). */
+const SECTIONS = ['/filmdex', '/musicdex', '/bookdex', '/scores', '/wishlist', '/shelves', '/analytics'];
 const LAST_SECTION_KEY = 'dexvault-last-section';
 
 /**
@@ -114,7 +114,7 @@ function AppContent() {
     window.addEventListener('keydown', toSearch);
     return () => window.removeEventListener('keydown', toSearch);
   }, []);
-  // ⌘1…⌘7 (Ctrl+1…7) go to a section, in the order of the header's buttons, Shelves last.
+  // ⌘1…⌘7 (Ctrl+1…7) go to a section, in the order of the header's buttons, Analytics last.
   // In a browser's tab ⌘1…⌘9 stay the browser's (Ctrl works there on a Mac); in DexVault installed as an app they are its own.
   useEffect(() => {
     const toSection = (e: KeyboardEvent) => {
@@ -616,14 +616,14 @@ function AppContent() {
                 className="app-sections"
                 reselect
                 value={location.pathname.startsWith('/musicdex') ? 'musicdex' : location.pathname.slice(1)}
-                onChange={section => ({ filmdex: handleCollection, musicdex: handleMusicDex, bookdex: handleBookDex, scores: () => navigate('/scores'), wishlist: handleWishList, analytics: handleAnalytics } as Record<string, () => void>)[section]?.()}
+                onChange={section => ({ filmdex: handleCollection, musicdex: handleMusicDex, bookdex: handleBookDex, scores: () => navigate('/scores'), wishlist: handleWishList, shelves: handleShelves } as Record<string, () => void>)[section]?.()}
                 options={[
                   { value: 'filmdex', icon: <BsFilm />, tooltip: 'FilmDex - My precious movies \u00B7 \u23181' },
                   { value: 'musicdex', icon: <BsDisc />, tooltip: 'MusicDex - My precious albums \u00B7 \u23182' },
                   { value: 'bookdex', icon: <BsBook />, tooltip: 'BookDex - My precious books \u00B7 \u23183' },
                   { value: 'scores', icon: <BsFileMusic />, tooltip: 'Scores - My sheet music \u00B7 \u23184' },
                   { value: 'wishlist', icon: <BsBookmark />, tooltip: 'Wish List - My precious to come \u00B7 \u23185' },
-                  { value: 'analytics', icon: <BsBarChart />, tooltip: 'Analytics - The palant\u00EDr of data \u00B7 \u23186' },
+                  { value: 'shelves', icon: <BsBookshelf />, tooltip: 'Shelves - Where everything stands \u00B7 \u23186' },
                 ]}
               />
             ) : (
@@ -639,7 +639,7 @@ function AppContent() {
                 onSyncNavidrome={handleSyncNavidrome}
                 syncingNavidrome={navidrome.syncing}
                 onBackup={handleBackup}
-                onShelves={handleShelves}
+                onAnalytics={handleAnalytics}
                 currentPage={location.pathname === '/musicdex' ? 'musicdex' : location.pathname === '/bookdex' ? 'bookdex' : 'filmdex'}
               />
             </div>

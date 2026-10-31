@@ -70,7 +70,8 @@ export interface ShelvingPlan {
 /** A shelf's objects in order, as it stands once its moves are made. */
 export interface ShelfLine {
   code: string;
-  items: Array<{ kind: ShelfKind; id: number; title: string }>;
+  /** A CD's artist apart from its title. */
+  items: Array<{ kind: ShelfKind; id: number; title: string; artist?: string }>;
 }
 
 /** What a shelf was told about its room, as the server keeps it. */

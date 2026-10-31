@@ -1,5 +1,5 @@
 import React from 'react';
-import { BsGear, BsArrowClockwise, BsArchive, BsBookshelf } from 'react-icons/bs';
+import { BsGear, BsArrowClockwise, BsArchive, BsBarChart } from 'react-icons/bs';
 import Menu from './shared/Menu';
 import Spinner from './shared/Spinner';
 import './CogDropdown.css';
@@ -8,7 +8,7 @@ interface CogDropdownProps {
   onSyncNavidrome?: () => void;
   syncingNavidrome?: boolean;
   onBackup?: () => void;
-  onShelves?: () => void;
+  onAnalytics?: () => void;
   currentPage?: string;
 }
 
@@ -17,7 +17,7 @@ const CogDropdown: React.FC<CogDropdownProps> = ({
   onSyncNavidrome,
   syncingNavidrome = false,
   onBackup,
-  onShelves,
+  onAnalytics,
   currentPage = 'dexvault'
 }) => (
   <div className="cog-dropdown">
@@ -36,7 +36,7 @@ const CogDropdown: React.FC<CogDropdownProps> = ({
         </>
       )}
       <Menu.Section title="DexVault" />
-      <Menu.Item icon={<BsBookshelf />} hint="⌘7" onSelect={onShelves}>Shelves</Menu.Item>
+      <Menu.Item icon={<BsBarChart />} hint="⌘7" onSelect={onAnalytics}>Analytics</Menu.Item>
       <Menu.Item icon={<BsArchive />} onSelect={onBackup}>Backups</Menu.Item>
     </Menu>
   </div>
