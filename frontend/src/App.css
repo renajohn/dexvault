@@ -205,7 +205,8 @@
 /*
  * The player's bar takes the foot of the screen while it is out: the page
  * scrolls to just above it, and a record's card, a panel or a full screen,
- * ends above it, its actions in sight.
+ * ends above it, its actions in sight. On a phone, the pill folds away under
+ * a window instead (below).
  */
 :root {
   --player-h: 0px;
@@ -316,6 +317,17 @@ body {
 
   .modal-fullscreen-xl-down > .modal-content {
     padding: var(--safe-top) var(--safe-right) var(--safe-foot) var(--safe-left);
+  }
+}
+
+/* On a phone, the pill folds away as a window covers the page (PlayerBar.css): every window, its
+   shade and a record's sheet take the screen to its foot, which keeps clear of the home indicator. */
+@media (max-width: 767px) {
+  .modal,
+  .modal-backdrop,
+  .phone-sheet {
+    --player-h: 0px;
+    --safe-foot: var(--safe-bottom);
   }
 }
 

@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DexVault · iPhone : la pastille et les fenêtres</title>
+<style>
+  :root {
+    --dv-gold: #fbbf24; --dv-danger: #ef4444; --dv-page: #1a1a1a;
+    --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-glass: rgba(255,255,255,.06); --dv-edge: rgba(255,255,255,.12);
+    --dv-surface: rgba(24,24,24,.86); --dv-surface-edge: rgba(255,255,255,.1);
+    --dv-surface-shadow: 0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+    --dialog-bg: #2d2d2d; --dialog-line: #3a3a3a;
+    --safe-top: 47px; --safe-bottom: 34px;
+    --pill-h: 64px; --pill-gap: 8px;
+    --player-h: calc(var(--pill-h) + var(--pill-gap) * 2 + var(--safe-bottom)); /* 114px, as PlayerBar.css */
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0b0b; color: var(--dv-text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  button { font: inherit; color: inherit; }
+  svg { display: block; }
+
+  .ctl { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; padding: 12px 20px; background: #111; border-bottom: 1px solid #2a2a2a; font-size: 13px; color: #999; }
+  .ctl label { display: inline-flex; gap: 8px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid #444; border-radius: 8px; overflow: hidden; }
+  .seg button { background: #1e1e1e; color: #ddd; border: 0; padding: 5px 11px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid #444; }
+  .seg button.on { background: var(--dv-gold); color: #111; }
+  .hint { color: #777; font-size: 12px; }
+
+  .row { display: flex; gap: 16px; padding: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .slot { display: flex; flex-direction: column; gap: 10px; }
+  .slot h3 { margin: 0; font-size: 14px; color: #eee; font-weight: 600; }
+  .slot h3 small { color: #888; font-weight: 400; margin-left: 4px; }
+  .slot p { margin: 0; font-size: 12.5px; color: #a3a3a3; line-height: 1.5; }
+  .slot p .plus { color: #d9c27a; } .slot p .minus { color: #c98a8a; }
+  .holder { position: relative; }
+  .scaler { transform-origin: top left; position: absolute; top: 0; left: 0; }
+
+  /* ------------------------------------------------ the phone */
+  .phone { position: relative; width: 390px; height: 844px; border-radius: 54px; overflow: hidden; background: var(--dv-page); box-shadow: 0 0 0 10px #222, 0 0 0 11px #3a3a3a, 0 30px 60px rgba(0,0,0,.6); }
+  .status { position: absolute; z-index: 90; top: 0; left: 0; right: 0; height: var(--safe-top); display: flex; align-items: center; justify-content: space-between; padding: 6px 32px 0 44px; font-size: 15px; font-weight: 600; pointer-events: none; }
+  .island-cam { position: absolute; z-index: 91; top: 11px; left: 50%; width: 120px; height: 35px; margin-left: -60px; border-radius: 20px; background: #000; }
+  .homebar { position: absolute; z-index: 90; bottom: 8px; left: 50%; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: rgba(255,255,255,.8); pointer-events: none; }
+
+  .page { position: absolute; inset: 0; padding-top: var(--safe-top); background: linear-gradient(160deg,#1a1a1a,#262626); transition: transform .35s cubic-bezier(.32,.72,0,1), filter .35s, border-radius .35s; transform-origin: 50% 0; }
+  .ph-head { display: flex; align-items: center; gap: 8px; padding: 8px 14px; }
+  .ph-head b { font-size: 1.5rem; flex: 1; }
+  .ph-search { margin: 4px 14px 12px; height: 36px; border-radius: 10px; background: rgba(255,255,255,.08); color: #888; padding: 8px 12px; font-size: 14px; }
+  .ph-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 14px; }
+  .ph-grid i { display: block; border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+
+  .veil { position: absolute; left: 0; right: 0; top: 0; bottom: var(--player-h); background: rgba(0,0,0,.55); opacity: 0; transition: opacity .2s; z-index: 20; pointer-events: none; }
+  .open .veil { opacity: 1; }
+
+  /* the pill, as PlayerBar.css and PhonePlayer.css */
+  .pill { position: absolute; z-index: 30; left: var(--pill-gap); right: var(--pill-gap); bottom: calc(var(--pill-gap) + var(--safe-bottom)); height: var(--pill-h); border-radius: 32px; border: 1px solid var(--dv-surface-edge); background: var(--dv-surface); box-shadow: var(--dv-surface-shadow); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); display: flex; align-items: center; gap: 2px; padding: 0 8px 0 7px; overflow: hidden; transition: transform .32s cubic-bezier(.32,.72,0,1), opacity .2s, width .32s, left .32s, border-radius .32s; }
+  .pill .disc { flex: none; width: 48px; height: 48px; border-radius: 50%; margin-right: 11px; }
+  .pill .words { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+  .pill .words b, .pill .words span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill .words b { font-size: .92rem; font-weight: 600; }
+  .pill .words span { font-size: .75rem; color: var(--dv-text-muted); }
+  .pb { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; padding: 0; }
+  .pb svg { width: 22px; height: 22px; }
+  .pb.big svg { width: 30px; height: 30px; }
+  .pprog { position: absolute; left: 30px; right: 30px; bottom: 0; height: 2px; background: rgba(255,255,255,.1); border-radius: 1px; overflow: hidden; }
+  .pprog span { display: block; height: 100%; width: 38%; background: var(--dv-gold); }
+
+  /* D: the disc alone, floating */
+  .bubble { position: absolute; z-index: 60; left: 14px; bottom: calc(var(--safe-bottom) + 12px); width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; background: var(--dv-surface); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.1); transform: scale(.4); opacity: 0; transition: transform .32s cubic-bezier(.32,.72,0,1), opacity .2s; pointer-events: none; }
+
+
+  /* ------------------------------------------------ the windows */
+  /* a record full screen (PhoneSheet) */
+  .sheetfs { position: absolute; z-index: 25; top: 0; left: 0; right: 0; bottom: var(--player-h); background: var(--dv-page); transform: translateY(calc(100% + var(--player-h))); transition: transform .32s cubic-bezier(.32,.72,0,1); display: flex; flex-direction: column; overflow: hidden; }
+  .open .sheetfs { transform: none; }
+  .scene { position: absolute; inset: 0 0 auto; height: 52%; opacity: .4; -webkit-mask-image: linear-gradient(#000 45%, transparent); mask-image: linear-gradient(#000 45%, transparent); pointer-events: none; }
+  .inner { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: calc(var(--safe-top) + 2px) 18px 0; }
+  .handle { align-self: center; width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); margin: 8px 0; flex: none; }
+  .shead { flex: none; display: flex; align-items: center; gap: 8px; min-height: 69px; margin: 6px 0 10px; }
+  .shead .thumb { width: 46px; height: 69px; border-radius: 5px; flex: none; box-shadow: 0 6px 18px rgba(0,0,0,.5); margin-right: 2px; }
+  .shead .w { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+  .shead .w b { font-size: 1.05rem; }
+  .shead .w span { font-size: .86rem; color: var(--dv-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .shead .w small { font-size: .8rem; color: var(--dv-text-faint); }
+  .shelf { font-size: 11px; letter-spacing: .06em; padding: 2px 7px; border: 1px solid var(--dv-edge); border-radius: 4px; color: #cfcfcf; flex: none; }
+  .more { width: 36px; height: 36px; display: grid; place-items: center; border: 0; background: none; flex: none; }
+  .more svg { width: 18px; height: 18px; }
+  .segtabs { flex: none; display: flex; padding: 3px; border-radius: 9px; background: rgba(255,255,255,.07); }
+  .segtabs span { flex: 1; text-align: center; padding: 5px 0; font-size: 13px; color: #bbb; border-radius: 7px; }
+  .segtabs .on { background: rgba(255,255,255,.14); color: #fff; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -18px; padding: 14px 18px 24px; scrollbar-width: none; font-size: .92rem; }
+  .scroll::-webkit-scrollbar { display: none; }
+  .poster { width: 210px; height: 315px; margin: 6px auto 16px; border-radius: 8px; box-shadow: 0 14px 40px rgba(0,0,0,.55); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: 9px; border: 1px solid var(--dv-edge); background: var(--dv-glass); font-size: 14px; }
+  .btn.gold { background: var(--dv-gold); border-color: var(--dv-gold); color: #111; font-weight: 600; }
+  .btn.danger { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+  .btn.quiet { background: none; border-color: transparent; color: #bbb; }
+  .btn.redline { background: none; color: #f87171; border-color: rgba(248,113,113,.35); width: 100%; }
+  .mute { color: var(--dv-text-muted); font-size: .85rem; }
+  .sec { margin: 20px 0 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #8a8a8a; }
+  .txt { color: #c8c8c8; line-height: 1.55; margin: 0; }
+  .cast { display: flex; gap: 12px; overflow: hidden; }
+  .cast div { width: 62px; flex: none; text-align: center; font-size: 11px; color: #aaa; }
+  .cast i { display: block; width: 62px; height: 62px; border-radius: 50%; margin-bottom: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips span { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--dv-edge); font-size: 12px; color: #ccc; }
+  .facts div { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #2c2c2c; font-size: 13px; }
+  .facts div span:first-child { color: #8f8f8f; }
+  .end { margin-top: 22px; }
+
+  /* a form, full screen (Dialog size lg, fullscreen md-down) */
+  .form { position: absolute; z-index: 25; top: 0; left: 0; right: 0; bottom: var(--player-h); background: var(--dialog-bg); display: flex; flex-direction: column; padding-top: var(--safe-top); opacity: 0; transform: translateY(-30px); transition: opacity .15s, transform .25s; pointer-events: none; }
+  .open .form { opacity: 1; transform: none; pointer-events: auto; }
+  .fhead { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 14px; border-bottom: 1px solid var(--dialog-line); }
+  .fhead h2 { margin: 0; flex: 1; font-size: 1.15rem; }
+  .fbody { flex: 1; min-height: 0; overflow: auto; padding: 14px; }
+  .field { height: 36px; border-radius: 8px; background: rgba(0,0,0,.25); border: 1px solid var(--dv-edge); padding: 8px 12px; font-size: 14px; margin-bottom: 12px; }
+  .lab { font-size: 12px; color: #999; margin: 0 0 4px; }
+  .hit { display: flex; gap: 12px; align-items: center; padding: 8px; border-radius: 8px; }
+  .hit.on { background: rgba(255,255,255,.08); }
+  .hit i { width: 40px; height: 58px; border-radius: 4px; flex: none; }
+  .hit small { display: block; color: #8f8f8f; }
+  .ffoot { flex: none; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--dialog-line); }
+
+  /* a question */
+  .question { position: absolute; z-index: 40; left: 20px; right: 20px; top: calc((100% - var(--player-h)) / 2); transform: translateY(-46%); opacity: 0; transition: opacity .15s, transform .2s, top .25s; background: var(--dialog-bg); border: 1px solid #3a3a3a; border-radius: 14px; box-shadow: 0 24px 64px rgba(0,0,0,.6); pointer-events: none; }
+  .open .question { opacity: 1; transform: translateY(-50%); pointer-events: auto; }
+  .question h2 { margin: 0; padding: 16px 18px 6px; font-size: 1.05rem; }
+  .question p { margin: 0; padding: 0 18px 14px; color: #bbb; font-size: 13.5px; }
+  .question .ffoot { padding: 10px 12px; }
+
+  /* a leaf (Dialog variant sheet) */
+  .leaf { position: absolute; z-index: 40; left: 0; right: 0; bottom: var(--player-h); height: 58%; border-radius: 16px 16px 0 0; background: var(--dv-surface); border: 1px solid var(--dv-surface-edge); border-bottom: 0; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transform: translateY(calc(100% + var(--player-h))); transition: transform .3s cubic-bezier(.22,.8,.3,1), bottom .25s; display: flex; flex-direction: column; }
+  .open .leaf { transform: none; }
+  .leaf .fbody { padding-bottom: 20px; }
+
+  /* the window over the full height, and room left at the foot of what scrolls (B, D) */
+  .p-b .sheetfs, .p-b .form, .p-c .sheetfs, .p-c .form, .p-d .sheetfs, .p-d .form, .p-e .form { bottom: 0; }
+  .p-b .veil, .p-c .veil, .p-d .veil, .p-e .veil { bottom: 0; }
+  .p-b .leaf, .p-c .leaf, .p-d .leaf, .p-e .leaf { bottom: 0; }
+  .p-b.open .question, .p-c.open .question, .p-d.open .question, .p-e.open .question { top: 50%; }
+  .scroll, .fbody { transition: padding .25s; }
+  .p-c .scroll, .p-e .scroll { padding-bottom: calc(var(--safe-bottom) + 24px); }
+
+  /* B: the pill over the window, as on the page */
+  .p-b .scroll, .p-b .fbody { padding-bottom: calc(var(--player-h) + 16px); }
+  .p-b .ffoot { padding-bottom: calc(var(--player-h) + 4px); }
+  .p-b.k-question .pill { z-index: 30; }
+  .p-b.open .pill { z-index: 50; }
+  .p-b.open.k-question .pill, .p-b.open.k-leaf .pill { z-index: 50; }
+
+  /* C: the pill goes down; what plays shows in the window's head */
+  .p-c.open .pill, .p-d.open .pill, .p-e.open .pill { transform: translateY(calc(100% + var(--pill-gap) * 2 + var(--safe-bottom))); }
+  .p-c .playing, .p-e .playing { display: grid; }
+  .p-c .ffoot, .p-d .ffoot, .p-e .ffoot { padding-bottom: calc(var(--safe-bottom) + 8px); }
+  .k-question .ffoot { padding-bottom: 10px !important; }
+
+  /* D: the disc alone, at the bottom right */
+  .p-d.open .bubble { transform: none; opacity: 1; pointer-events: auto; }
+  .p-d .scroll, .p-d .fbody { padding-bottom: calc(var(--safe-bottom) + 84px); }
+  .p-d.k-form .bubble { bottom: calc(var(--safe-bottom) + 7px); }
+  .p-d .ffoot { padding-left: 90px; }
+  .p-d.k-question .bubble { opacity: 0; }
+
+  /* E: a card as iOS's own, the page behind it going back */
+  .p-e.k-record .sheetfs { top: calc(var(--safe-top) + 10px); bottom: 0; border-radius: 12px 12px 0 0; }
+  .p-e.k-record .inner { padding-top: 2px; }
+  .p-e.k-record .scene { border-radius: 12px 12px 0 0; }
+  .p-e.k-form .form { top: calc(var(--safe-top) + 10px); padding-top: 0; border-radius: 12px 12px 0 0; }
+  .p-e.open.k-record .page, .p-e.open.k-form .page { transform: translateY(calc(var(--safe-top) - 6px)) scale(.92); border-radius: 14px; filter: brightness(.6); }
+  .p-e.open.k-record .veil, .p-e.open.k-form .veil { opacity: 0; }
+
+  /* F: no pill; a round disc left of the search, and in every window's head */
+  .ph-searchrow { display: flex; align-items: center; gap: 10px; margin: 4px 14px 12px; }
+  .ph-searchrow .ph-search { flex: 1; margin: 0; }
+  .p-f .pill { display: none; }
+  .p-f .sheetfs, .p-f .form, .p-f .leaf, .p-f .veil { bottom: 0; }
+  .p-f.open .question { top: 50%; }
+  .p-f .scroll { padding-bottom: calc(var(--safe-bottom) + 24px); }
+  .p-f .ffoot { padding-bottom: calc(var(--safe-bottom) + 8px); }
+  .p-f .k-question .ffoot { padding-bottom: 10px; }
+
+  /* What plays, as NowPlayingDisc.css: the cover round, in a ring of the place in the track (gold, grey paused), its bars on a dab of glass in the corner */
+  .npd { --s: 40px; position: relative; flex: none; width: var(--s); height: var(--s); display: none; place-items: center; }
+  .npd img, .npd .cov { width: calc(var(--s) * .8); height: calc(var(--s) * .8); border-radius: 50%; }
+  .npd svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .npd circle { fill: none; stroke-width: 2.5; }
+  .npd .groove { stroke: rgba(255,255,255,.12); }
+  .npd .fill { stroke: var(--dv-gold); stroke-linecap: round; }
+  .npd .bars { position: absolute; right: -5px; bottom: -3px; height: 16px; padding: 0 3px; border-radius: 8px; display: grid; place-items: center; background: var(--dv-surface); box-shadow: inset 0 0 0 1px var(--dv-surface-edge); }
+  .npd .bars span { display: inline-flex; align-items: flex-end; gap: 1.5px; width: 10px; height: 9px; }
+  .npd .bars i { display: block; width: 2px; height: 40%; border-radius: 1px; background: var(--dv-gold); animation: npb .9s ease-in-out infinite; }
+  .npd .bars i:nth-child(2) { animation-delay: -.3s; } .npd .bars i:nth-child(3) { animation-delay: -.6s; }
+  @keyframes npb { 0%, 100% { height: 25%; } 50% { height: 100%; } }
+  .bubble .npd { --s: 50px; display: grid; }
+  .p-c .head-npd, .p-e .head-npd, .p-f .head-npd, .p-f .search-npd { display: grid; }
+</style>
+</head>
+<body>
+
+<div class="ctl">
+  <label>Section <span class="seg" data-k="section">
+    <button data-v="film" class="on">FilmDex</button><button data-v="book">BookDex</button><button data-v="wish">Wish list</button><button data-v="music">MusicDex</button>
+  </span></label>
+  <label>Fenêtre <span class="seg" data-k="kind">
+    <button data-v="record" class="on">Fiche</button><button data-v="form">Formulaire</button><button data-v="question">Question</button><button data-v="leaf">Feuille</button>
+  </span></label>
+  <label>Fiche <span class="seg" data-k="at">
+    <button data-v="top" class="on">En haut</button><button data-v="end">Tout en bas</button>
+  </span></label>
+  <label><span class="seg" data-k="open"><button data-v="1" class="on">Ouverte</button><button data-v="0">Fermée</button></span></label>
+  <label>Montrer <span class="seg" data-k="only"><button data-v="all" class="on">Toutes</button><button data-v="df">D et F</button></span></label>
+  <label>Taille <span class="seg" data-k="size"><button data-v="all" class="on">Tout voir</button><button data-v="big">Grand</button></span></label>
+  <span class="hint">Espace : ouvrir / fermer · on fait défiler dans chaque téléphone</span>
+</div>
+
+<div class="row" id="row"></div>
+
+<script>
+const S = { section: 'film', kind: 'record', at: 'top', open: '1', size: 'all', only: 'all' };
+
+const PROPS = [
+  { k: 'a', name: 'A · Aujourd’hui', sub: 'la fenêtre s’arrête au-dessus de la pastille',
+    say: 'La fiche s’arrête 114 px au-dessus du bas d’écran (<code>--player-h</code>). <span class="minus">Dessous, une bande de la page, grille et tout, sur laquelle flotte la pastille : la fiche a l’air coupée, et sa poignée ne tient pas jusqu’au bas.</span>' },
+  { k: 'b', name: 'B · Par-dessus', sub: 'la fenêtre va jusqu’en bas, la pastille flotte dessus',
+    say: 'Toute fenêtre descend jusqu’en bas ; la pastille reste où elle est, en verre, et le contenu défile dessous, avec de quoi finir au-dessus. <span class="plus">La musique ne bouge pas d’un pixel ; le moins de code (une règle).</span> <span class="minus">La pastille cache 114 px de chaque fenêtre ; un pied (Cancel / Save) monte au-dessus d’elle.</span>' },
+  { k: 'c', name: 'C · Rangée dans la tête', sub: 'la pastille descend, le rond de ce qui joue dans la tête',
+    say: 'À l’ouverture, la pastille descend ; dans la tête de la fiche, à côté de ⋯, le rond de ce qui joue (NowPlayingDisc, comme au pied du lecteur plein écran) : un toucher ouvre le lecteur plein écran par-dessus. <span class="plus">Toute la hauteur pour la fiche, rien qui flotte.</span> <span class="minus">⏯ à deux touchers ; une question ou une feuille n’ont pas de tête où le mettre.</span>' },
+  { k: 'd', name: 'D · Rond flottant', sub: 'la pastille se réduit au rond de ce qui joue',
+    say: 'À l’ouverture d’une fenêtre, la pastille se replie en son rond (NowPlayingDisc : la pochette, l’anneau d’or de la piste, les barres), sur une goutte de verre en bas à gauche, là où était la pochette de la pastille (et où il est au pied du lecteur plein écran) ; un toucher ou un doigt tiré vers le haut ouvre le lecteur plein écran. La page garde sa pastille. <span class="plus">Le même sur une fiche, un formulaire, une feuille ; ne cache qu’un coin ; le pouce le trouve où était la pastille.</span> <span class="minus">Dans un formulaire il se range dans le pied, à gauche de Cancel / Save ; sur une fiche, il peut couvrir le début d’une ligne (la fiche garde de quoi défiler au-delà) ; caché pendant une question.</span>' },
+  { k: 'f', name: 'F · Près de la recherche', sub: 'plus de pastille : le rond à gauche de la recherche',
+    say: 'Plus de pastille du tout : le rond de ce qui joue à gauche de la recherche, collée en haut ; dans une fenêtre, le même dans sa tête. Un toucher ouvre le lecteur plein écran. <span class="plus">Le bas de l’écran est libre partout, page comprise : la grille va jusqu’en bas.</span> <span class="minus">En haut, loin du pouce ; ⏯ et ⏭ à deux touchers même sur la page ; plus le titre de la piste sous les yeux ; rien pendant une question ou une feuille.</span>' },
+  { k: 'e', name: 'E · Carte iOS', sub: 'la page recule, la fiche vient en carte',
+    say: 'La fiche arrive en carte, comme les feuilles d’iOS : la page recule, plus petite et sombre, avec sa pastille ; le disque animé de C dans la tête. <span class="plus">On voit qu’on est « dans » la page, et le geste vers le bas pour fermer va de soi.</span> <span class="minus">10 px de moins en haut ; ne vaut que pour une fiche ou un formulaire ; même accès à la musique que C.</span>' },
+];
+
+const hue = (i, s) => `linear-gradient(${135 + i * 17}deg, hsl(${(i * 47 + s) % 360} 45% 38%), hsl(${(i * 47 + s + 40) % 360} 55% 18%))`;
+const NOW = hue(3, 200);
+const I = {
+  pause: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5m5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5"/></svg>',
+  next: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M12.5 4a.5.5 0 0 0-1 0v3.248L5.233 3.612C4.713 3.31 4 3.655 4 4.308v7.384c0 .653.713.998 1.233.696L11.5 8.752V12a.5.5 0 0 0 1 0z"/></svg>',
+  more: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3"/></svg>',
+  x: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/></svg>',
+};
+
+const REC = {
+  film: { t: 'Heat', by: 'Michael Mann', f: '1995 · 2 h 50 · 16 ans', shelf: 'F-14', tabs: ['Film', 'Collections', 'Owned'], ratio: 1.5, act: 'Watched today ▾',
+    over: 'Obsessive master thief Neil McCauley leads a top-notch crew on various daring heists throughout Los Angeles while determined detective Vincent Hanna pursues him without rest. Each man recognizes and respects the ability and the dedication of the other.',
+    people: ['Al Pacino', 'Robert De Niro', 'Val Kilmer', 'Jon Voight', 'Tom Sizemore'], chips: ['Crime', 'Drama', 'Action', 'Thriller'],
+    facts: [['Format', 'Blu-ray'], ['Studio', 'Warner Bros.'], ['Language', 'English'], ['Budget', '60 M$']], form: 'Add a film', q: 'heat mann' },
+  book: { t: 'L’Étranger', by: 'Albert Camus', f: '1942 · Folio · 184 p.', shelf: 'L-3', tabs: ['Book', 'Series', 'Owned'], ratio: 1.55, act: 'Reading',
+    over: '« Aujourd’hui, maman est morte. Ou peut-être hier, je ne sais pas. » Meursault, employé de bureau à Alger, assiste à l’enterrement de sa mère sans verser une larme, puis, un dimanche d’été, tue un homme sur une plage écrasée de soleil.',
+    people: ['A. Camus', 'Gallimard', 'Folio', 'Préface', 'Notes'], chips: ['Roman', 'Absurde', 'Classique', 'Français'],
+    facts: [['ISBN', '978-2-07-036002-4'], ['Pages', '184'], ['Language', 'French'], ['Read', 'août 2019']], form: 'Add a book', q: 'camus étranger' },
+  wish: { t: 'Drive My Car', by: 'Ryūsuke Hamaguchi', f: '2021 · 2 h 59 · 12 ans', shelf: 'Wished', tabs: ['Film', 'Collections', 'Wished'], ratio: 1.5, act: 'I bought it',
+    over: 'Two years after his wife’s unexpected death, Yusuke Kafuku, a renowned stage actor and director, receives an offer to direct a production of Uncle Vanya at a theater festival in Hiroshima.',
+    people: ['H. Nishijima', 'T. Miura', 'R. Kirishima', 'M. Okada', 'S. Ahn'], chips: ['Drama', 'Japanese', 'Cannes 2021'],
+    facts: [['Wanted', 'Blu-ray'], ['Price', '≤ 25 CHF'], ['Added', '12.09.2026'], ['Ricardo', '1 seller']], form: 'Add to the wish list', q: 'drive my car' },
+  music: { t: 'Kind of Blue', by: 'Miles Davis', f: '1959 · Columbia', shelf: 'J-2', tabs: [], ratio: 1, act: '', form: 'Add an album', q: 'kind of blue' },
+};
+
+function recordHTML(r, i) {
+  if (S.section === 'music') return editHTML(r);
+  return `<div class="sheetfs"><div class="scene" style="background:${hue(7, 20)}"></div><div class="inner">
+    <div class="handle"></div>
+    <div class="shead"><i class="thumb" style="background:${hue(5, S.section.length * 40)}"></i><div class="w"><b>${r.t}</b><span>${r.by}</span><small>${r.f}</small></div><span class="shelf">${r.shelf}</span>${playingHTML()}<button class="more">${I.more}</button></div>
+    <div class="segtabs">${r.tabs.map((t, j) => `<span class="${j ? '' : 'on'}">${t}</span>`).join('')}</div>
+    <div class="scroll" data-scroll>
+      <div class="poster" style="width:${r.ratio > 1.5 ? 200 : 210}px;height:${r.ratio * 210}px;background:${hue(5, S.section.length * 40)}"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px"><span class="btn gold">${r.act}</span><span class="btn">Trailer</span></div>
+      <div class="mute" style="text-align:center">Seen 3 times · last 14.02.2025</div>
+      <div class="sec">Overview</div><p class="txt">${r.over}</p>
+      <div class="sec">Cast</div><div class="cast">${r.people.map((n, j) => `<div><i style="background:${hue(j + 2, 90)}"></i>${n}</div>`).join('')}</div>
+      <div class="sec">Genres</div><div class="chips">${r.chips.map(c => `<span>${c}</span>`).join('')}</div>
+      <div class="sec">Facts</div><div class="facts">${r.facts.map(f => `<div><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div>
+      <div class="sec">Links</div><div class="chips"><span>TMDB</span><span>IMDb</span><span>Wikipedia</span></div>
+      <div class="end"><span class="btn redline">Delete</span></div>
+    </div></div></div>`;
+}
+
+function editHTML(r) {
+  return `<div class="form"><div class="fhead"><h2>Edit · ${r.t}</h2>${playingHTML()}<button class="more">${I.x}</button></div>
+    <div class="fbody" data-scroll>${[['Title', r.t], ['Artist', r.by], ['Year', '1959'], ['Label', 'Columbia'], ['Catalogue number', 'CK 64935'], ['Barcode', '0074646493526'], ['Genres', 'Jazz, Modal'], ['Shelf', 'J-2'], ['Notes', 'Remaster 1997, 24 bits']].map(f => `<div class="lab">${f[0]}</div><div class="field">${f[1]}</div>`).join('')}</div>
+    <div class="ffoot"><span class="btn quiet">Cancel</span><span class="btn gold">Save</span></div></div>`;
+}
+
+function formHTML(r) {
+  const tall = r.ratio > 1;
+  return `<div class="form"><div class="fhead"><h2>${r.form}</h2>${playingHTML()}<button class="more">${I.x}</button></div>
+    <div class="fbody" data-scroll><div class="field">${r.q}</div>${[0, 1, 2, 3, 4, 5, 6, 7].map(j => `<div class="hit${j ? '' : ' on'}"><i style="background:${hue(j + 4, 120)};${tall ? '' : 'height:40px'}"></i><div>${r.t}${j ? ` (${1990 + j * 4})` : ''}<small>${r.by}</small></div></div>`).join('')}</div>
+    <div class="ffoot"><span class="btn quiet">Cancel</span><span class="btn gold">Add</span></div></div>`;
+}
+
+function npdHTML(cls) {
+  const c = 2 * Math.PI * 18.5;
+  return `<span class="npd ${cls}"><i class="cov" style="background:${NOW}"></i><svg viewBox="0 0 40 40"><circle class="groove" cx="20" cy="20" r="18.5"/><circle class="fill" cx="20" cy="20" r="18.5" stroke-dasharray="${c}" stroke-dashoffset="${c * 0.62}"/></svg><span class="bars"><span><i></i><i></i><i></i></span></span></span>`;
+}
+
+function playingHTML() {
+  return npdHTML('head-npd');
+}
+
+function phoneHTML(p) {
+  const r = REC[S.section];
+  const k = S.kind;
+  let win = '';
+  if (k === 'record') win = recordHTML(r);
+  else if (k === 'form') win = formHTML(r);
+  else if (k === 'question') win = `<div class="question"><h2>Delete ${r.t}?</h2><p>It goes from the collection, its notes with it.</p><div class="ffoot"><span class="btn quiet">Cancel</span><span class="btn danger">Delete</span></div></div>`;
+  else win = `<div class="leaf"><div class="handle"></div><div class="fhead" style="border:0;padding-top:0"><h2>${S.section === 'book' ? 'Comment' : S.section === 'music' ? 'Listening note' : 'Watched another day'}</h2><button class="more">${I.x}</button></div><div class="fbody" data-scroll>${[0, 1, 2].map(() => `<p class="txt" style="margin-bottom:12px">Le premier morceau pose le cadre : deux accords, une contrebasse qui appelle et des réponses de cuivres ; le reste tient à cette économie.</p>`).join('')}<span class="btn gold" style="width:100%">Save</span></div></div>`;
+  const kk = S.section === 'music' && k === 'record' ? 'form' : k;
+  return `<div class="phone p-${p.k} k-${kk}${S.open === '1' ? ' open' : ''}">
+    <div class="page"><div class="ph-head"><b>${{ film: 'Films', book: 'Books', wish: 'Wish list', music: 'Music' }[S.section]}</b></div><div class="ph-searchrow">${npdHTML('search-npd')}<div class="ph-search">Search…</div></div>
+      <div class="ph-grid">${Array.from({ length: 15 }, (_, j) => `<i style="height:${110 * (r.ratio)}px;background:${hue(j, S.section.length * 31)}"></i>`).join('')}</div></div>
+    <div class="veil"></div>${win}
+    <div class="pill"><i class="disc" style="background:${NOW}"></i><div class="words"><b>So What</b><span>Miles Davis · Kind of Blue</span></div><button class="pb big">${I.pause}</button><button class="pb">${I.next}</button><div class="pprog"><span></span></div></div>
+    <div class="bubble">${npdHTML('')}</div>
+    <div class="status"><span>9:41</span><span>●●● 100%</span></div><div class="island-cam"></div><div class="homebar"></div>
+  </div>`;
+}
+
+function render() {
+  const row = document.getElementById('row');
+  const avail = window.innerWidth - 40;
+  const perRow = S.only === 'df' ? 2 : S.size === 'all' ? (avail > 900 ? 6 : 3) : (avail > 3 * 300 ? 3 : 2);
+  const w = S.only === 'df' ? Math.min(390, (window.innerHeight - 260) * 390 / 844) : Math.min(390, (avail - (perRow - 1) * 16) / perRow);
+  const k = w / 390;
+  const shown = PROPS.filter(p => S.only === 'all' || 'df'.includes(p.k));
+  row.innerHTML = [...shown].sort((x, y) => x.k.localeCompare(y.k)).map(p => `<div class="slot" style="width:${w}px"><h3>${p.name}<br><small>${p.sub}</small></h3>
+    <div class="holder" style="width:${w}px;height:${844 * k}px"><div class="scaler" style="transform:scale(${k})">${phoneHTML(p)}</div></div>
+    <p>${p.say}</p></div>`).join('');
+  if (S.at === 'end') row.querySelectorAll('[data-scroll]').forEach(el => { el.scrollTop = el.scrollHeight; });
+}
+
+document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  const was = S.open; S[seg.dataset.k] = b.dataset.v;
+  if (seg.dataset.k === 'open') {
+    document.querySelectorAll('.phone').forEach(ph => ph.classList.toggle('open', S.open === '1'));
+    return;
+  }
+  render();
+}));
+addEventListener('resize', render);
+addEventListener('keydown', e => {
+  if (e.key === ' ') { e.preventDefault(); document.querySelector(`[data-k="open"] [data-v="${S.open === '1' ? '0' : '1'}"]`).click(); }
+});
+render();
+</script>
+</body>
+</html>

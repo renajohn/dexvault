@@ -128,6 +128,18 @@
   margin: 0;
 }
 
+/* On a phone, a dialog as high as the screen, or a sheet, reaches its foot, where what plays lies folded
+   round on the left (PlayerBar.css): the foot keeps its left clear, a body at the foot scrolls clear of it. */
+@media (max-width: 767px) {
+  html:has(.player-fold) :is([class*='modal-fullscreen'], .dialog--sheet .modal-dialog) > .modal-content .dialog-foot {
+    padding-left: 80px;
+  }
+
+  html:has(.player-fold) :is([class*='modal-fullscreen'], .dialog--sheet .modal-dialog) > .modal-content .modal-body:last-child {
+    padding-bottom: 76px;
+  }
+}
+
 /* A question that cannot be undone: its icon red. */
 .dialog-confirm__danger {
   color: var(--dv-danger);
