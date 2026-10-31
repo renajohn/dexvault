@@ -4,6 +4,7 @@ import CoverButton from './shared/CoverButton';
 import { BsStar, BsStarFill, BsX } from 'react-icons/bs';
 import apiService from '../services/api';
 import MovieDetailCard from './MovieDetailCard';
+import MovieSheet from './MovieSheet';
 import BoxSetStack from './BoxSetStack';
 import AlphabeticalIndex from './AlphabeticalIndex';
 import { NextBanner, NextBannerPending, NextBannerSlot, CollectionHeader, EmptyState } from './shared';
@@ -20,6 +21,7 @@ import { readStored, writeStored } from '../utils/safeStorage';
 import { findById, shownIds, useDetailSteps, type Id } from '../utils/detailSteps';
 import { movieImages } from '../utils/detailImages';
 import { isKept, useKeptState } from '../utils/kept';
+import { useMedia } from '../utils/useNarrow';
 import Button, { IconButton } from './shared/Button';
 import Progressive from './shared/Progressive';
 
@@ -63,6 +65,9 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedMovieDetails, setSelectedMovieDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  // On a phone a movie opens full screen at once, on the grid's movie, its details filling in as they are read.
+  const phone = useMedia('(max-width: 767px)');
+  const [openedId, setOpenedId] = useState<number | null>(null);
 
   // Load box set stacking preference from localStorage, default to true
   const [stackEnabled, setStackEnabled] = useState(() => {
@@ -372,6 +377,7 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
 
   const handleMovieClick = async (movieId: number, siblings?: Id[]) => {
     setStepIds(siblings ?? null);
+    setOpenedId(movieId);
     try {
       setLoadingDetails(true);
       console.log('Loading movie details for ID:', movieId);
@@ -386,6 +392,7 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
       // Reset loading state on error
       setLoadingDetails(false);
       setSelectedMovieDetails(null);
+      setOpenedId(null);
     } finally {
       setLoadingDetails(false);
     }
@@ -1217,8 +1224,23 @@ const FilmDexPage = forwardRef<FilmDexPageRef, FilmDexPageProps>(({ refreshTrigg
         )}
       </div>
 
+      {phone && openedId != null && (
+        <MovieSheet
+          movieId={openedId}
+          movie={selectedMovieDetails?.id === openedId ? selectedMovieDetails : null}
+          listMovie={findById(openedId, allMovies, watchNextMovies) as any}
+          watchNext={watchNextMovies}
+          onWatchNextChange={refreshWatchNextMovies}
+          onClose={() => { setOpenedId(null); setSelectedMovieDetails(null); }}
+          onDelete={handleDeleteMovie}
+          onRefresh={refreshForDetailCard}
+          onMovieClick={id => handleMovieClick(id)}
+          onSearch={onSearch}
+        />
+      )}
+
       {/* Movie Detail Card */}
-      {(selectedMovieDetails || loadingDetails) && (
+      {!phone && (selectedMovieDetails || loadingDetails) && (
         <MovieDetailCard
           movieDetails={selectedMovieDetails}
           loading={loadingDetails}

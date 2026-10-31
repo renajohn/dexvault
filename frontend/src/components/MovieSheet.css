@@ -1,0 +1,610 @@
+/*
+ * A film on a phone (MovieSheet): a full screen as an album's in the player,
+ * over the page and under the dialogs and menus it opens. It ends above the
+ * player's bar, which stays in reach, as a record's card does.
+ */
+.movie-sheet {
+  position: fixed;
+  inset: 0 0 var(--player-h) 0;
+  z-index: 10100;
+  overflow: hidden;
+  background: var(--dv-page);
+  color: var(--dv-text);
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.movie-sheet--open {
+  transform: none;
+}
+
+.movie-sheet--drag {
+  transition: none;
+}
+
+.movie-sheet:focus {
+  outline: none;
+}
+
+/* The poster, blurred large and dimmed: the film's light. */
+.movie-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.movie-sheet-backdrop img {
+  position: absolute;
+  inset: -20%;
+  width: 140%;
+  height: 140%;
+  object-fit: cover;
+  filter: blur(60px) saturate(1.4);
+  opacity: 0.55;
+}
+
+/* The scene, as the card's head on a computer (MovieDetailCard.css): faint and greyed, at the top, fading into the page. */
+.movie-sheet-backdrop--scene img {
+  inset: 0 0 auto;
+  width: 100%;
+  height: min(62%, 520px);
+  object-position: center top;
+  filter: saturate(0.5);
+  opacity: 0.4;
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent);
+}
+
+.movie-sheet-backdrop.movie-sheet-backdrop--scene::after {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.2) 50%, rgba(0, 0, 0, 0.55));
+}
+
+.movie-sheet-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(26, 26, 26, 0.3), rgba(26, 26, 26, 0.9) 60%);
+}
+
+.movie-sheet-inner {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--safe-top) + 2px) max(18px, var(--safe-right)) 0 max(18px, var(--safe-left));
+}
+
+.movie-sheet-handle {
+  flex: none;
+  align-self: center;
+  width: 80px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.movie-sheet-handle span {
+  width: 38px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.movie-sheet-handle:focus-visible {
+  outline: none;
+}
+
+.movie-sheet-handle:focus-visible span {
+  background: var(--dv-gold);
+}
+
+/* The head, in every tab: the poster small (but over the film's own), the words, the shelf, ⋯. */
+.movie-sheet-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* As tall as the poster small, with or without it: the tabs stay in place. */
+  min-height: 69px;
+  margin: 6px 0 10px;
+}
+
+.movie-sheet-head__thumb {
+  flex: none;
+  width: 46px;
+  height: 69px;
+  padding: 0;
+  border: 0;
+  background: none;
+  margin-right: 2px;
+}
+
+.movie-sheet-thumb,
+.movie-sheet-thumb .movie-thumbnail,
+.movie-sheet-thumb .thumbnail-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.movie-sheet-head__thumb .thumbnail-image {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.movie-sheet-head__words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.movie-sheet-head__director,
+.movie-sheet-head__facts {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A long title on two lines, then cut: its whole in its tooltip. */
+.movie-sheet-head__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.25;
+}
+
+.movie-sheet-head__director {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dv-text-muted);
+  font-size: 0.86rem;
+  text-align: left;
+}
+
+.movie-sheet-head__facts {
+  font-size: 0.8rem;
+  color: var(--dv-text-faint);
+}
+
+.movie-sheet-head__shelf {
+  flex: none;
+}
+
+.movie-sheet-head__more {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--dv-text);
+  font-size: 1.25rem;
+}
+
+.movie-sheet-tabs {
+  flex: none;
+}
+
+/* A tab: what scrolls. */
+.movie-sheet-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 calc(-1 * max(18px, var(--safe-right))) 0 calc(-1 * max(18px, var(--safe-left)));
+  padding: 14px max(18px, var(--safe-right)) calc(var(--safe-foot) + 24px) max(18px, var(--safe-left));
+  scrollbar-width: none;
+  font-size: 0.92rem;
+}
+
+.movie-sheet-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.movie-sheet-muted {
+  color: var(--dv-text-muted);
+}
+
+/* The poster large, as the grid shows it, its tags in sight without a pointer to hover with; its shelf is in the head. */
+.movie-sheet-poster {
+  width: min(64%, 260px);
+  margin: 2px auto 0;
+  border-radius: var(--dv-radius-md);
+  overflow: hidden;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+}
+
+.movie-sheet-poster .poster-badges-left {
+  opacity: 1;
+  transform: none;
+}
+
+.movie-sheet-poster .shelf-code-overlay,
+.movie-sheet-poster .poster-title-overlay-large {
+  display: none;
+}
+
+.movie-sheet-watched {
+  display: flex;
+  margin: 14px 0 6px;
+}
+
+.movie-sheet-watched__main {
+  flex: 1;
+}
+
+/* The day picker, out of sight: "Another day…" opens it. */
+.movie-sheet-date {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.movie-sheet-seen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  font-size: 0.82rem;
+  color: var(--dv-text-faint);
+}
+
+.movie-sheet-trailer {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dv-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.movie-sheet-trailer svg:last-child {
+  font-size: 0.75em;
+  color: var(--dv-text-faint);
+}
+
+.movie-sheet-section {
+  padding: 12px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.movie-sheet-seen + .movie-sheet-section {
+  margin-top: 8px;
+}
+
+.movie-sheet-scroll > .movie-sheet-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.movie-sheet-section h5 {
+  margin: 0 0 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--dv-text-faint);
+}
+
+.movie-sheet-section__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.movie-sheet-section__head .movie-sheet-muted {
+  flex: none;
+  white-space: nowrap;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+}
+
+.movie-sheet-ratings .compact-ratings-widget {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.movie-sheet-ratings .ratings-header {
+  margin: -6px 0 4px;
+}
+
+.movie-sheet-ratings .ratings-header h3 {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--dv-text-faint);
+}
+
+.movie-sheet-plot {
+  margin: 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.movie-sheet-plot--open {
+  display: block;
+}
+
+/* Quiet, its words on the line of the words above: back by its padding. */
+.movie-sheet-more {
+  margin-top: 2px;
+  margin-left: -6px;
+}
+
+/* A row that slides across: the cast, a collection's films. */
+.movie-sheet-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  margin: 0 -20px;
+  padding: 2px 20px 4px;
+  scrollbar-width: none;
+  touch-action: pan-x pan-y;
+  position: relative;
+}
+
+.movie-sheet-row::-webkit-scrollbar {
+  display: none;
+}
+
+.movie-sheet-person {
+  flex: none;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.movie-sheet-person__face {
+  width: 58px;
+  height: 58px;
+  margin-bottom: 5px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #333;
+  box-shadow: inset 0 0 0 1px var(--dv-edge);
+}
+
+.movie-sheet-person__face--none {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--dv-text-muted);
+}
+
+.movie-sheet-person__name {
+  font-size: 0.75rem;
+}
+
+.movie-sheet-person__role {
+  font-size: 0.7rem;
+  color: var(--dv-text-faint);
+}
+
+.movie-sheet-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.movie-sheet-chip {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dv-glass);
+  box-shadow: inset 0 0 0 1px var(--dv-edge);
+  color: var(--dv-text);
+  font-size: 0.8rem;
+}
+
+.movie-sheet-facts {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 6px 12px;
+  align-items: center;
+  margin: 0;
+}
+
+.movie-sheet-facts dt {
+  font-weight: 400;
+  color: var(--dv-text-faint);
+}
+
+.movie-sheet-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.movie-sheet-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.movie-sheet-links svg {
+  font-size: 0.75em;
+}
+
+/* Watch Next, in the collections. */
+.movie-sheet-next {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.movie-sheet-next__star {
+  font-size: 1.3rem;
+  color: var(--dv-text-faint);
+}
+
+.movie-sheet-next__star--on {
+  color: var(--dv-gold);
+}
+
+.movie-sheet-next__words {
+  flex: 1;
+  min-width: 0;
+}
+
+.movie-sheet-mini {
+  flex: none;
+  width: 92px;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  line-height: 1.25;
+}
+
+.movie-sheet-mini:disabled {
+  opacity: 1;
+}
+
+.movie-sheet-mini__poster,
+.movie-sheet-mini__poster .movie-thumbnail,
+.movie-sheet-mini__poster .thumbnail-image {
+  width: 92px;
+  height: 138px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.movie-sheet-mini__poster {
+  margin-bottom: 5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.movie-sheet-mini--here .movie-sheet-mini__poster {
+  box-shadow: 0 0 0 2px var(--dv-gold), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.movie-sheet-mini__title {
+  font-size: 0.75rem;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.movie-sheet-mini__year {
+  font-size: 0.7rem;
+}
+
+/* The copy: a field edited in place, its ✓ ✕ beside it. */
+.movie-sheet-editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+
+.movie-sheet-editable svg {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--dv-text-faint);
+}
+
+.movie-sheet-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.movie-sheet-edit > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.movie-sheet-edit__actions {
+  flex: none;
+  display: inline-flex;
+}
+
+.movie-sheet-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.movie-sheet-clear {
+  margin: 6px 0 0 -6px;
+}
+
+.movie-sheet-note {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--dv-radius-sm);
+  background: var(--dv-glass);
+  box-shadow: inset 0 0 0 1px var(--dv-edge);
+  color: inherit;
+  text-align: left;
+  white-space: pre-line;
+}
+
+.movie-sheet-comments {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.movie-sheet-comments > :first-child {
+  align-self: stretch;
+}
+
+.movie-sheet-ids {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.movie-sheet-manage {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 2px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}

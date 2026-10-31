@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DexVault — un film sur l'iPhone (prototype)</title>
+<style>
+  .proto {
+    --dv-gold: #fbbf24; --dv-gold-ink: #111; --dv-gold-tint: rgba(251,191,36,.12);
+    --dv-danger: #f87171; --dv-orange: #f59e0b;
+    --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-page: #1a1a1a; --dv-glass: rgba(255,255,255,.06); --dv-glass-hover: rgba(255,255,255,.11);
+    --dv-edge: rgba(255,255,255,.12); --dv-veil: rgba(255,255,255,.08);
+    --dv-radius-sm: 7px; --dv-radius-md: 9px;
+    --safe-top: 54px; --safe-foot: 34px;
+    color-scheme: dark;
+    background: #0e0e0e; color: var(--dv-text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 20px; border-radius: 12px;
+  }
+  .proto * { box-sizing: border-box; }
+  .proto button { font: inherit; color: inherit; }
+  .proto [hidden] { display: none !important; }
+  .wrap { display: grid; grid-template-columns: 393px 1fr; gap: 32px; align-items: start; }
+  .note { color: var(--dv-text-muted); }
+  .note h1 { color: var(--dv-text); font-size: 19px; margin: 0 0 6px; }
+  .note h2 { color: var(--dv-text); font-size: 14.5px; margin: 16px 0 4px; }
+  .note ul { padding-left: 18px; margin: 4px 0; } .note li { margin: 3px 0; } .note b { color: var(--dv-text); }
+  .scen { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--dv-radius-md); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); margin: 6px 0; }
+  .scen button { all: unset; cursor: pointer; padding: 5px 11px; border-radius: var(--dv-radius-sm); font-weight: 600; font-size: 13px; color: var(--dv-text-muted); }
+  .scen button.on { background: var(--dv-glass-hover); color: var(--dv-text); }
+
+  /* L'iPhone */
+  .phone { position: relative; width: 393px; height: 852px; border-radius: 54px; overflow: hidden; background: var(--dv-page); box-shadow: 0 0 0 10px #232323, 0 0 0 11px #3a3a3a, 0 30px 80px rgba(0,0,0,.6); user-select: none; }
+  .status { position: absolute; inset: 0 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; font-weight: 600; font-size: 16px; z-index: 40; }
+  .island { position: absolute; left: 50%; top: 11px; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 41; }
+  .home { position: absolute; left: 50%; bottom: 8px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.7); z-index: 41; }
+
+  /* Le plein écran, comme le lecteur : fond tiré de l'affiche, poignée, tête réduite */
+  .bd { position: absolute; inset: 0; overflow: hidden; }
+  .bd .poster { position: absolute; left: -20%; top: -20%; width: 140%; height: 140%; filter: blur(42px) saturate(1.3); opacity: .45; }
+  .bd::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(26,26,26,.3), rgba(26,26,26,.9) 60%); }
+  .inner { position: absolute; inset: 0; display: flex; flex-direction: column; padding: calc(var(--safe-top) + 2px) 18px 0; }
+  .handle { align-self: center; width: 80px; height: 20px; display: grid; place-items: center; flex: none; }
+  .handle span { width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); }
+  .poster { background: linear-gradient(160deg, #e7b16a 0%, #b5672d 30%, #5a2c16 62%, #1d1410 100%); }
+  .poster.p2 { background: linear-gradient(160deg, #d9b98c, #8c5a33 40%, #2b1a12); }
+  .poster.p3 { background: linear-gradient(160deg, #6fa0c8, #2a4e74 50%, #0f1a28); }
+  .poster.p4 { background: linear-gradient(160deg, #e8d38a, #6f7d3a 50%, #1c2412); }
+
+  .head { flex: none; display: flex; align-items: center; gap: 4px; margin: 8px 0 10px; }
+  .thumb { flex: none; width: 46px; height: 69px; border-radius: 5px; margin-right: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+  .words { flex: 1; min-width: 0; }
+  .words .t { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .words .a { font-size: 13.5px; color: var(--dv-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .words .a + .a { font-size: 12.5px; color: var(--dv-text-faint); }
+  .ib { all: unset; cursor: pointer; width: 40px; height: 40px; display: grid; place-items: center; font-size: 20px; border-radius: 50%; flex: none; }
+
+  /* Segmented */
+  .seg { flex: none; display: flex; padding: 3px; border-radius: var(--dv-radius-md); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .seg button { all: unset; cursor: pointer; flex: 1; text-align: center; padding: 6px 0; border-radius: var(--dv-radius-sm); font-weight: 600; font-size: 13.5px; color: var(--dv-text-muted); }
+  .seg button.on { background: var(--dv-glass-hover); color: var(--dv-text); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .seg .n { font-weight: 500; color: var(--dv-text-faint); margin-left: 4px; font-size: 12px; }
+
+  .zone { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -18px; padding: 12px 18px calc(var(--safe-foot) + 16px); scrollbar-width: none; }
+  .zone::-webkit-scrollbar { display: none; }
+
+  /* L'affiche en grand, comme la pochette d'un album */
+  .big { position: relative; width: 236px; aspect-ratio: 2/3; margin: 4px auto 0; border-radius: var(--dv-radius-md); box-shadow: 0 14px 40px rgba(0,0,0,.55); }
+  .big::after { content: "DUNE"; position: absolute; left: 0; right: 0; bottom: 30%; text-align: center; font: 300 30px/1 Georgia, serif; letter-spacing: .5em; color: rgba(255,255,255,.85); padding-left: .5em; }
+  .phone.on-film .thumb { display: none; }
+  .big .tags { left: 8px; top: 8px; bottom: auto; flex-direction: column; align-items: stretch; min-width: 38px; }
+  .big .tag { text-align: center; }
+  .wnbtn { all: unset; cursor: pointer; position: absolute; right: 10px; bottom: 10px; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-size: 21px; background: rgba(0,0,0,.68); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 2px 8px rgba(0,0,0,.35); }
+  .wnbtn.on { background: var(--dv-gold); color: var(--dv-gold-ink); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .hshelf { flex: none; font: 700 13px ui-monospace, Menlo, monospace; letter-spacing: .04em; padding: 4px 7px; border-radius: 4px; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .seenrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .trailer { padding-right: 0; color: var(--dv-text); }
+  .tags { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 4px; }
+  .tag { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 6px; border-radius: 3px; background: rgba(0,0,0,.68); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+  .tag.alert { color: var(--dv-danger); } .tag.gold { color: var(--dv-gold); }
+
+  .acts { display: flex; gap: 8px; margin: 12px 0 4px; }
+  .btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: var(--dv-radius-sm); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); font-weight: 600; font-size: 13.5px; }
+  .btn.sm { height: 28px; padding: 0 10px; font-size: 12.5px; }
+  .btn.primary { background: var(--dv-gold); color: var(--dv-gold-ink); box-shadow: none; }
+  .btn.gold { color: var(--dv-gold); }
+  .btn.quiet { background: none; box-shadow: none; color: var(--dv-text-muted); }
+  .btn.danger { color: var(--dv-danger); }
+  .grow { flex: 1; }
+  .group { display: flex; flex: 1; } .group .btn:first-child { flex: 1; border-radius: var(--dv-radius-sm) 0 0 var(--dv-radius-sm); } .group .btn:last-child { width: 36px; padding: 0; border-radius: 0 var(--dv-radius-sm) var(--dv-radius-sm) 0; margin-left: 1px; }
+  .seen { font-size: 12.5px; color: var(--dv-text-faint); }
+
+  .sec { padding: 12px 2px; border-top: 1px solid rgba(255,255,255,.08); }
+  .sec:first-child { border-top: 0; padding-top: 2px; }
+  .sec h5 { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--dv-text-faint); }
+  .muted { color: var(--dv-text-muted); } .faint { color: var(--dv-text-faint); }
+
+  .ratings { display: flex; gap: 6px; align-items: center; }
+  .rate { flex: 1; text-align: center; padding: 6px 0; border-radius: var(--dv-radius-sm); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .rate b { display: block; font-size: 16px; } .rate span { font-size: 11px; color: var(--dv-text-faint); letter-spacing: .04em; }
+  .ref { all: unset; width: 30px; display: grid; place-items: center; color: var(--dv-text-faint); font-size: 16px; }
+
+  .ages { display: flex; gap: 14px; align-items: baseline; }
+  .ages strong { font-size: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .chip.x::after { content: "  ✕"; color: var(--dv-text-faint); }
+  .chip.add { color: var(--dv-text-muted); box-shadow: inset 0 0 0 1px dashed; border: 1px dashed var(--dv-edge); box-shadow: none; }
+  .clear { color: var(--dv-text-faint); font-size: 12.5px; margin-top: 6px; }
+
+  .plot { line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+  .plot.open { display: block; }
+  .more { all: unset; cursor: pointer; color: var(--dv-text-muted); font-size: 13px; margin-top: 4px; display: inline-block; }
+
+  .cast { display: flex; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 2px 20px 4px; scrollbar-width: none; }
+  .cast::-webkit-scrollbar { display: none; }
+  .person { flex: none; width: 70px; text-align: center; }
+  .face { width: 58px; height: 58px; margin: 0 auto 5px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 17px; color: rgba(255,255,255,.85); background: linear-gradient(135deg, #4b4b4b, #2a2a2a); box-shadow: inset 0 0 0 1px var(--dv-edge); }
+  .person .nm { font-size: 12px; line-height: 1.25; } .person .ch { font-size: 11px; color: var(--dv-text-faint); line-height: 1.25; }
+
+  dl.facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; }
+  dl.facts dt { color: var(--dv-text-faint); } dl.facts dd { margin: 0; }
+  dl.facts dd.edit::after { content: "  ›"; color: var(--dv-text-faint); }
+
+  .row { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 0; }
+  .row + .row { border-top: 1px solid rgba(255,255,255,.05); }
+  .row .ic { width: 20px; text-align: center; color: var(--dv-text-muted); }
+  .row .w { flex: 1; } .row .chev { color: var(--dv-text-faint); }
+  .fold { padding: 0 0 10px 30px; }
+
+  .links { display: flex; flex-wrap: wrap; gap: 6px; }
+  .shelf { font: 700 22px ui-monospace, Menlo, monospace; letter-spacing: .04em; }
+  .shelf small { font: 13px -apple-system, sans-serif; color: var(--dv-text-muted); letter-spacing: 0; margin-left: 8px; }
+
+  .stepper { display: inline-flex; align-items: center; gap: 10px; }
+  .stepper .btn { width: 28px; padding: 0; }
+  .note-box { padding: 10px 12px; border-radius: var(--dv-radius-sm); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); color: var(--dv-text-faint); }
+
+  .manage { display: flex; gap: 8px; padding: 14px 2px 0; border-top: 1px solid rgba(255,255,255,.08); }
+
+  /* Collections */
+  .shelfrow { display: flex; gap: 10px; overflow-x: auto; margin: 0 -20px; padding: 2px 20px 4px; scrollbar-width: none; }
+  .shelfrow::-webkit-scrollbar { display: none; }
+  .mini { flex: none; width: 92px; }
+  .mini .pp { width: 92px; height: 138px; border-radius: 6px; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+  .mini.here .pp { box-shadow: 0 0 0 2px var(--dv-gold), 0 4px 12px rgba(0,0,0,.4); }
+  .mini .pp .tag { position: absolute; left: 5px; top: 5px; }
+  .mini .cap { font-size: 12px; margin-top: 5px; line-height: 1.25; }
+  .mini .cap span { color: var(--dv-text-faint); display: block; font-size: 11px; }
+  .mini.missing .pp { opacity: .45; }
+  .wn { display: flex; align-items: center; gap: 12px; }
+  .wn .star { font-size: 22px; color: var(--dv-gold); }
+  .sechead { display: flex; align-items: baseline; justify-content: space-between; }
+  .sechead .faint { font-size: 12px; }
+</style>
+</head>
+<body style="margin:0">
+<div class="proto">
+<div class="wrap">
+  <div class="phone on-film">
+    <div class="island"></div>
+    <div class="status"><span>21:14</span><span>100 %</span></div>
+    <div class="bd"><div class="poster"></div></div>
+    <div class="inner">
+      <div class="handle"><span></span></div>
+      <div class="head">
+        <div class="thumb poster"></div>
+        <div class="words">
+          <div class="t">Dune part one</div>
+          <div class="a">Denis Villeneuve</div>
+          <div class="a">2021 · 2 h 35 · 14+</div>
+        </div>
+        <span class="hshelf" title="On the shelf">F-3·12</span>
+        <button class="ib" title="Edit, poster, copy the title, delete">⋯</button>
+      </div>
+      <div class="seg" id="seg">
+        <button data-t="film" class="on">Film</button>
+        <button data-t="coll">Collections<span class="n">3</span></button>
+        <button data-t="owned" id="t-owned">Owned</button>
+      </div>
+
+      <!-- ================= FILM ================= -->
+      <div class="zone" data-p="film">
+        <div class="big poster">
+          <div class="tags"><span class="tag">4K</span><span class="tag alert" id="tag-spider" hidden>🕷 Spiders</span><span class="tag alert" id="tag-snake" hidden>🐍 Snakes</span></div>
+          <button class="wnbtn on" id="btn-wn" title="Take out of Watch Next">★</button>
+        </div>
+
+        <div class="acts">
+          <div class="group"><button class="btn">✓ Watched today</button><button class="btn">▾</button></div>
+        </div>
+        <div class="seenrow">
+          <span class="seen">Seen once · last on 2 January 2026</span>
+          <a class="btn sm quiet trailer" title="Opens YouTube">▶ Trailer ↗</a>
+        </div>
+
+        <div class="sec" style="margin-top:10px">
+          <h5>Ratings</h5>
+          <div class="ratings">
+            <div class="rate"><b>8.0</b><span>IMDB</span></div>
+            <div class="rate"><b>83%</b><span>ROTTEN T.</span></div>
+            <div class="rate"><b>7.8</b><span>TMDB</span></div>
+            <button class="ref" title="Reread the ratings">↻</button>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h5>For whom</h5>
+          <div class="ages"><span class="muted">FilmAges</span><span>Legal <strong>12</strong></span><span>Suggested <strong>14</strong></span></div>
+          <div class="chips"><span class="chip">Epic</span><span class="chip">Visually striking</span><span class="chip" style="color:var(--dv-orange)">Violence</span><span class="chip" style="color:var(--dv-orange)">Tension</span></div>
+        </div>
+
+        <div class="sec">
+          <h5>Overview</h5>
+          <div class="plot" id="plot">Paul Atreides, a brilliant and gifted young man born into a great destiny beyond his understanding, must travel to the most dangerous planet in the universe to ensure the future of his family and his people. As malevolent forces explode into conflict over the planet's exclusive supply of the most precious resource in existence — a commodity capable of unlocking humanity's greatest potential — only those who can conquer their fear will survive.</div>
+          <button class="more" id="more">More</button>
+        </div>
+
+        <div class="sec">
+          <h5>Cast</h5>
+          <div class="cast">
+            <div class="person"><div class="face">TC</div><div class="nm">Timothée Chalamet</div><div class="ch">Paul Atreides</div></div>
+            <div class="person"><div class="face">RF</div><div class="nm">Rebecca Ferguson</div><div class="ch">Lady Jessica</div></div>
+            <div class="person"><div class="face">OI</div><div class="nm">Oscar Isaac</div><div class="ch">Duke Leto</div></div>
+            <div class="person"><div class="face">JM</div><div class="nm">Jason Momoa</div><div class="ch">Duncan Idaho</div></div>
+            <div class="person"><div class="face">SS</div><div class="nm">Stellan Skarsgård</div><div class="ch">Baron Harkonnen</div></div>
+            <div class="person"><div class="face">JB</div><div class="nm">Josh Brolin</div><div class="ch">Gurney Halleck</div></div>
+            <div class="person"><div class="face">JB</div><div class="nm">Javier Bardem</div><div class="ch">Stilgar</div></div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h5>Genres</h5>
+          <div class="chips" style="margin-top:0"><span class="chip">Science Fiction</span><span class="chip">Adventure</span></div>
+        </div>
+
+        <div class="sec">
+          <h5>The film</h5>
+          <dl class="facts">
+            <dt>Original title</dt><dd>Dune</dd>
+            <dt>Language</dt><dd>English</dd>
+            <dt>Released</dt><dd>15 September 2021</dd>
+            <dt>Budget</dt><dd>$165 M</dd>
+            <dt>Box office</dt><dd>$408 M</dd>
+          </dl>
+        </div>
+
+        <div class="sec">
+          <h5>Links</h5>
+          <div class="links"><span class="btn sm">TMDB ↗</span><span class="btn sm">IMDB ↗</span><span class="btn sm">Rotten Tomatoes ↗</span><span class="btn sm">FilmAges ↗</span></div>
+        </div>
+      </div>
+
+      <!-- ================= COLLECTIONS ================= -->
+      <div class="zone" data-p="coll" hidden>
+        <div class="sec">
+          <h5>Watch Next</h5>
+          <div class="wn">
+            <span class="star" id="wn-star">★</span>
+            <div class="grow" id="wn-words"><b>3rd of 7</b> <span class="muted">· after Big Fish and E.T.</span></div>
+            <button class="btn sm" id="wn-btn">Take out</button>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sechead"><h5>Saga · Dune</h5><span class="faint">2 of 2 owned</span></div>
+          <div class="shelfrow">
+            <div class="mini here"><div class="pp poster"></div><div class="cap">Dune part one<span>2021 · this film</span></div></div>
+            <div class="mini"><div class="pp poster p2"><span class="tag">4K</span></div><div class="cap">Dune part two<span>2024 · seen</span></div></div>
+            <div class="mini missing"><div class="pp poster p3"></div><div class="cap">Dune Messiah<span>2026 · not owned</span></div></div>
+          </div>
+          <div class="clear">Hold a poster to put the saga in order.</div>
+        </div>
+
+        <div class="sec">
+          <div class="sechead"><h5>Villeneuve in the collection</h5><span class="faint">4 films</span></div>
+          <div class="shelfrow">
+            <div class="mini"><div class="pp poster p2"></div><div class="cap">Dune part two<span>2024</span></div></div>
+            <div class="mini"><div class="pp poster p4"></div><div class="cap">Arrival<span>2016</span></div></div>
+            <div class="mini"><div class="pp poster p3"></div><div class="cap">Blade Runner 2049<span>2017</span></div></div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h5>Your collections</h5>
+          <div class="chips" style="margin-top:0"><span class="chip x">Space</span><span class="chip x">Saturday nights</span><span class="chip add">+ Add to a collection…</span></div>
+        </div>
+      </div>
+      <!-- ================= OWNED ================= -->
+      <div class="zone" data-p="owned" hidden>
+        <div id="owned-own">
+          <div class="sec">
+            <h5>The copy</h5>
+            <dl class="facts">
+              <dt>Format</dt><dd class="edit">Blu-ray 4K</dd>
+              <dt>Status</dt><dd class="edit">Owned</dd>
+              <dt>Acquired</dt><dd class="edit">18 October 2024</dd>
+              <dt>Price</dt><dd class="edit">CHF 14.–</dd>
+              <dt>Box set</dt><dd class="edit faint">None</dd>
+            </dl>
+          </div>
+          <div class="sec">
+            <h5>Watched</h5>
+            <dl class="facts">
+              <dt>Times</dt><dd><span class="stepper"><span class="btn sm">−</span>1<span class="btn sm">+</span></span></dd>
+              <dt>Last</dt><dd class="edit">2 January 2026</dd>
+            </dl>
+            <button class="btn sm quiet danger" style="margin-top:8px;padding-left:0">Clear the watching</button>
+          </div>
+          <div class="sec">
+            <h5>Comments</h5>
+            <div class="note-box">Write a comment…</div>
+          </div>
+          <div class="sec">
+            <h5>In DexVault</h5>
+            <div class="muted" style="font-size:13px">added 18 October 2024 · TMDB 438631 · IMDB tt1160419</div>
+          </div>
+        </div>
+        <div id="owned-wish" hidden>
+          <div class="sec">
+            <h5>Wished</h5>
+            <div><b>On your wish list</b> <span class="muted">since 3 March 2026</span></div>
+            <div class="acts" style="flex-wrap:wrap">
+              <button class="btn sm">⌕ Ricardo</button>
+              <button class="btn sm">I bought it</button>
+              <button class="btn sm quiet">Not wished</button>
+            </div>
+          </div>
+          <div class="sec">
+            <h5>Wanted</h5>
+            <dl class="facts"><dt>Format</dt><dd class="edit">Blu-ray 4K</dd><dt>Price up to</dt><dd class="edit faint">—</dd></dl>
+          </div>
+          <div class="sec">
+            <h5>Comments</h5>
+            <div class="note-box">Write a comment…</div>
+          </div>
+        </div>
+        <div class="manage"><button class="btn grow">✎ Edit…</button><button class="btn danger">Delete</button></div>
+      </div>
+
+    </div>
+    <div class="home"></div>
+  </div>
+
+  <div class="note">
+    <h1>Un film sur l'iPhone</h1>
+    <p>La fiche d'un film devient un plein écran, comme celui d'un album : fond tiré de l'affiche, poignée qu'on tire vers le bas pour fermer, tête réduite (affiche, titre, réalisateur, année · durée · âge, <b>code d'étagère toujours visible</b>, ⋯), puis trois onglets.</p>
+    <div class="scen" id="scen"><button class="on" data-s="own">Dans la collection</button><button data-s="wish">Wish list</button></div>
+    <div class="scen" id="warn"><button class="on" data-w="none">Ni araignée ni serpent</button><button data-w="spider">Araignées</button><button data-w="both">Les deux</button></div>
+
+    <h2>Film : tout ce qu'on lit, sur un seul défilement</h2>
+    <ul>
+      <li><b>L'affiche en grand</b>, comme la pochette d'un album (la vignette de la tête s'efface sur cet onglet et revient sur les deux autres). Sur l'affiche : <b>★ Watch Next</b> en bas à droite (or quand le film y est), et en haut à gauche la colonne d'étiquettes, 4K puis <b>🕷 Spiders / 🐍 Snakes</b> en rouge ; toucher une étiquette rouge ouvre son réglage (suivre les votes, avec, sans).</li>
+      <li><b>▶ Trailer ↗</b> : un simple lien <code>youtube.com/watch?v=…</code>, que l'iPhone ouvre dans l'app YouTube. Pas de lecteur dans DexVault.</li>
+      <li><b>✓ Watched today ▾</b> sous l'affiche (le ▾ : une autre date, le nombre de fois), Trailer ↗ sous lui.</li>
+      <li>Notes IMDB / RT / TMDB avec ↻, puis <b>« For whom »</b> : FilmAges, légal et suggéré, pour et contre.</li>
+      <li>Résumé replié à 5 lignes, distribution qui défile de côté (un toucher cherche l'acteur), genres en pastilles de recherche.</li>
+      <li>« The film » : titre original, langue, sortie, budget, recettes. Puis les liens.</li>
+    </ul>
+
+    <h2>Collections, puis Owned</h2><p>Collections passe en deuxième ; l'exemplaire en dernier.</p><h2>Owned : l'exemplaire</h2>
+    <ul>
+      <li>Format, statut, date d'achat, <b>prix</b>, coffret, chacun modifiable en place (›).</li>
+      <li>Les visionnages (nombre ±, dernière date, effacer), les commentaires, les identifiants, puis Edit… / Delete.</li>
+      <li>Pour un film de la wish list, l'onglet devient <b>Wished</b> : Ricardo, I bought it, comme un album sans CD.</li>
+    </ul>
+
+    <h2>Collections</h2>
+    <ul>
+      <li>Watch Next : la place dans la file et un bouton pour en sortir.</li>
+      <li>La saga (et un coffret, s'il y en a un) : affiches à défiler, celle du film entourée d'or, celles qui manquent en grisé ; un appui long pour réordonner.</li>
+      <li>Une rangée « même réalisateur » (nouvelle, à confirmer), puis vos collections en pastilles ✕ avec + Add.</li>
+    </ul>
+  </div>
+</div>
+</div>
+<script>
+  const proto = document.querySelector('.proto');
+  proto.querySelectorAll('#seg button').forEach(b => b.onclick = () => {
+    proto.querySelectorAll('#seg button').forEach(x => x.classList.toggle('on', x === b));
+    proto.querySelectorAll('.zone').forEach(z => z.hidden = z.dataset.p !== b.dataset.t);
+    proto.querySelector('.phone').classList.toggle('on-film', b.dataset.t === 'film');
+  });
+  proto.querySelector('#more').onclick = e => { const p = proto.querySelector('#plot'); p.classList.toggle('open'); e.target.textContent = p.classList.contains('open') ? 'Less' : 'More'; };
+  let wn = true;
+  const setWn = v => {
+    wn = v;
+    const w = proto.querySelector('#btn-wn');
+    w.classList.toggle('on', v); w.textContent = v ? '★' : '☆';
+    w.title = v ? 'Take out of Watch Next' : 'Add to Watch Next';
+    proto.querySelector('#wn-star').textContent = v ? '★' : '☆';
+    proto.querySelector('#wn-words').innerHTML = v ? '<b>3rd of 7</b> <span class="muted">· after Big Fish and E.T.</span>' : '<span class="muted">Not in Watch Next</span>';
+    proto.querySelector('#wn-btn').textContent = v ? 'Take out' : 'Add';
+  };
+  proto.querySelector('#btn-wn').onclick = () => setWn(!wn);
+  proto.querySelector('#wn-btn').onclick = () => setWn(!wn);
+  proto.querySelectorAll('#warn button').forEach(b => b.onclick = () => {
+    proto.querySelectorAll('#warn button').forEach(x => x.classList.toggle('on', x === b));
+    proto.querySelector('#tag-spider').hidden = b.dataset.w === 'none';
+    proto.querySelector('#tag-snake').hidden = b.dataset.w !== 'both';
+  });
+  proto.querySelectorAll('#scen button').forEach(b => b.onclick = () => {
+    proto.querySelectorAll('#warn button').forEach(b => b.onclick = () => {
+    proto.querySelectorAll('#warn button').forEach(x => x.classList.toggle('on', x === b));
+    proto.querySelector('#tag-spider').hidden = b.dataset.w === 'none';
+    proto.querySelector('#tag-snake').hidden = b.dataset.w !== 'both';
+  });
+  proto.querySelectorAll('#scen button').forEach(x => x.classList.toggle('on', x === b));
+    const wish = b.dataset.s === 'wish';
+    proto.querySelector('#t-owned').textContent = wish ? 'Wished' : 'Owned';
+    proto.querySelector('#owned-own').hidden = wish;
+    proto.querySelector('#owned-wish').hidden = !wish;
+    proto.querySelector('.acts .group').hidden = wish;
+    proto.querySelector('.seen').hidden = wish;
+  });
+</script>
+</body>
+</html>

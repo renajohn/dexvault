@@ -7,6 +7,7 @@ import { base64ToFile } from '../utils/downscaleImage';
 import bookService from '../services/bookService';
 import MovieThumbnail from '../components/MovieThumbnail';
 import MovieDetailCard from '../components/MovieDetailCard';
+import MovieSheet from '../components/MovieSheet';
 import MusicDetailCard from '../components/MusicDetailCard';
 import { findById, useDetailSteps } from '../utils/detailSteps';
 import { albumImages, bookImages, movieImages } from '../utils/detailImages';
@@ -87,6 +88,8 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [selectedMovieDetails, setSelectedMovieDetails] = useState<any>(null);
+  // On a phone a wished movie opens full screen at once (MovieSheet), its details filling in as they are read.
+  const [openedMovieId, setOpenedMovieId] = useState<number | null>(null);
   const [selectedAlbumDetails, setSelectedAlbumDetails] = useState<any>(null);
   const [selectedBookDetails, setSelectedBookDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -429,6 +432,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
     try {
       setLoadingDetails(true);
       if (itemType === 'movie') {
+        if (phone) setOpenedMovieId(itemId);
         const movieDetails = await apiService.getMovieDetails(itemId);
         setSelectedMovieDetails(movieDetails);
         setSelectedAlbumDetails(null);
@@ -448,6 +452,7 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
       }
     } catch (error) {
       console.error(`Failed to load ${itemType} details:`, error);
+      if (itemType === 'movie') setOpenedMovieId(null);
       setError(`Failed to load ${itemType} details: ` + (error as Error).message);
     } finally {
       setLoadingDetails(false);
@@ -1218,7 +1223,19 @@ const WishListPage = forwardRef<WishListPageRef, WishListPageProps>(({ searchCri
       )}
 
       {/* Detail Cards */}
-      {(selectedMovieDetails && !loadingDetails) && (
+      {phone && openedMovieId != null && (
+        <MovieSheet
+          movieId={openedMovieId}
+          movie={selectedMovieDetails?.id === openedMovieId ? selectedMovieDetails : null}
+          listMovie={findById(openedMovieId, movies)}
+          onClose={() => { setOpenedMovieId(null); setSelectedMovieDetails(null); }}
+          onDelete={() => handleDeleteItemFromDetails(openedMovieId, 'movie')}
+          onRefresh={handleRefreshForDetailCard}
+          onMovieClick={(movieId: number) => handleItemClick(movieId, 'movie')}
+          onSearch={onSearch}
+        />
+      )}
+      {(!phone && selectedMovieDetails && !loadingDetails) && (
         <MovieDetailCard
           movieDetails={selectedMovieDetails}
           loading={loadingDetails}
