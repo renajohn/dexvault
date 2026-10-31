@@ -85,6 +85,17 @@ describe('addAlbumFromMusicBrainz — cover downloads must not hold up the save'
     expect(album.cover).toBe('/api/images/cd/quick.jpg');
   });
 
+  it('waits for a slow cover past its head start when asked to, for a CD found from its rip', async () => {
+    mockRelease('rip-cover');
+    jest.spyOn(imageService, 'downloadImageFromUrl').mockReturnValue(
+      new Promise<string>(resolve => setTimeout(() => resolve('/api/images/cd/rip.jpg'), 2500)) as any
+    );
+
+    const album = await musicService.addAlbumFromMusicBrainz('rip-cover', {}, { waitForCover: true });
+
+    expect(album.cover).toBe('/api/images/cd/rip.jpg');
+  });
+
   it('keeps the album when the cover download fails outright', async () => {
     mockRelease('failed-cover');
     jest.spyOn(imageService, 'downloadImageFromUrl').mockRejectedValue(new Error('404'));

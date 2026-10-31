@@ -9,6 +9,7 @@ import musicService from './musicService';
 import musicCollectionService from './musicCollectionService';
 import { getDatabase } from '../database';
 import listenHistoryService from './listenHistoryService';
+import imageService from './imageService';
 import logger from '../logger';
 
 /**
@@ -189,6 +190,18 @@ const albumState = (album: NavidromeAlbum, songsByAlbum: Map<string, NavidromeSo
   return songs.length > 0 && songs.every(isLossless) ? 'lossless' : 'lossy';
 };
 
+/** Gives a CD added from its rip the cover Navidrome reads in its files, when no archive had one. */
+const coverFromRip = async (albumId: number, releaseId: string, albums: NavidromeAlbum[]): Promise<void> => {
+  const rip = albums.find(album => album.musicBrainzId === releaseId);
+  if (!rip) return;
+  try {
+    const { data: cover } = await navidromeService.getCoverArt(rip.id);
+    await Album.updateFrontCover(albumId, await imageService.saveImage(cover, 'cd/custom', `navidrome_${albumId}_${Date.now()}.jpg`));
+  } catch (error) {
+    logger.warn(`Album ${albumId} added from its rip has no cover: ${(error as Error).message}`);
+  }
+};
+
 /** The release group of an edition and whether it is a CD, asked of MusicBrainz once and remembered. */
 const releaseInfo = async (releaseId: string): Promise<ReleaseInfo> => {
   const known = await ReleaseGroupLookup.find(releaseId);
@@ -349,7 +362,10 @@ const ripStatusService = {
           // Not in DexVault at all: a CD ripped before being catalogued is added,
           // a download bought in lossless is not a CD of the collection.
           if (!isCd) { results.push({ albumId: null, title: name, releaseId, skipped: 'not_a_cd' }); continue; }
-          const added = await musicService.addAlbumFromMusicBrainz(releaseId, { titleStatus: 'owned' } as never);
+          // Its cover waited for: the banner of Listen Next reads it once this sync answers.
+          const added = await musicService.addAlbumFromMusicBrainz(releaseId, { titleStatus: 'owned' } as never, { waitForCover: true });
+          // No image for its edition anywhere: the one Picard put in its files.
+          if (!added.cover) await coverFromRip(added.id, releaseId, navidrome.albums);
           logger.info(`Album ${added.id} "${added.title}" added from its rip, edition ${releaseId}`);
           results.push({ albumId: added.id, title: added.title, releaseId, action: 'added' });
           // A second rip of the same album, later in this run, finds it instead of adding it again.
