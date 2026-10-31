@@ -1,0 +1,121 @@
+/*
+ * The app's sections on a phone (PhoneSections.tsx): a button as tall as the
+ * search beside it, the section in gold; open, a strip in the menus' glass
+ * over the whole row, from the button to the right edge.
+ */
+.phone-sections {
+  flex-shrink: 0;
+}
+
+.phone-sections__current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 2px solid var(--dv-search-edge);
+  border-radius: 8px;
+  background: var(--dv-search-field);
+  color: var(--dv-text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.phone-sections__current--on {
+  color: var(--dv-gold);
+}
+
+.phone-sections__current:focus-visible {
+  outline: none;
+  box-shadow: var(--dv-ring);
+}
+
+.phone-sections--open .phone-sections__current {
+  opacity: 0;
+}
+
+/* Over the row (.App-phone-row stands it), shut until the button opens it. */
+.phone-sections__strip {
+  position: absolute;
+  z-index: 10002;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  padding: 0 4px;
+  border-radius: 8px;
+  transform-origin: 24px 50%;
+  transform: scaleX(0.12);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.18s ease, opacity 0.12s ease, visibility 0s linear 0.18s;
+}
+
+.phone-sections--open .phone-sections__strip {
+  transform: none;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.1s ease, visibility 0s;
+}
+
+.phone-sections__option,
+.phone-sections__tools .cog-button {
+  flex: 1 1 0;
+  max-width: 48px;
+  min-width: 0;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--dv-text-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.phone-sections__option--on {
+  background: var(--dv-gold);
+  color: var(--dv-gold-ink);
+}
+
+.phone-sections__option:focus-visible,
+.phone-sections__tools .cog-button:focus-visible {
+  outline: none;
+  box-shadow: var(--dv-ring);
+}
+
+/* ⚙︎ at the end, set apart from the sections by a thin line. */
+.phone-sections__tools {
+  flex: 1 1 0;
+  max-width: 56px;
+  display: flex;
+  justify-content: flex-end;
+  padding-left: 6px;
+  border-left: 1px solid var(--dv-edge);
+}
+
+.phone-sections__tools .cog-dropdown {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+}
+
+.phone-sections__tools .cog-button,
+.phone-sections__tools .cog-button:hover {
+  width: 100%;
+  box-shadow: none;
+}
+
+.phone-sections__tools .cog-button:hover svg {
+  transform: none;
+}

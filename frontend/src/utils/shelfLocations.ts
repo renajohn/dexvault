@@ -4,7 +4,11 @@ import { useEffect, useSyncExternalStore } from 'react';
 export interface ShelfMove {
   kind: 'movie' | 'album' | 'box_set';
   id: number;
+  /** A CD's artist and title, "Ayọ – Joyful". */
   title: string;
+  /** A CD's artist and its title alone, to name several of one artist once. */
+  artist?: string;
+  name?: string;
   /** Null for an object new to the collection. */
   from: string | null;
   /** Null when the shelves have no more room for it. */

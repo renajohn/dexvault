@@ -230,6 +230,9 @@ describe('adoption des éditions depuis les rips', () => {
     const album = await Album.findById(id);
     expect(album.titleStatus).toBe('owned');
     expect(album.musicbrainzReleaseId).toBe(exact);
+    // A CD come into the collection: at the end of Listen Next.
+    const musicCollectionService = require('../../src/services/musicCollectionService').default;
+    expect((await musicCollectionService.getListenNextEntries()).map((entry: { albumId: number }) => entry.albumId)).toContain(id);
   });
 
   it('garde la pochette et le dos de DexVault quand un rip change l’édition ou sort l’album de la wish list', async () => {

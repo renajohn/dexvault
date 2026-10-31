@@ -12,6 +12,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import BackupPage from './pages/BackupPage';
 import ShelvesPage from './pages/ShelvesPage';
 import CogDropdown from './components/CogDropdown';
+import PhoneSections from './components/PhoneSections';
 import Menu, { MenuChevron } from './components/shared/Menu';
 import SearchPills from './components/shared/search/SearchPills';
 import { getSearchSchema } from './components/shared/search/schemas';
@@ -22,7 +23,7 @@ import ScrollToTop from './components/ScrollToTop';
 import apiService from './services/api';
 import bookService from './services/bookService';
 import bookSectionsService from './services/bookSectionsService';
-import { BsX, BsCollectionFill, BsBookmark, BsDisc, BsArrowLeft, BsBarChart, BsFilm, BsBook, BsFileMusic } from 'react-icons/bs';
+import { BsX, BsCollectionFill, BsBookmark, BsDisc, BsArrowLeft, BsFilm, BsBook, BsFileMusic, BsBookshelf, BsBarChart, BsGear } from 'react-icons/bs';
 import 'bootstrap/dist/css/bootstrap.min.css';
 // After Bootstrap, so that its radios and checkboxes wear DexVault's look.
 import './components/shared/check.css';
@@ -56,8 +57,8 @@ const DigitalRedirect = () => {
   return <Navigate to={search ? `/musicdex?digital=1&search=${encodeURIComponent(search)}` : '/musicdex?digital=1&filter=buy'} replace />;
 };
 
-/** The sections of the header's buttons, in their order, Shelves last. */
-const SECTIONS = ['/filmdex', '/musicdex', '/bookdex', '/scores', '/wishlist', '/analytics', '/shelves'];
+/** The sections of the header's buttons, in their order, Analytics last (under ⚙︎). */
+const SECTIONS = ['/filmdex', '/musicdex', '/bookdex', '/scores', '/wishlist', '/shelves', '/analytics'];
 const LAST_SECTION_KEY = 'dexvault-last-section';
 
 /**
@@ -115,7 +116,7 @@ function AppContent() {
     window.addEventListener('keydown', toSearch);
     return () => window.removeEventListener('keydown', toSearch);
   }, []);
-  // ⌘1…⌘7 (Ctrl+1…7) go to a section, in the order of the header's buttons, Shelves last.
+  // ⌘1…⌘7 (Ctrl+1…7) go to a section, in the order of the header's buttons, Analytics last.
   // In a browser's tab ⌘1…⌘9 stay the browser's (Ctrl works there on a Mac); in DexVault installed as an app they are its own.
   useEffect(() => {
     const toSection = (e: KeyboardEvent) => {
@@ -603,9 +604,78 @@ function AppContent() {
   }, [hasCheckedBackfill]);
 
 
+  // The search, in pills (components/shared/search): on its own row, or beside the sections on a phone.
+  const searchField = searchSchema && (
+    <SearchPills
+      schema={searchSchema}
+      value={searchCriteria.searchText}
+      onChange={searchText => setSearchCriteria({ searchText })}
+      inputRef={searchInputRef}
+      recentKey={product ? `dexvault-${product}-recent-searches` : undefined}
+      onFocus={() => setIsSearchFocused(true)}
+      onBlur={() => setIsSearchFocused(false)}
+      endAdornment={<>
+        {searchCriteria.searchText && (
+          <IconButton label="Clear the search" size="sm" onClick={() => setSearchCriteria({ searchText: '' })}><BsX /></IconButton>
+        )}
+        {location.pathname !== '/wishlist' && (
+          <Menu align="end" label="Advanced filters" onOpenChange={open => { if (open) fetchFilterData(); }}
+            trigger={(props, open) => (
+              <IconButton {...props} label="Advanced filters" size="sm"><MenuChevron open={open} /></IconButton>
+            )}>
+            {filterSections().map((section, index) => (
+              <React.Fragment key={section.title}>
+                {index > 0 && <Menu.Separator />}
+                <Menu.Section title={section.title} />
+                {section.options.map(option => (
+                  <Menu.Item key={option.label} onSelect={() => handleFilterSelection(option.type, option.value)}>{option.label}</Menu.Item>
+                ))}
+              </React.Fragment>
+            ))}
+          </Menu>
+        )}
+      </>}
+    />
+  );
+
+  const cog = (phoneStrip?: { close: () => void }) => (
+    <CogDropdown
+      onSyncNavidrome={handleSyncNavidrome}
+      syncingNavidrome={navidrome.syncing}
+      onBackup={handleBackup}
+      onAnalytics={handleAnalytics}
+      showAnalytics={!phoneStrip}
+      onOpenChange={phoneStrip ? open => { if (!open) phoneStrip.close(); } : undefined}
+      currentPage={location.pathname === '/musicdex' ? 'musicdex' : location.pathname === '/bookdex' ? 'bookdex' : 'filmdex'}
+    />
+  );
+
   return (
     <div className="App">
       <header ref={headerRef} className="App-header">
+        {phone && showNavigationPills ? (
+        /* On a phone, one row: the sections in one button, then the search where the page has one (its title is its own). */
+        <div className="App-header-content App-header-content--phone">
+          <div ref={searchRowRef} className="App-phone-row">
+            <PhoneSections
+              value={location.pathname.startsWith('/musicdex') ? 'musicdex' : SECTIONS.includes(location.pathname) ? location.pathname.slice(1) : null}
+              onChange={section => navigate(`/${section}`)}
+              restIcon={<BsGear />}
+              sections={[
+                { value: 'filmdex', icon: <BsFilm />, label: 'FilmDex' },
+                { value: 'musicdex', icon: <BsDisc />, label: 'MusicDex' },
+                { value: 'bookdex', icon: <BsBook />, label: 'BookDex' },
+                { value: 'scores', icon: <BsFileMusic />, label: 'Scores' },
+                { value: 'wishlist', icon: <BsBookmark />, label: 'Wish List' },
+                { value: 'shelves', icon: <BsBookshelf />, label: 'Shelves' },
+                { value: 'analytics', icon: <BsBarChart />, label: 'Analytics' },
+              ]}
+              tools={close => cog({ close })}
+            />
+            {showSearchBar && searchField && <div className="App-search">{searchField}</div>}
+          </div>
+        </div>
+        ) : (
         <div className={`App-header-content ${!showSearchBar ? 'no-search' : ''} ${isSearchFocused ? 'search-focused' : ''}`}>
           {/* First row: Navigation and toolbar */}
           <div className="App-header-top">
@@ -617,14 +687,14 @@ function AppContent() {
                 className="app-sections"
                 reselect
                 value={location.pathname.startsWith('/musicdex') ? 'musicdex' : location.pathname.slice(1)}
-                onChange={section => ({ filmdex: handleCollection, musicdex: handleMusicDex, bookdex: handleBookDex, scores: () => navigate('/scores'), wishlist: handleWishList, analytics: handleAnalytics } as Record<string, () => void>)[section]?.()}
+                onChange={section => ({ filmdex: handleCollection, musicdex: handleMusicDex, bookdex: handleBookDex, scores: () => navigate('/scores'), wishlist: handleWishList, shelves: handleShelves } as Record<string, () => void>)[section]?.()}
                 options={[
                   { value: 'filmdex', icon: <BsFilm />, tooltip: 'FilmDex - My precious movies \u00B7 \u23181' },
                   { value: 'musicdex', icon: <BsDisc />, tooltip: 'MusicDex - My precious albums \u00B7 \u23182' },
                   { value: 'bookdex', icon: <BsBook />, tooltip: 'BookDex - My precious books \u00B7 \u23183' },
                   { value: 'scores', icon: <BsFileMusic />, tooltip: 'Scores - My sheet music \u00B7 \u23184' },
                   { value: 'wishlist', icon: <BsBookmark />, tooltip: 'Wish List - My precious to come \u00B7 \u23185' },
-                  { value: 'analytics', icon: <BsBarChart />, tooltip: 'Analytics - The palant\u00EDr of data \u00B7 \u23186' },
+                  { value: 'shelves', icon: <BsBookshelf />, tooltip: 'Shelves - Where everything stands \u00B7 \u23186' },
                 ]}
               />
             ) : (
@@ -636,52 +706,18 @@ function AppContent() {
               </div>
             )}
             <div className="App-toolbar">
-              <CogDropdown
-                onSyncNavidrome={handleSyncNavidrome}
-                syncingNavidrome={navidrome.syncing}
-                onBackup={handleBackup}
-                onShelves={handleShelves}
-                currentPage={location.pathname === '/musicdex' ? 'musicdex' : location.pathname === '/bookdex' ? 'bookdex' : 'filmdex'}
-              />
+              {cog()}
             </div>
           </div>
 
-          {/* Second row on a phone: the search, in pills (components/shared/search). */}
+          {/* Second row: the search, in pills (components/shared/search). */}
           {showSearchBar && searchSchema && (
             <div ref={searchRowRef} className="App-search">
-              <SearchPills
-                schema={searchSchema}
-                value={searchCriteria.searchText}
-                onChange={searchText => setSearchCriteria({ searchText })}
-                inputRef={searchInputRef}
-                recentKey={product ? `dexvault-${product}-recent-searches` : undefined}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                endAdornment={<>
-                  {searchCriteria.searchText && (
-                    <IconButton label="Clear the search" size="sm" onClick={() => setSearchCriteria({ searchText: '' })}><BsX /></IconButton>
-                  )}
-                  {location.pathname !== '/wishlist' && (
-                    <Menu align="end" label="Advanced filters" onOpenChange={open => { if (open) fetchFilterData(); }}
-                      trigger={(props, open) => (
-                        <IconButton {...props} label="Advanced filters" size="sm"><MenuChevron open={open} /></IconButton>
-                      )}>
-                      {filterSections().map((section, index) => (
-                        <React.Fragment key={section.title}>
-                          {index > 0 && <Menu.Separator />}
-                          <Menu.Section title={section.title} />
-                          {section.options.map(option => (
-                            <Menu.Item key={option.label} onSelect={() => handleFilterSelection(option.type, option.value)}>{option.label}</Menu.Item>
-                          ))}
-                        </React.Fragment>
-                      ))}
-                    </Menu>
-                  )}
-                </>}
-              />
+              {searchField}
             </div>
           )}
         </div>
+        )}
       </header>
 
       <ShelfMovesNotice />

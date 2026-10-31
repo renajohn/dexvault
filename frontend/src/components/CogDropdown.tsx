@@ -1,5 +1,5 @@
 import React from 'react';
-import { BsGear, BsArrowClockwise, BsArchive, BsBookshelf } from 'react-icons/bs';
+import { BsGear, BsArrowClockwise, BsArchive, BsBarChart } from 'react-icons/bs';
 import Menu from './shared/Menu';
 import Spinner from './shared/Spinner';
 import './CogDropdown.css';
@@ -8,8 +8,11 @@ interface CogDropdownProps {
   onSyncNavidrome?: () => void;
   syncingNavidrome?: boolean;
   onBackup?: () => void;
-  onShelves?: () => void;
+  onAnalytics?: () => void;
   currentPage?: string;
+  /** Off on a phone, where Analytics has its own button among the sections. */
+  showAnalytics?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** ⚙︎ in the header: what each collection offers, then what DexVault does for all of them. */
@@ -17,11 +20,13 @@ const CogDropdown: React.FC<CogDropdownProps> = ({
   onSyncNavidrome,
   syncingNavidrome = false,
   onBackup,
-  onShelves,
-  currentPage = 'dexvault'
+  onAnalytics,
+  currentPage = 'dexvault',
+  showAnalytics = true,
+  onOpenChange
 }) => (
   <div className="cog-dropdown">
-    <Menu align="end" label="Menu" trigger={props => (
+    <Menu align="end" label="Menu" onOpenChange={onOpenChange} trigger={props => (
       <button type="button" {...props} className="cog-button" aria-label="Menu">
         <BsGear />
       </button>
@@ -36,7 +41,7 @@ const CogDropdown: React.FC<CogDropdownProps> = ({
         </>
       )}
       <Menu.Section title="DexVault" />
-      <Menu.Item icon={<BsBookshelf />} hint="⌘7" onSelect={onShelves}>Shelves</Menu.Item>
+      {showAnalytics && <Menu.Item icon={<BsBarChart />} hint="⌘7" onSelect={onAnalytics}>Analytics</Menu.Item>}
       <Menu.Item icon={<BsArchive />} onSelect={onBackup}>Backups</Menu.Item>
     </Menu>
   </div>

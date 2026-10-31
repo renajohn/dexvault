@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import musicService, { type DigitalAlbum, type DigitalLibrary, type EditionAdoption } from '../services/musicService';
 import { readStored, writeStored } from './safeStorage';
 import { isAppleMobile } from './navidrome';
+import { LISTEN_NEXT_CHANGED_EVENT } from '../components/useAlbumAtRest';
 
 /**
  * The music as files, in Navidrome, as MusicDex shows it with Digital on:
@@ -72,6 +73,10 @@ const sync = async (): Promise<string | null> => {
   try {
     const result = await musicService.syncDigitalLibrary();
     set({ library: result.library, syncedAt: Date.now(), editions: result.editions.filter(edition => !edition.skipped), error: null });
+    // A CD found from its rip, added or come off the wish list, is at the end of Listen Next: its banner reads it again.
+    if (result.editions.some(edition => edition.action === 'added' || edition.action === 'promoted')) {
+      window.dispatchEvent(new Event(LISTEN_NEXT_CHANGED_EVENT));
+    }
   } catch (error) {
     set({ error: (error as Error).message });
   } finally {

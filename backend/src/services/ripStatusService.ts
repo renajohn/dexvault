@@ -6,6 +6,7 @@ import musicbrainzService from './musicbrainzService';
 import musicbrainzRefreshService from './musicbrainzRefreshService';
 import ReleaseGroupLookup, { type ReleaseInfo } from '../models/releaseGroupLookup';
 import musicService from './musicService';
+import musicCollectionService from './musicCollectionService';
 import { getDatabase } from '../database';
 import listenHistoryService from './listenHistoryService';
 import logger from '../logger';
@@ -331,7 +332,11 @@ const ripStatusService = {
           || (album.titleStatus === 'digital' && album.musicbrainzReleaseId === releaseId));
         const inCollection = sameGroup.filter(owned);
         const wished = sameGroup.filter(album => album.titleStatus === 'wish');
-        const digital = sameGroup.filter(album => album.titleStatus === 'digital');
+        // An older copy of the same album (MP3, iTunes) is a digital album of the
+        // same group too: the one this rip made is the one of its edition.
+        const digitalOfGroup = sameGroup.filter(album => album.titleStatus === 'digital');
+        const ofEdition = digitalOfGroup.filter(album => album.musicbrainzReleaseId === releaseId);
+        const digital = ofEdition.length === 1 ? ofEdition : digitalOfGroup;
         if (inCollection.length > 1 || (inCollection.length === 0 && (wished.length > 1 || (wished.length === 0 && digital.length > 1)))) {
           results.push({ albumId: null, title: name, releaseId, skipped: 'several_albums' });
           continue;
@@ -365,6 +370,9 @@ const ripStatusService = {
         const promoted = album.titleStatus === 'wish' || album.titleStatus === 'digital';
         if (promoted) await Album.updateStatus(album.id, 'owned');
         if (album.titleStatus === 'digital') await Album.setFormat(album.id, 'CD');
+        // A CD come into the collection: at the end of Listen Next, as one added or bought.
+        if (promoted) await musicCollectionService.addNewCd(album.id).catch(error =>
+          logger.warn(`Album ${album.id} ripped but not put in Listen Next: ${(error as Error).message}`));
         logger.info(`Album ${album.id} "${album.title}" takes edition ${releaseId} from its rip (was ${album.musicbrainzReleaseId ?? 'none'})${promoted ? `, moved off the ${album.titleStatus === 'wish' ? 'wish list' : 'digital albums'}` : ''}`);
         results.push({ albumId: album.id, title: album.title, releaseId, action: promoted ? 'promoted' : 'edition', previousReleaseId: album.musicbrainzReleaseId ?? null });
         await refresh(album.id, releaseId);

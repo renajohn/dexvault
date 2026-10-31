@@ -75,6 +75,19 @@
   gap: 6px;
 }
 
+.shelf-moves-artist {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The artist of the CDs beside it, named once. */
+.shelf-moves-artist > span {
+  color: #c9ccd3;
+  font-size: 0.85rem;
+}
+
 .shelf-moves-chips button {
   padding: 4px 12px;
   border: 1px solid #4a4e57;

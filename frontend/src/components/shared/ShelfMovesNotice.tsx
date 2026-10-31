@@ -38,6 +38,17 @@ const placeOf = (move: ShelfMove): string =>
 const names = (titles: string[]): string =>
   titles.length <= 1 ? titles.join('') : `${titles.slice(0, -1).join(', ')} and ${titles[titles.length - 1]}`;
 
+/** Side by side, the CDs of one artist, to name the artist once; a film or a CD alone stands by itself. */
+const byArtist = <T extends { artist?: string }>(items: T[]): Array<{ artist?: string; items: T[] }> => {
+  const groups: Array<{ artist?: string; items: T[] }> = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (item.artist && last?.artist === item.artist) last.items.push(item);
+    else groups.push({ artist: item.artist, items: [item] });
+  }
+  return groups;
+};
+
 /** A step taken, and how to take it back. */
 interface Taken {
   levels: LevelState[] | null;
@@ -219,30 +230,50 @@ const ShelfMovesNotice: React.FC = () => {
     return (
       <>
         <ul className="shelf-moves-put">
-          {arriving.map(move => (
-            <li key={`${move.kind}:${move.id}`} className={isOff(move) ? 'is-off' : undefined}>
-              <strong>{move.title}</strong>
-              {move.from ? ` from ${move.from}` : ' (new)'}
-              {placeOf(move) && `, ${placeOf(move)}`}
-            </li>
-          ))}
+          {byArtist(arriving).map(group => {
+            const put = (move: ShelfMove, named: string) => (
+              <li key={`${move.kind}:${move.id}`} className={isOff(move) ? 'is-off' : undefined}>
+                <strong>{named}</strong>
+                {move.from ? ` from ${move.from}` : ' (new)'}
+                {placeOf(move) && `, ${placeOf(move)}`}
+              </li>
+            );
+            if (group.items.length === 1) return put(group.items[0], group.items[0].title);
+            return (
+              <li key={`artist:${group.artist}:${group.items[0].id}`}>
+                <strong>{group.artist}</strong>
+                <ul>{group.items.map(move => put(move, move.name ?? move.title))}</ul>
+              </li>
+            );
+          })}
         </ul>
         {line && line.items.length > 1 && (
           <div className="shelf-moves-off">
             <p>{off === 0 ? 'Nothing comes off.' : `Take off for ${nextShelf ?? 'the next shelf'}:`}</p>
             <div className="shelf-moves-chips">
-              {shown.map(item => {
-                const index = line.items.indexOf(item);
-                const leaving = index >= line.items.length - off;
+              {byArtist(shown).map(group => {
+                const chip = (item: typeof shown[number], named: string) => {
+                  const index = line.items.indexOf(item);
+                  const leaving = index >= line.items.length - off;
+                  return (
+                    <button key={`${item.kind}:${item.id}`} type="button" aria-pressed={leaving} disabled={saving}
+                      className={leaving ? 'is-leaving' : undefined} onClick={() => tap(index)}
+                      aria-label={item.artist ? `${item.artist} – ${item.title}` : undefined}>
+                      {named}
+                    </button>
+                  );
+                };
+                const [first] = group.items;
+                if (group.items.length === 1) return chip(first, first.artist ? `${first.artist} – ${first.title}` : first.title);
                 return (
-                  <button key={`${item.kind}:${item.id}`} type="button" aria-pressed={leaving} disabled={saving}
-                    className={leaving ? 'is-leaving' : undefined} onClick={() => tap(index)}>
-                    {item.title}
-                  </button>
+                  <span key={`artist:${group.artist}:${first.id}`} className="shelf-moves-artist">
+                    <span>{group.artist}</span>
+                    {group.items.map(item => chip(item, item.title))}
+                  </span>
                 );
               })}
             </div>
-            <p className="shelf-moves-hint">Tap a film to change how many come off.</p>
+            <p className="shelf-moves-hint">Tap one to change how many come off.</p>
           </div>
         )}
       </>
