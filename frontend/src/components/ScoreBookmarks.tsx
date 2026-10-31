@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BsBookmarkCheck } from 'react-icons/bs';
+import { BsBookmarkCheck, BsChevronLeft, BsChevronRight, BsX, BsZoomIn } from 'react-icons/bs';
 import bookSectionsService, { ScoreBookmark, ScoreFile, scoreFileUrl } from '../services/bookSectionsService';
 import type { ScorePiece } from '../services/scorePiecesService';
 import { openPdf, PdfDocument } from '../utils/pdf';
-import Button from './shared/Button';
+import Button, { IconButton } from './shared/Button';
+import Segmented from './shared/Segmented';
 import Dialog from './shared/Dialog';
 import { Loading } from './shared/Spinner';
 import { TextField } from './shared/TextField';
@@ -39,28 +40,97 @@ export const endsOf = (rows: MarkRow[], marks: Marks, pageCount: number): Record
   return ends;
 };
 
-/** A page drawn small once it comes into view. */
-const PageThumb: React.FC<{ pdf: PdfDocument; page: number; marked: string | null; inSelected: boolean; first: boolean; onPick: (page: number, end: boolean) => void }> = ({
-  pdf, page, marked, inSelected, first, onPick,
-}) => {
+/** How large the pages are shown to mark them: small to see many, large to read where a piece begins. */
+export const SIZES = { s: 112, m: 200, l: 320 } as const;
+export type ThumbSize = keyof typeof SIZES;
+const SIZE_KEY = 'dv.bookmarks.size';
+const storedSize = (): ThumbSize => { try { const kept = localStorage.getItem(SIZE_KEY); return kept === 's' || kept === 'l' ? kept : 'm'; } catch { return 'm'; } };
+
+/** A page drawn into a canvas that fills its frame, which has the page's own proportions. */
+const drawInto = async (pdf: PdfDocument, page: number, canvas: HTMLCanvasElement, width: number) => {
+  await pdf.draw(page, canvas, width);
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+};
+
+/** A page drawn small once it comes into view, framed whole, with a way to see it large. */
+const PageThumb: React.FC<{
+  pdf: PdfDocument; page: number; width: number; marked: string | null; inSelected: boolean; first: boolean;
+  onPick: (page: number, end: boolean) => void; onLarge: (page: number) => void;
+}> = ({ pdf, page, width, marked, inSelected, first, onPick, onLarge }) => {
   const ref = useRef<HTMLCanvasElement>(null);
-  const [drawn, setDrawn] = useState(false);
+  // Its proportions, A4's until its own are read.
+  const [ratio, setRatio] = useState(595 / 842);
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas || drawn) return undefined;
-    const draw = () => { setDrawn(true); pdf.draw(page, canvas, 112).catch(() => undefined); };
-    if (typeof IntersectionObserver === 'undefined') { draw(); return undefined; }
+    if (!canvas) return undefined;
+    let current = true;
+    const draw = () => {
+      pdf.sizeOf(page).then(size => { if (current) setRatio(size.width / size.height); }).catch(() => undefined);
+      drawInto(pdf, page, canvas, width).catch(() => undefined);
+    };
+    if (typeof IntersectionObserver === 'undefined') { draw(); return () => { current = false; }; }
     const observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) { observer.disconnect(); draw(); } }, { rootMargin: '400px' });
     observer.observe(canvas);
-    return () => observer.disconnect();
-  }, [pdf, page, drawn]);
+    return () => { current = false; observer.disconnect(); };
+  }, [pdf, page, width]);
   return (
-    <button type="button" className={`score-bookmarks__page${inSelected ? ' score-bookmarks__page--in' : ''}${first ? ' score-bookmarks__page--first' : ''}`}
-      onClick={event => onPick(page, event.shiftKey)} aria-label={`Page ${page}`} title={marked ? `Page ${page}: ${marked}` : `Page ${page}`}>
-      <canvas ref={ref} />
-      <span className="score-bookmarks__number">{page}</span>
-      {marked && <span className="score-bookmarks__marked">{marked}</span>}
-    </button>
+    <div className={`score-bookmarks__page${inSelected ? ' score-bookmarks__page--in' : ''}${first ? ' score-bookmarks__page--first' : ''}`} style={{ width: width + 12 }}>
+      <button type="button" className="score-bookmarks__sheet" style={{ aspectRatio: String(ratio) }}
+        onClick={event => onPick(page, event.shiftKey)} aria-label={`Page ${page}`} title={marked ? `Page ${page}: ${marked}` : `Page ${page}`}>
+        <canvas ref={ref} />
+      </button>
+      <div className="score-bookmarks__caption">
+        <span className="score-bookmarks__number">{page}</span>
+        {marked && <span className="score-bookmarks__marked">{marked}</span>}
+        <IconButton size="sm" label={`See page ${page} large`} onClick={() => onLarge(page)}><BsZoomIn /></IconButton>
+      </div>
+    </div>
+  );
+};
+
+/** One page as large as the pane allows, to read it: through the pages with ‹ ›, its piece begun or ended here. */
+const LargePage: React.FC<{
+  pdf: PdfDocument; page: number; rowName: string | null; onPage: (page: number) => void; onPick: (page: number, end: boolean) => void; onClose: () => void;
+}> = ({ pdf, page, rowName, onPage, onPick, onClose }) => {
+  const paneRef = useRef<HTMLDivElement>(null);
+  const holderRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let current = true;
+    (async () => {
+      const pane = paneRef.current;
+      if (!pane) return;
+      const size = await pdf.sizeOf(page);
+      const width = Math.floor(Math.min(pane.clientWidth - 8, (pane.clientHeight - 8) * (size.width / size.height)));
+      const canvas = document.createElement('canvas');
+      await pdf.draw(page, canvas, width);
+      if (current) holderRef.current?.replaceChildren(canvas);
+    })().catch(() => undefined);
+    return () => { current = false; };
+  }, [pdf, page]);
+  useEffect(() => { paneRef.current?.focus(); }, []);
+  return (
+    <div className="score-bookmarks__large" tabIndex={-1} aria-label={`Page ${page}, large`}
+      onKeyDown={event => {
+        // Its own keys: the dialog stays open on Escape, the arrows go through the pages.
+        if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+        if (event.key === 'ArrowRight' && page < pdf.pageCount) onPage(page + 1);
+        if (event.key === 'ArrowLeft' && page > 1) onPage(page - 1);
+      }}>
+      <div className="score-bookmarks__large-bar">
+        <IconButton size="sm" label="Previous page" disabled={page <= 1} onClick={() => onPage(page - 1)}><BsChevronLeft /></IconButton>
+        <span>Page {page} of {pdf.pageCount}</span>
+        <IconButton size="sm" label="Next page" disabled={page >= pdf.pageCount} onClick={() => onPage(page + 1)}><BsChevronRight /></IconButton>
+        {rowName && (
+          <>
+            <Button size="sm" onClick={() => onPick(page, false)}>{rowName} begins here</Button>
+            <Button size="sm" variant="quiet" onClick={() => onPick(page, true)}>Ends here</Button>
+          </>
+        )}
+        <IconButton size="sm" label="Back to the pages" className="score-bookmarks__large-close" onClick={onClose}><BsX /></IconButton>
+      </div>
+      <div className="score-bookmarks__large-page" ref={paneRef}><div ref={holderRef} /></div>
+    </div>
   );
 };
 
@@ -84,6 +154,9 @@ const ScoreBookmarks: React.FC<{
   const [outline, setOutline] = useState<Array<{ title: string; page: number }>>([]);
   const [selected, setSelected] = useState<string | null>(rows[0]?.key ?? null);
   const [saving, setSaving] = useState(false);
+  const [size, setSize] = useState<ThumbSize>(storedSize);
+  // The page seen large, to read where a piece begins; none while the pages show small.
+  const [large, setLarge] = useState<number | null>(null);
   const pagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -175,12 +248,15 @@ const ScoreBookmarks: React.FC<{
             : !rows.length ? <p className="score-bookmarks__hint">Its pieces are not known yet: find them first, then mark their pages.</p>
               : (
                 <>
-                  <p className="score-bookmarks__hint">
-                    Choose a piece, then touch the page it begins on; the next comes. Shift and a page: the last of the piece chosen.
+                  <div className="score-bookmarks__hint">
+                    <span>Choose a piece, then touch the page it begins on; the next comes. Shift and a page, or 🔍 and Ends here: its last.</span>
                     {outline.length > 0 && (
                       <Button size="sm" variant="quiet" onClick={takeOutline}>Take the PDF’s own {outline.length} bookmarks</Button>
                     )}
-                  </p>
+                    <Segmented<ThumbSize> label="Size of the pages" size="sm" className="score-bookmarks__size" value={size}
+                      onChange={value => { setSize(value); try { localStorage.setItem(SIZE_KEY, value); } catch { /* private browsing */ } }}
+                      options={[{ value: 's', label: 'Small' }, { value: 'm', label: 'Medium' }, { value: 'l', label: 'Large' }]} />
+                  </div>
                   <div className="score-bookmarks__layout">
                     <ol className="score-bookmarks__rows">
                       {rows.map((row, index) => {
@@ -205,12 +281,18 @@ const ScoreBookmarks: React.FC<{
                         );
                       })}
                     </ol>
-                    <div className="score-bookmarks__pages" ref={pagesRef}>
-                      {Array.from({ length: pdf.pageCount }, (_, i) => i + 1).map(page => (
-                        <PageThumb key={page} pdf={pdf} page={page} marked={beginning.get(page)?.join(', ') || null}
-                          inSelected={Boolean(range && page >= range[0] && page <= range[1])} first={Boolean(range && page === range[0])} onPick={pick} />
-                      ))}
-                    </div>
+                    {large != null ? (
+                      <LargePage pdf={pdf} page={large} rowName={rows.find(row => row.key === selected)?.name ?? null}
+                        onPage={setLarge} onPick={pick} onClose={() => { const at = large; setLarge(null); setTimeout(() => goTo(at), 0); }} />
+                    ) : (
+                      <div className="score-bookmarks__pages" ref={pagesRef} style={{ ['--thumb' as string]: `${SIZES[size] + 12}px` }}>
+                        {Array.from({ length: pdf.pageCount }, (_, i) => i + 1).map(page => (
+                          <PageThumb key={page} pdf={pdf} page={page} width={SIZES[size]} marked={beginning.get(page)?.join(', ') || null}
+                            inSelected={Boolean(range && page >= range[0] && page <= range[1])} first={Boolean(range && page === range[0])}
+                            onPick={pick} onLarge={setLarge} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               )}

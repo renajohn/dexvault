@@ -37,9 +37,14 @@ describe('les pages de chaque pièce', () => {
 });
 
 describe('ScoreBookmarks', () => {
+  const kept = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => kept.get(key) ?? null, setItem: (key: string, value: string) => { kept.set(key, value); },
+    removeItem: (key: string) => { kept.delete(key); }, clear: () => kept.clear(),
+  });
   beforeEach(() => {
     vi.mocked(openPdf).mockReset().mockResolvedValue({
-      pageCount: 12, draw: vi.fn().mockResolvedValue(undefined), close: vi.fn(),
+      pageCount: 12, draw: vi.fn().mockResolvedValue(undefined), close: vi.fn(), sizeOf: vi.fn().mockResolvedValue({ width: 842, height: 595 }),
       outline: vi.fn().mockResolvedValue([{ title: 'Danseuses', page: 2 }, { title: 'Voiles', page: 4 }]),
     });
     vi.mocked(bookSectionsService.bookmarks).mockReset().mockResolvedValue([{ pieceId: 2, partWorkId: null, startPage: 10, endPage: 12 }]);
@@ -86,12 +91,31 @@ describe('ScoreBookmarks', () => {
     expect(bookSectionsService.keepBookmarks).not.toHaveBeenCalled();
   });
 
+  it('montre une page en grand pour la lire, y fait commencer ou finir la pièce choisie, et garde la taille des pages', async () => {
+    render(<ScoreBookmarks scoreId={219} file={file} pieces={[livre, clair]} onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'See page 2 large' }));
+    const large = screen.getByLabelText('Page 2, large');
+    expect(within(large).getByText('Page 2 of 12')).toBeInTheDocument();
+    fireEvent.click(within(large).getByRole('button', { name: 'Next page' }));
+    fireEvent.click(within(large).getByRole('button', { name: 'Danseuses de Delphes begins here' }));
+    expect(screen.getByLabelText('First page of Danseuses de Delphes')).toHaveValue('3');
+    // The next piece comes, still large.
+    expect(within(screen.getByLabelText('Page 3, large')).getByRole('button', { name: 'Voiles begins here' })).toBeInTheDocument();
+    // Escape goes back to the pages, the dialog stays.
+    fireEvent.keyDown(screen.getByLabelText('Page 3, large'), { key: 'Escape' });
+    expect(screen.getByRole('button', { name: 'Page 3' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Large' }));
+    expect(localStorage.getItem('dv.bookmarks.size')).toBe('l');
+    expect((screen.getByRole('button', { name: 'Page 1' }).closest('.score-bookmarks__page') as HTMLElement).style.width).toBe('332px');
+  });
+
   it('prend les signets du PDF lui-même, dans l’ordre', async () => {
     render(<ScoreBookmarks scoreId={219} file={file} pieces={[livre, clair]} onClose={vi.fn()} onSaved={vi.fn()} />);
     fireEvent.click(await screen.findByRole('button', { name: /Take the PDF’s own 2 bookmarks/ }));
     expect(screen.getByLabelText('First page of Danseuses de Delphes')).toHaveValue('2');
     expect(screen.getByLabelText('First page of Voiles')).toHaveValue('4');
     expect(screen.getByLabelText('First page of Le vent dans la plaine')).toHaveValue('');
-    expect(within(screen.getByRole('button', { name: 'Page 4' })).getByText('Voiles')).toBeInTheDocument();
+    expect(within(screen.getByRole('button', { name: 'Page 4' }).closest('.score-bookmarks__page') as HTMLElement).getByText('Voiles')).toBeInTheDocument();
   });
 });

@@ -84,20 +84,19 @@
 
 .score-bookmarks__pages {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--thumb, 212px), 1fr));
   align-content: start;
-  gap: 10px;
+  justify-items: center;
+  gap: 12px;
   overflow-y: auto;
 }
 
+/* A page and its caption, framed whole: gold while it is in the piece chosen. */
 .score-bookmarks__page {
-  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 176px;
-  padding: 4px;
+  gap: 4px;
+  padding: 5px;
   border: 1px solid var(--dv-edge);
   border-radius: var(--dv-radius-sm);
   background: var(--dv-glass);
@@ -106,13 +105,6 @@
 
 .score-bookmarks__page:hover {
   border-color: var(--dv-edge-hover);
-}
-
-/* Drawn, a page keeps its own proportions (a landscape one lies wide); before, a small blank. */
-.score-bookmarks__page canvas {
-  max-width: 112px;
-  height: auto;
-  background: #fff;
 }
 
 .score-bookmarks__page--in {
@@ -124,16 +116,43 @@
   border-color: var(--dv-gold);
 }
 
+/* The page itself, in its own proportions: the canvas fills it once drawn, white before. */
+.score-bookmarks__sheet {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: #fff;
+  cursor: pointer;
+}
+
+.score-bookmarks__sheet canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.score-bookmarks__caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.score-bookmarks__caption > :last-child {
+  margin-left: auto;
+}
+
 .score-bookmarks__number {
   margin-top: 2px;
   font-size: 0.75rem;
 }
 
 .score-bookmarks__marked {
-  max-width: 112px;
+  min-width: 0;
   overflow: hidden;
   color: var(--dv-gold);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -142,4 +161,41 @@
   margin-right: auto;
   color: var(--dv-text-faint);
   font-size: 0.8rem;
+}
+
+/* One page large, to read it: its bar over it, the page as tall as the pane. */
+.score-bookmarks__large {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  outline: none;
+}
+
+.score-bookmarks__large-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--dv-text-muted);
+  font-size: 0.85rem;
+}
+
+.score-bookmarks__large-close {
+  margin-left: auto;
+}
+
+.score-bookmarks__large-page {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 0;
+  overflow: auto;
+}
+
+.score-bookmarks__large-page canvas {
+  display: block;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
