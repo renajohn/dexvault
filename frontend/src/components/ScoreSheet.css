@@ -1,0 +1,132 @@
+/* What a score alone has in its full screen (ScoreSheet); the frame, the head and the sections are PhoneSheet.css's. */
+
+.score-sheet-thumb {
+  display: block;
+  object-fit: cover;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.score-sheet-blank {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: var(--dv-glass);
+  color: var(--dv-text-faint);
+  font-size: 1.6em;
+}
+
+/* The cover large, a score's shape (3 / 4). */
+.score-sheet-cover {
+  position: relative;
+  width: min(62%, 250px);
+  aspect-ratio: 3 / 4;
+  margin: 2px auto 0;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+}
+
+.score-sheet-cover > .score-sheet-blank {
+  font-size: 3rem;
+}
+
+.score-sheet-cover__show {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.score-sheet-cover__show img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.score-sheet-cover__tags {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+}
+
+.score-sheet-cover__pdf {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 6;
+}
+
+.score-sheet-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+
+.score-sheet-acts--start {
+  justify-content: flex-start;
+  margin: 0;
+}
+
+/* What plays it: a way to its pieces. */
+.score-sheet-heard {
+  display: block;
+  margin: 4px auto 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dv-text-muted);
+  font-size: 0.82rem;
+}
+
+.score-sheet-heard strong {
+  color: var(--dv-gold);
+  font-weight: 600;
+}
+
+.score-sheet-add {
+  margin: -6px -6px -6px auto;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.score-sheet-line {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+}
+
+.score-sheet-change {
+  margin-top: 10px;
+}
+
+.score-sheet-manage {
+  justify-content: flex-end;
+}
+
+/* The edition's form on a phone's width: its labels above their fields. */
+.phone-sheet .score-edition {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.phone-sheet .score-edition label {
+  margin-top: 6px;
+}
+
+/* What its publisher writes, under its own heading: the card's margins left out, Read more on the words' line. */
+.phone-sheet .score-card__about-text {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.phone-sheet .score-card__about-text > .ui-button {
+  margin-left: -6px;
+}

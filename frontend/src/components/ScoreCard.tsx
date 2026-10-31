@@ -20,6 +20,8 @@ import Segmented from './shared/Segmented';
 import { confirm } from './shared/ConfirmDialog';
 import toast from './shared/Toast';
 import CoverModal from './CoverModal';
+import ScoreSheet from './ScoreSheet';
+import { useMedia } from '../utils/useNarrow';
 import './ScoreCard.css';
 
 const fmt = (seconds: number | null) => (seconds == null ? '' : `${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2, '0')}`);
@@ -151,6 +153,8 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const [coverShown, setCoverShown] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const playing = usePlaying();
+  // On a phone the score is a full screen as a film's or a book's (ScoreSheet), its parts the same.
+  const phone = useMedia('(max-width: 767px)');
   // The row last played from: several pieces one track holds (waltzes 1, 2 and 5 in one) light that one alone.
   const [playedFrom, setPlayedFrom] = useState<{ row: string; track: string } | null>(null);
 
@@ -251,13 +255,92 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
   const cover = book?.cover ?? score.cover;
   // What its publisher writes of it, in French or English; a shop's listing taken for words ("Support - Partition…") is not shown.
   const about = typeof book?.description === 'string' && !isUnwanted(book.description) ? book.description.trim() : '';
+  const title = pieceOf(String(book?.title ?? score.title));
+  const coverUrl = cover ? bookService.getImageUrl(String(cover)) || '' : '';
+  const openPdf = () => window.open(scorePdfUrl(score.id), '_blank', 'noopener');
+  const openImslp = () => window.open(imslp, '_blank', 'noopener');
+  const openHenle = henle.url ? () => window.open(henle.url!, '_blank', 'noopener') : null;
+  const editionForm = editing && (
+    <>
+      <EditionForm values={editing} onChange={setEditing} />
+      <div className="score-edition__actions">
+        <Button size="sm" variant="quiet" onClick={() => setEditing(null)}>Cancel</Button>
+        <Button size="sm" onClick={save} loading={saving} disabled={!editing.title.trim()}>Keep it</Button>
+      </div>
+    </>
+  );
+  const aboutText = !editing && about && (
+    <div className={`score-card__about-text${aboutOpen ? ' score-card__about-text--open' : ''}`}>
+      {about.split(/\n{2,}/).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+      {(about.length > 260 || about.includes('\n')) && (
+        <Button size="sm" variant="quiet" onClick={() => setAboutOpen(open => !open)}>{aboutOpen ? 'Less' : 'Read more'}</Button>
+      )}
+    </div>
+  );
+  const piecesBody = !pieces ? <Loading>Reading its pieces…</Loading> : (
+    <>
+      {pieces.map(piece => (
+        <PieceBlock key={piece.id} piece={piece} composer={score.composer} playing={playing}
+          heard={playedFrom?.track === playing ? playedFrom.row : null} onHeard={(row, track) => setPlayedFrom({ row, track })}
+          onChoose={albumId => choose(piece, albumId)} onKeep={workIds => keepParts(piece, workIds)} onRemove={() => removePiece(piece)} />
+      ))}
+      {finding && <FindPieces score={score} first={!pieces.length} onAdded={changed} onCancel={pieces.length ? () => setFinding(false) : undefined} />}
+    </>
+  );
+  const addPiece = pieces?.length && !finding ? () => setFinding(true) : null;
+  const notesBody = (
+    <>
+      {notes.map(note => (
+        <blockquote key={note.id} className="score-card__note">{note.comment}<small>{note.name}, {new Date(note.date).toLocaleDateString('fr-CH')}</small></blockquote>
+      ))}
+      {writing !== null && (
+        <div className="score-card__write">
+          <TextArea rows={3} value={writing} autoFocus onChange={e => setWriting(e.target.value)} placeholder="What to work on, a fingering, a tempo…" aria-label="A note on the score" />
+          <div className="score-edition__actions">
+            <Button size="sm" variant="quiet" onClick={() => setWriting(null)}>Cancel</Button>
+            <Button size="sm" onClick={keepNote} disabled={!writing.trim()}>Keep it</Button>
+          </div>
+        </div>
+      )}
+      {!notes.length && writing === null && <p className="score-card__empty">No note yet.</p>}
+    </>
+  );
+  const coverModal = (
+    <CoverModal isOpen={coverShown} onClose={() => setCoverShown(false)} coverUrl={coverUrl} title={title} artist={values.composer || undefined} />
+  );
+
+  if (phone) {
+    return (
+      <>
+        <ScoreSheet id={score.id} title={title} composer={values.composer} edition={editionLine(values, level)} reference={values.number}
+          code={values.code} cover={coverUrl} borrowed={values.borrowed} hasPdf={Boolean(score.ebookFile)} imslpPage={imslpPage}
+          heard={heard} total={total} about={aboutText} pieces={piecesBody} pieceCount={pieces?.length ?? 0} onAddPiece={addPiece}
+          notes={notesBody} noteCount={notes.length} onAddNote={writing === null ? () => setWriting('') : null}
+          editing={editing != null} editionForm={editionForm} onEdit={() => setEditing(values)}
+          onCancelEdit={() => setEditing(null)} writing={writing !== null}
+          onShowCover={() => setCoverShown(true)} onPdf={openPdf} onImslp={openImslp} onHenle={openHenle}
+          onAttach={() => onAttach(score)} onDelete={remove} onClose={onClose}
+          facts={[
+            ['Publisher', values.publisher || null],
+            ['Number', values.number || null],
+            [values.code.length === 13 && values.code.startsWith('9790') ? 'ISMN' : 'ISBN', values.code || null],
+            ['Henle level', level ? String(level) : null],
+            ...(values.borrowed
+              ? [['Borrowed', values.owner ? `from ${values.owner}` : 'yes'] as [string, string]]
+              : [['Paid', values.priceChf ? `CHF ${values.priceChf}` : null], ['Bought', values.purchasedAt ? new Date(values.purchasedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null]] as Array<[string, string | null]>),
+          ]} />
+        {coverModal}
+      </>
+    );
+  }
+
   return (
-    <Dialog show onClose={onClose} variant="panel" size="lg" icon={<BsFileMusic />} title={pieceOf(String(book?.title ?? score.title))} className="score-card">
+    <Dialog show onClose={onClose} variant="panel" size="lg" icon={<BsFileMusic />} title={title} className="score-card">
       <Dialog.Body>
         <div className="score-card__head">
           {cover ? (
             <button type="button" className="score-card__cover" onClick={() => setCoverShown(true)} title="See it large">
-              <img src={bookService.getImageUrl(String(cover)) || ''} alt="" />
+              <img src={coverUrl} alt="" />
             </button>
           ) : <span className="score-card__blank" />}
           <div className="score-card__about">
@@ -272,17 +355,17 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
             <div className="score-card__acts">
               {score.ebookFile ? (
                 <>
-                  <Button size="sm" icon={<BsFileEarmarkPdf />} onClick={() => window.open(scorePdfUrl(score.id), '_blank', 'noopener')}>PDF</Button>
-                  <Button size="sm" variant="quiet" icon={<BsBoxArrowUpRight />} onClick={() => window.open(imslp, '_blank', 'noopener')}>On IMSLP</Button>
+                  <Button size="sm" icon={<BsFileEarmarkPdf />} onClick={openPdf}>PDF</Button>
+                  <Button size="sm" variant="quiet" icon={<BsBoxArrowUpRight />} onClick={openImslp}>On IMSLP</Button>
                 </>
               ) : (
                 <>
-                  <Button size="sm" icon={<BsBoxArrowUpRight />} onClick={() => window.open(imslp, '_blank', 'noopener')}
+                  <Button size="sm" icon={<BsBoxArrowUpRight />} onClick={openImslp}
                     title={imslpPage ? `Its page on IMSLP: ${imslpPage}` : 'A search on IMSLP'}>Find the PDF on IMSLP</Button>
                   <Button size="sm" variant="quiet" icon={<BsPaperclip />} onClick={() => onAttach(score)}>Attach PDF</Button>
                 </>
               )}
-              {henle.url && <Button size="sm" variant="quiet" icon={<BsBoxArrowUpRight />} onClick={() => window.open(henle.url!, '_blank', 'noopener')}>henle.de</Button>}
+              {openHenle && <Button size="sm" variant="quiet" icon={<BsBoxArrowUpRight />} onClick={openHenle}>henle.de</Button>}
               {total > 0 && heard > 0 && <CoverTag variant="gold">♪ {heard} of {total} in your music</CoverTag>}
               <Menu align="end" trigger={props => <IconButton {...props} label="More" size="sm"><BsThreeDots /></IconButton>}>
                 <Menu.Item icon={<BsPencil />} onSelect={() => setEditing(values)}>Change its edition</Menu.Item>
@@ -293,39 +376,15 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
             </div>
           </div>
         </div>
-        {editing && (
-          <>
-            <EditionForm values={editing} onChange={setEditing} />
-            <div className="score-edition__actions">
-              <Button size="sm" variant="quiet" onClick={() => setEditing(null)}>Cancel</Button>
-              <Button size="sm" onClick={save} loading={saving} disabled={!editing.title.trim()}>Keep it</Button>
-            </div>
-          </>
-        )}
-        {!editing && about && (
-          <div className={`score-card__about-text${aboutOpen ? ' score-card__about-text--open' : ''}`}>
-            {about.split(/\n{2,}/).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
-            {(about.length > 260 || about.includes('\n')) && (
-              <Button size="sm" variant="quiet" onClick={() => setAboutOpen(open => !open)}>{aboutOpen ? 'Less' : 'Read more'}</Button>
-            )}
-          </div>
-        )}
+        {editionForm}
+        {aboutText}
 
         <section className="score-card__section">
           <h4>
             {pieces?.length ? 'Its pieces' : 'Its pieces, to find'}
-            {!!pieces?.length && !finding && <Button size="sm" variant="quiet" className="score-card__add" onClick={() => setFinding(true)}>+ Add a piece</Button>}
+            {addPiece && <Button size="sm" variant="quiet" className="score-card__add" onClick={addPiece}>+ Add a piece</Button>}
           </h4>
-          {!pieces ? <Loading>Reading its pieces…</Loading> : (
-            <>
-              {pieces.map(piece => (
-                <PieceBlock key={piece.id} piece={piece} composer={score.composer} playing={playing}
-                  heard={playedFrom?.track === playing ? playedFrom.row : null} onHeard={(row, track) => setPlayedFrom({ row, track })}
-                  onChoose={albumId => choose(piece, albumId)} onKeep={workIds => keepParts(piece, workIds)} onRemove={() => removePiece(piece)} />
-              ))}
-              {finding && <FindPieces score={score} first={!pieces.length} onAdded={changed} onCancel={pieces.length ? () => setFinding(false) : undefined} />}
-            </>
-          )}
+          {piecesBody}
         </section>
 
         <section className="score-card__section">
@@ -333,23 +392,10 @@ const ScoreView: React.FC<ScoreCardProps & { score: Score }> = ({ score, onClose
             Notes
             {writing === null && <Button size="sm" variant="quiet" className="score-card__add" onClick={() => setWriting('')}>+ A note</Button>}
           </h4>
-          {notes.map(note => (
-            <blockquote key={note.id} className="score-card__note">{note.comment}<small>{note.name}, {new Date(note.date).toLocaleDateString('fr-CH')}</small></blockquote>
-          ))}
-          {writing !== null && (
-            <div className="score-card__write">
-              <TextArea rows={3} value={writing} autoFocus onChange={e => setWriting(e.target.value)} placeholder="What to work on, a fingering, a tempo…" aria-label="A note on the score" />
-              <div className="score-edition__actions">
-                <Button size="sm" variant="quiet" onClick={() => setWriting(null)}>Cancel</Button>
-                <Button size="sm" onClick={keepNote} disabled={!writing.trim()}>Keep it</Button>
-              </div>
-            </div>
-          )}
-          {!notes.length && writing === null && <p className="score-card__empty">No note yet.</p>}
+          {notesBody}
         </section>
       </Dialog.Body>
-      <CoverModal isOpen={coverShown} onClose={() => setCoverShown(false)} coverUrl={bookService.getImageUrl(String(cover)) || ''}
-        title={pieceOf(String(book?.title ?? score.title))} artist={values.composer || undefined} />
+      {coverModal}
     </Dialog>
   );
 };
