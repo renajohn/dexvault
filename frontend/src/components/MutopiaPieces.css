@@ -1,4 +1,27 @@
-/* Mutopia's pieces for a score's: each a choice, its facts, its first bars. */
+/* Mutopia's pieces for a score's: each a choice, its version, its facts, its first bars. */
+
+/* All at once, kept in sight over the lines. */
+.mutopia-pieces__bulk {
+  position: sticky;
+  top: -16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 -16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--dv-edge);
+  background: var(--dialog-bg);
+}
+
+.mutopia-pieces__family {
+  width: 180px;
+}
+
+.mutopia-pieces__piece .form-check h5 {
+  margin: 0;
+}
 .mutopia-pieces__hint,
 .mutopia-pieces__empty {
   margin: 0 0 12px;
@@ -18,6 +41,24 @@
 .mutopia-piece {
   padding: 8px 0;
   border-bottom: 1px solid var(--dv-edge);
+}
+
+.mutopia-piece__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mutopia-piece__version {
+  flex: none;
+  width: 150px;
+}
+
+.mutopia-piece__instrument {
+  flex: none;
+  color: var(--dv-text-faint);
+  font-size: 0.8rem;
 }
 
 .mutopia-piece__name {

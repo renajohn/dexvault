@@ -130,6 +130,11 @@ describe('les pièces de Mutopia pour celles d’une partition', () => {
       ["Prelude: Op. 28, No. 4 ('Suffocation')"],
       ['Das Wohltemperierte Clavier I, Praeludium I', 'Das Wohltemperierte Clavier I, Fuga I'],
     ]);
+    // As versions to choose from: the prelude and its fugue together, the one checked first.
+    expect(targets.map(t => t.versions.map(v => [v.instrument, v.entries.map(e => e.id), v.checked]))).toEqual([
+      [['Piano', ['1'], true], ['Piano', ['2'], false]],
+      [['Harpsichord, Piano', ['5', '3'], true], ['2 Guitars', ['4'], false]],
+    ]);
   });
 
   it('trouve les menuets du Petit livre d’Anna Magdalena par leur numéro de l’Anhang, pas par leur nom', () => {
@@ -163,8 +168,8 @@ describe('les pièces de Mutopia pour celles d’une partition', () => {
   it('de trente pièces sous un même numéro, coche celle que son nom dit', () => {
     const goldberg = ['Aria', ...Array.from({ length: 5 }, (_, i) => String(i + 1))].map((n, i) => entry(String(i), `Goldberg Variations - ${n}`, 'BWV 988', 'Harpsichord,Clavichord'));
     const [target] = matchPieces([{ pieceId: 1, partWorkId: 'w', name: 'Aria für Klavier G-dur, BWV 988 No.1', title: 'Aria für Klavier G-dur, BWV 988 No.1', whole: false }], goldberg);
-    expect(target.candidates).toHaveLength(6);
-    expect(target.candidates.filter(c => c.checked).map(c => c.title)).toEqual(['Goldberg Variations - Aria']);
+    // The variations are not the Aria of Anna Magdalena's book: not offered.
+    expect(target.candidates.map(c => [c.title, c.checked])).toEqual([['Goldberg Variations - Aria', true]]);
   });
 });
 

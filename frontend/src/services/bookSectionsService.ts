@@ -76,7 +76,11 @@ export interface MutopiaTarget {
   name: string;
   piece: string;
   candidates: Array<MutopiaEntry & { checked: boolean }>;
+  /** The same as versions to choose from: one instrument's that make the piece together, the one checked first. */
+  versions: MutopiaVersion[];
 }
+
+export interface MutopiaVersion { instrument: string | null; entries: MutopiaEntry[]; checked: boolean }
 
 export interface ReadingEntry {
   id: number;

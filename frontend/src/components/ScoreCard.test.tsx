@@ -5,10 +5,11 @@ import ScoreCard from './ScoreCard';
 import scorePiecesService, { ScorePiece } from '../services/scorePiecesService';
 import { player } from '../services/player';
 import { loadPlayable } from '../utils/playAlbum';
-import bookSectionsService, { type ImslpEdition, type MutopiaEntry, type Score, type ScoreFile } from '../services/bookSectionsService';
+import bookSectionsService, { type ImslpEdition, type MutopiaEntry, type MutopiaVersion, type Score, type ScoreFile } from '../services/bookSectionsService';
 import bookService from '../services/bookService';
 import bookCommentService from '../services/bookCommentService';
 import { confirm } from './shared/ConfirmDialog';
+import { chooseValue, selectedValue } from '../test/select';
 
 vi.mock('../services/scorePiecesService', async importOriginal => ({
   ...(await importOriginal<typeof import('../services/scorePiecesService')>()),
@@ -282,15 +283,27 @@ describe('ScoreCard', () => {
     expect(await screen.findByRole('heading', { name: 'Its PDFs' })).toBeInTheDocument();
   });
 
+  // A target as the server gives it: its candidates, and as versions those of one instrument together.
+  const mutopiaTarget = (pieceId: number, partWorkId: string | null, name: string, piece: string, candidates: Array<MutopiaEntry & { checked: boolean }>) => {
+    const versions: MutopiaVersion[] = [];
+    for (const { checked, ...one } of candidates) {
+      let version = versions.find(v => v.instrument === one.instrument);
+      if (!version) versions.push(version = { instrument: one.instrument, entries: [], checked: false });
+      version.entries.push(one);
+      version.checked ||= checked;
+    }
+    return { pieceId, partWorkId, name, piece, candidates, versions: versions.sort((a, b) => Number(b.checked) - Number(a.checked)) };
+  };
+
   it('prend ses pièces sur Mutopia, cochées d’avance, en un PDF', async () => {
     const entry = (id: string, title: string, fields: Partial<MutopiaEntry> = {}): MutopiaEntry & { checked: boolean } => ({
       id, title, opus: 'CD 125; L.117', instrument: 'Piano', source: 'Durand, 1910', licence: 'Public Domain',
       pdf: `https://www.mutopiaproject.org/ftp/DebussyC/L117/${id}/${id}-a4.pdf`, preview: null, checked: true, ...fields,
     });
     vi.mocked(bookSectionsService.mutopia).mockReset().mockResolvedValue({ composer: { code: 'DebussyC', name: 'C. Debussy' }, targets: [
-      { pieceId: 1, partWorkId: 'w4', name: 'Les sons et les parfums', piece: 'Préludes, Livre I, L. 117, CD 125', candidates: [entry('p4', 'Prélude 4', { checked: false })] },
-      { pieceId: 1, partWorkId: 'w5', name: 'Les collines d’Anacapri', piece: 'Préludes, Livre I, L. 117, CD 125', candidates: [] },
-      { pieceId: 1, partWorkId: null, name: 'Préludes, Livre I, L. 117, CD 125', piece: 'Préludes, Livre I, L. 117, CD 125', candidates: [entry('book1', 'Debussy Préludes, Book 1')] },
+      mutopiaTarget(1, 'w4', 'Les sons et les parfums', 'Préludes, Livre I, L. 117, CD 125', [entry('p4', 'Prélude 4', { checked: false })]),
+      mutopiaTarget(1, 'w5', 'Les collines d’Anacapri', 'Préludes, Livre I, L. 117, CD 125', []),
+      mutopiaTarget(1, null, 'Préludes, Livre I, L. 117, CD 125', 'Préludes, Livre I, L. 117, CD 125', [entry('book1', 'Debussy Préludes, Book 1')]),
     ] });
     const pdf = { id: 9, bookId: 219, filename: 'x.pdf', label: 'Mutopia Project', source: 'mutopia' as const, isDefault: true, size: 1, pageCount: 40, createdAt: '' };
     vi.mocked(bookSectionsService.fetchMutopia).mockReset().mockResolvedValue([pdf]);
@@ -311,6 +324,48 @@ describe('ScoreCard', () => {
     ]));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Its pieces on Mutopia' })).not.toBeInTheDocument());
     expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('choisit sur Mutopia pièce par pièce, ou toutes à la fois : la version, l’instrument, une suite d’un shift-clic', async () => {
+    const book = 'Notebook for Anna Magdalena Bach';
+    const entry = (id: string, title: string, instrument: string, checked: boolean): MutopiaEntry & { checked: boolean } => ({
+      id, title, opus: null, instrument, source: null, licence: 'Public Domain', pdf: `https://www.mutopiaproject.org/ftp/BachJS/${id}-a4.pdf`, preview: null, checked,
+    });
+    vi.mocked(bookSectionsService.mutopia).mockReset().mockResolvedValue({ composer: { code: 'BachJS', name: 'J. S. Bach' }, targets: [
+      mutopiaTarget(1, 'w113', 'Menuet F-dur, BWV Anh.113', book, [entry('113', 'Menuet', 'Harpsichord, Piano', true)]),
+      mutopiaTarget(1, 'w114', 'Menuet G-dur, BWV Anh.114', book, [entry('114', 'Menuet', 'Harpsichord, Piano', true), entry('114g', 'Menuet in G', 'Guitar', false)]),
+      mutopiaTarget(1, 'w846', 'Prelude and Fugue no. 1', book, [entry('p1', 'Praeludium I', 'Harpsichord, Piano', true), entry('f1', 'Fuga I', 'Harpsichord, Piano', true)]),
+      mutopiaTarget(1, 'w508', 'Bist du bei mir', book, [entry('508', 'Aria Bist Du Bei Mir', 'Trumpet', false)]),
+    ] });
+    vi.mocked(bookSectionsService.fetchMutopia).mockReset().mockResolvedValue([]);
+    card();
+
+    fireEvent.click(await screen.findByRole('button', { name: /From Mutopia/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Its pieces on Mutopia' });
+    const all = await within(dialog).findByRole('checkbox', { name: '3 of 4 pieces' });
+    expect((all as HTMLInputElement).indeterminate).toBe(true);
+    // One line a piece: the prelude and its fugue are one.
+    expect(within(dialog).getByRole('button', { name: 'Fetch 3 pieces' })).toBeInTheDocument();
+
+    // All, none, then the first three by a shift-click.
+    fireEvent.click(all);
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: '4 of 4 pieces' }));
+    expect(within(dialog).getByRole('checkbox', { name: '0 of 4 pieces' })).not.toBeChecked();
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Menuet F-dur, BWV Anh.113' }));
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Prelude and Fugue no. 1' }), { shiftKey: true });
+    expect(within(dialog).getByRole('checkbox', { name: 'Menuet G-dur, BWV Anh.114' })).toBeChecked();
+    expect(within(dialog).getByRole('checkbox', { name: 'Bist du bei mir' })).not.toBeChecked();
+
+    // Every piece for the guitar where Mutopia has it: the menuet in G alone.
+    chooseValue(within(dialog).getByRole('button', { name: 'Every piece for' }), 'Guitar');
+    expect(selectedValue(within(dialog).getByRole('button', { name: 'Version of Menuet G-dur, BWV Anh.114' }))).toBe('1');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Fetch 3 pieces' }));
+    await waitFor(() => expect(bookSectionsService.fetchMutopia).toHaveBeenCalledWith(219, [
+      { pieceId: 1, partWorkId: 'w113', pdf: 'https://www.mutopiaproject.org/ftp/BachJS/113-a4.pdf' },
+      { pieceId: 1, partWorkId: 'w114', pdf: 'https://www.mutopiaproject.org/ftp/BachJS/114g-a4.pdf' },
+      { pieceId: 1, partWorkId: 'w846', pdf: 'https://www.mutopiaproject.org/ftp/BachJS/p1-a4.pdf' },
+      { pieceId: 1, partWorkId: 'w846', pdf: 'https://www.mutopiaproject.org/ftp/BachJS/f1-a4.pdf' },
+    ]));
   });
 
   it('dit quand IMSLP ne connaît pas la page de la partition', async () => {

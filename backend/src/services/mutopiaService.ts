@@ -47,7 +47,15 @@ export interface MutopiaTarget {
   piece: string;
   /** Mutopia's that play it, the likely ones checked. */
   candidates: Array<MutopiaEntry & { checked: boolean }>;
+  /**
+   * The same, as the versions to choose from: Mutopia's for one instrument
+   * that make the piece together (a prelude and its fugue), the one checked
+   * first, then the keyboard's.
+   */
+  versions: MutopiaVersion[];
 }
+
+export interface MutopiaVersion { instrument: string | null; entries: MutopiaEntry[]; checked: boolean }
 
 // ---------------------------------------------------------------------------
 // Reading Mutopia's pages.
@@ -182,6 +190,25 @@ export interface Wanted {
 }
 
 /**
+ * Mutopia's for a piece, as versions: those for one instrument together, a
+ * second of the same title (Op. 28 No. 4 "from Peters source") a version of
+ * its own. The one checked first, then the keyboard's, then the others.
+ */
+export const versionsOf = (list: MutopiaEntry[], likely: MutopiaEntry[]): MutopiaVersion[] => {
+  const versions: Array<MutopiaVersion & { titles: Set<string> }> = [];
+  for (const entry of list) {
+    const title = plain(entry.title.replace(/\(.*?\)/g, ' '));
+    let version = versions.find(one => one.instrument === entry.instrument && !one.titles.has(title));
+    if (!version) versions.push(version = { instrument: entry.instrument, entries: [], checked: false, titles: new Set() });
+    version.entries.push(entry);
+    version.titles.add(title);
+    if (likely.includes(entry)) version.checked = true;
+  }
+  const rank = (version: MutopiaVersion) => (version.checked ? 0 : KEYBOARD.test(version.instrument || '') ? 1 : 2);
+  return versions.map(({ titles, ...version }) => version).sort((a, b) => rank(a) - rank(b));
+};
+
+/**
  * Which of Mutopia's pieces plays each piece or part. The same number, and
  * the same number in its set when both say one (op. 15 no. 7); when Mutopia's
  * says none ("Suite Bergamasque: Clair de Lune", L75), the same name. A piece
@@ -223,7 +250,7 @@ export const matchPieces = (wanted: Wanted[], entries: MutopiaEntry[]): MutopiaT
   // A piece a score holds twice (French Suite no. 3 in the books of 1722 and of 1725) is fetched once.
   const taken = new Set<string>();
   return wanted.map(target => {
-    const list = [...found.get(target)!].sort((a, b) => rank(a) - rank(b));
+    let list = [...found.get(target)!].sort((a, b) => rank(a) - rank(b));
     const seen = new Set<string>();
     let likely = list.filter(entry => {
       const version = plain(entry.title.replace(/\(.*?\)/g, ' '));
@@ -231,9 +258,12 @@ export const matchPieces = (wanted: Wanted[], entries: MutopiaEntry[]): MutopiaT
       seen.add(version);
       return true;
     });
-    if (!target.whole && likely.length > 2) {
+    // Of many under one number (the Goldberg Variations, BWV 988), those its name says, and only them.
+    if (!target.whole && list.length > 2) {
       const words = new Set(nameWordsOf(target.name || target.title));
-      likely = likely.filter(entry => nameWordsOf(entry.title).some(word => words.has(word)));
+      const said = (entry: MutopiaEntry) => nameWordsOf(entry.title).some(word => words.has(word));
+      if (list.some(said)) list = list.filter(said);
+      if (likely.length > 2) likely = likely.filter(said);
     }
     likely = likely.filter(entry => !taken.has(entry.id));
     for (const entry of likely) taken.add(entry.id);
@@ -243,6 +273,7 @@ export const matchPieces = (wanted: Wanted[], entries: MutopiaEntry[]): MutopiaT
       name: target.name || target.title,
       piece: target.setTitle || target.title,
       candidates: list.map(entry => ({ ...entry, checked: likely.includes(entry) })),
+      versions: versionsOf(list, likely),
     };
   });
 };
@@ -295,7 +326,8 @@ const find = async (bookId: number): Promise<{ composer: { code: string; name: s
     const whole: Wanted = { pieceId: piece.id, partWorkId: null, name: piece.title, title: piece.title, whole: !piece.single };
     if (piece.single) return [whole];
     return [...piece.parts.map(part => ({ pieceId: piece.id, partWorkId: part.workId, name: part.name, title: part.title, setTitle: piece.title, whole: false })), whole];
-  });
+  // A part the score holds twice (French Suite no. 3 in the books of 1722 and of 1725) is one piece to fetch.
+  }).filter((one, i, all) => all.findIndex(other => other.pieceId === one.pieceId && other.partWorkId === one.partWorkId) === i);
   try {
     const entries = await entriesFor(composer.code, composer.count);
     const targets = matchPieces(wanted, entries);
