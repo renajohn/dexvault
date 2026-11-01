@@ -55,6 +55,14 @@ export const thumbnail = (image: string | null): string | null => {
   return `/api/images/${image}`;
 };
 
+/** A search's result: the object, the tab it shows in and its name, and the place it is kept in when off the shelves. */
+export interface Hit {
+  item: ShelvedItem;
+  tab: ShelvedItem['section'] | 'places';
+  label: string;
+  kept?: string;
+}
+
 export const keyOf = (item: ShelvedItem) => `${item.kind}:${item.id}`;
 
 /** Where an object stands on its shelf: the nth from the left, of how many. */

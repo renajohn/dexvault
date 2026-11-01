@@ -16,10 +16,10 @@ import { TextField } from '../components/shared/TextField';
 import Notice from '../components/shared/Notice';
 import ShelfSearch from './ShelfSearch';
 import ShelfRail from './ShelfRail';
-import { useMedia } from '../utils/useNarrow';
-import { useStickySearch } from '../utils/useStickySearch';
+import { createPortal } from 'react-dom';
+import { useHeaderSearchSlot } from '../utils/headerSearchSlot';
 import Chip from '../components/shared/Chip';
-import { highlight, keyOf, matches, normalize, ordinal, placesOf, thumbnail, type Place } from './shelfFind';
+import { highlight, keyOf, matches, normalize, ordinal, placesOf, thumbnail, type Hit, type Place } from './shelfFind';
 
 type Tab = ShelfSection | 'furniture' | 'places';
 
@@ -292,11 +292,8 @@ const ShelvesPage: React.FC = () => {
   // The object a shelf code elsewhere was clicked on, shown as a search's result is, until the list is searched or changed.
   const [arrived, setArrived] = useState<string | null>(null);
   const list = useRef<HTMLDivElement>(null);
-  // On a phone, the tabs scroll away but for the search, which holds at the top of the screen.
-  const controls = useRef<HTMLDivElement>(null);
-  const searchBox = useRef<HTMLDivElement>(null);
-  const phone = useMedia('(max-width: 767px)');
-  useStickySearch(controls, searchBox, phone && tab !== 'places' && tab !== 'furniture', tab);
+  // The search stands in the app's header, where the other sections have theirs.
+  const headerSlot = useHeaderSearchSlot();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -331,15 +328,24 @@ const ShelvesPage: React.FC = () => {
 
   const section = plan?.sections.find(entry => entry.key === tab);
   // A search hides nothing: it lights up what it finds, and the list goes to one only when asked.
+  // It looks in every section and the places off the shelves, the section shown or not.
   const searching = query.trim() !== '';
-  const hits = useMemo(() => section?.items.filter(item => matches(item, query)) ?? [], [section, query]);
-  const hitKeys = useMemo(() => new Set(hits.map(keyOf)), [hits]);
-  const places = useMemo(() => placesOf(section?.items ?? []), [section]);
+  const hits = useMemo<Hit[]>(() => !plan || !searching ? [] : [
+    ...plan.sections.flatMap(entry => entry.items.filter(item => matches(item, query))
+      .map(item => ({ item, tab: entry.key, label: SECTION_LABELS[entry.key] }))),
+    ...plan.places.flatMap(place => place.items.filter(item => matches(item, query))
+      .map(item => ({ item, tab: 'places' as const, label: 'Elsewhere', kept: place.name }))),
+  ], [plan, query, searching]);
+  const hitKeys = useMemo(() => new Set(hits.map(hit => keyOf(hit.item))), [hits]);
+  // Those of the section shown, for its strip and its margin, with their place among all.
+  const tabHits = useMemo(() => hits.flatMap((hit, index) => hit.tab === tab ? [{ item: hit.item, index }] : []), [hits, tab]);
+  // Each object's place on its shelf, in every section: the suggestions tell it for all.
+  const places = useMemo(() => new Map((plan?.sections ?? []).flatMap(entry => [...placesOf(entry.items)])), [plan]);
   const placeOf = useCallback((item: ShelvedItem) => places.get(keyOf(item)), [places]);
   const arrivedItem = useMemo(() => !arrived ? null
     : [...(section?.items ?? []), ...(plan?.places.flatMap(place => place.items) ?? [])].find(item => keyOf(item) === arrived) ?? null,
   [arrived, section, plan]);
-  const currentItem = hits[current] ?? arrivedItem;
+  const currentItem = hits[current]?.item ?? arrivedItem;
 
   const changeQuery = (value: string) => {
     setQuery(value);
@@ -366,7 +372,14 @@ const ShelvesPage: React.FC = () => {
     navigate({ pathname: location.pathname, search: '' }, { replace: true });
   }, [plan, location.search, location.pathname, navigate]);
 
+  /** Takes the list to a result, in its section. */
   const goTo = (index: number) => {
+    const hit = hits[index];
+    if (!hit) return;
+    if (hit.tab !== tab) {
+      setTab(hit.tab);
+      setEditing(null);
+    }
     setCurrent(index);
     setLanding(count => count + 1);
   };
@@ -436,8 +449,8 @@ const ShelvesPage: React.FC = () => {
 
   /** From the strip: a shelf takes the list to what the search found on it, or to the shelf itself. */
   const showLevel = (code: string) => {
-    const index = hits.findIndex(item => (item.code || NO_SHELF) === code);
-    if (index >= 0) goTo(index);
+    const found = tabHits.find(({ item }) => (item.code || NO_SHELF) === code);
+    if (found) goTo(found.index);
     else setJumpTo(code);
   };
 
@@ -479,18 +492,16 @@ const ShelvesPage: React.FC = () => {
   const units = (items: ShelvedItem[]) => items.reduce((sum, item) => sum + item.units, 0);
   const keptElsewhere = plan?.places.reduce((sum, place) => sum + place.items.length, 0) || 0;
 
+  const search = (
+    <ShelfSearch query={query} onQuery={changeQuery} hits={hits} current={current} onGo={goTo} placeOf={placeOf}
+      start={Math.max(0, tabHits[0]?.index ?? 0)} />
+  );
+
   return (
     <div className="shelves-page">
-      <div className="shelves-header">
-        <h2>Shelves</h2>
-        <p className="shelves-subtitle">
-          The order each section stands in on the shelves, and the shelf each object goes on once the furniture is described.
-        </p>
-      </div>
-
       {error && <Notice tone="danger" className="mb-3">{error}</Notice>}
 
-      <div ref={controls} className="shelves-controls">
+      <div className="shelves-controls">
         <Segmented<Tab>
           label="Shelves"
           kind="tabs"
@@ -503,9 +514,7 @@ const ShelvesPage: React.FC = () => {
             plan && { value: 'places' as Tab, label: 'Elsewhere', count: keptElsewhere },
           ]}
         />
-        {tab !== 'places' && tab !== 'furniture' && (
-          <ShelfSearch query={query} onQuery={changeQuery} hits={hits} current={current} onGo={goTo} placeOf={placeOf} boxRef={searchBox} />
-        )}
+        {headerSlot ? createPortal(search, headerSlot) : search}
       </div>
 
       {!plan && !error && <div className="shelves-empty">Loading…</div>}
@@ -526,7 +535,7 @@ const ShelvesPage: React.FC = () => {
           {byShelf && (
             <nav className="shelf-strip" aria-label={`Shelves of ${SECTION_LABELS[section.key]}`}>
               {stripShelves.map(level => {
-                const found = hits.filter(item => item.levelId === level.id).length;
+                const found = tabHits.filter(({ item }) => item.levelId === level.id).length;
                 return (
                   <Chip key={level.id} tone="gold" muted={searching ? !found : level.count === 0}
                     active={searching && found > 0 ? true : undefined} count={searching ? found : level.count}
@@ -537,14 +546,15 @@ const ShelvesPage: React.FC = () => {
                 );
               })}
               {section.unshelved > 0 && (
-                <Chip tone="alert" count={searching ? hits.filter(item => !item.code).length : section.unshelved}
-                  muted={searching && !hits.some(item => !item.code)} onClick={() => showLevel(NO_SHELF)}>
+                <Chip tone="alert" count={searching ? tabHits.filter(({ item }) => !item.code).length : section.unshelved}
+                  muted={searching && !tabHits.some(({ item }) => !item.code)} onClick={() => showLevel(NO_SHELF)}>
                   {NO_SHELF}
                 </Chip>
               )}
             </nav>
           )}
-          <ShelfRail list={list} hits={searching ? hits : []} current={current} rowIdOf={rowIdOf} onGo={goTo} />
+          <ShelfRail list={list} hits={tabHits.map(({ item }) => item)} current={tabHits.findIndex(({ index }) => index === current)}
+            rowIdOf={rowIdOf} onGo={at => goTo(tabHits[at].index)} />
           {groups.length === 0 && <div className="shelves-empty">Nothing here yet.</div>}
           <div ref={list}>
             {groups.map(group => {

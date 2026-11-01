@@ -43,6 +43,7 @@ import { connectOutputs } from './services/outputs';
 import { isComputer } from './services/remote';
 import { useMedia } from './utils/useNarrow';
 import { useStickySearch } from './utils/useStickySearch';
+import { HeaderSearchSlot } from './utils/headerSearchSlot';
 
 interface SearchCriteria {
   searchText: string;
@@ -175,10 +176,31 @@ function AppContent() {
   const showSearchBar = location.pathname === '/filmdex' || location.pathname === '/musicdex' || location.pathname === '/bookdex' || location.pathname === '/scores' || location.pathname === '/wishlist';
 
   const phone = useMedia('(max-width: 767px)');
-  useStickySearch(headerRef, searchRowRef, phone && showSearchBar && Boolean(searchSchema), location.pathname);
+  // The shelves have a search of their own, not in pills: the page puts it in this row (utils/headerSearchSlot).
+  const shelvesSearch = location.pathname === '/shelves';
+  const [searchSlot, setSearchSlot] = useState<HTMLDivElement | null>(null);
+  useStickySearch(headerRef, searchRowRef, phone && ((showSearchBar && Boolean(searchSchema)) || shelvesSearch), location.pathname);
 
   // Check if we should show the navigation pills (all main sections)
   const showNavigationPills = location.pathname === '/filmdex' || location.pathname === '/musicdex' || location.pathname === '/bookdex' || location.pathname === '/scores' || location.pathname === '/wishlist' || location.pathname === '/shelves' || location.pathname === '/analytics' || location.pathname === '/backup';
+  // On a computer the whole header holds at the top of the window in the sections, its paddings
+  // tightening as the page scrolls (App.css); where its foot stands is said to the page, as on a phone, for what sticks or is scrolled to to stop under it.
+  const stickyHeader = !phone && showNavigationPills;
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!stickyHeader || !header) return undefined;
+    const root = document.documentElement;
+    // Held, as much of it gone above the window as its top says (App.css): what stands under it stops at its foot.
+    const measure = () => root.style.setProperty('--sticky-search-bottom',
+      `${header.offsetHeight + (parseFloat(getComputedStyle(header).top) || 0)}px`);
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    measure();
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--sticky-search-bottom');
+    };
+  }, [stickyHeader]);
 
   // Get the page title based on current route
   const getPageTitle = (): string => {
@@ -652,7 +674,7 @@ function AppContent() {
 
   return (
     <div className="App">
-      <header ref={headerRef} className="App-header">
+      <header ref={headerRef} className={`App-header${stickyHeader ? ' App-header--sticky' : ''}`}>
         {phone && showNavigationPills ? (
         /* On a phone, one row: the sections in one button, then the search where the page has one (its title is its own). */
         <div className="App-header-content App-header-content--phone">
@@ -673,10 +695,11 @@ function AppContent() {
               tools={close => cog({ close })}
             />
             {showSearchBar && searchField && <div className="App-search">{searchField}</div>}
+            {shelvesSearch && <div ref={setSearchSlot} className="App-search" />}
           </div>
         </div>
         ) : (
-        <div className={`App-header-content ${!showSearchBar ? 'no-search' : ''} ${isSearchFocused ? 'search-focused' : ''}`}>
+        <div className={`App-header-content ${!showSearchBar && !shelvesSearch ? 'no-search' : ''} ${isSearchFocused ? 'search-focused' : ''}`}>
           {/* First row: Navigation and toolbar */}
           <div className="App-header-top">
             {showNavigationPills ? (
@@ -716,6 +739,9 @@ function AppContent() {
               {searchField}
             </div>
           )}
+          {shelvesSearch && (
+            <div ref={element => { searchRowRef.current = element; setSearchSlot(element); }} className="App-search" />
+          )}
         </div>
         )}
       </header>
@@ -750,7 +776,7 @@ function AppContent() {
           <Route path="/scores" element={<ScoresPage searchCriteria={searchCriteria} />} />
           <Route path="/scores/:id/read" element={<ScoreReader />} />
           <Route path="/wishlist" element={<WishListPage ref={wishListRef} searchCriteria={searchCriteria} onAddMovie={handleWishListAddMovie} onAddAlbum={handleWishListAddAlbum} onAddBook={handleWishListAddBook} onMovieMovedToCollection={handleMovieMovedToCollection} onAlbumMovedToCollection={handleAlbumMovedToCollection} onBookMovedToCollection={handleBookMovedToCollection} onShowAlert={handleShowAlert} onMovieAdded={handleMovieAdded} onAlbumAdded={handleAlbumAdded} onBookAdded={handleBookAdded} onSearch={handleSearchFromMovieDetail} />} />
-          <Route path="/shelves" element={<ShelvesPage />} />
+          <Route path="/shelves" element={<HeaderSearchSlot.Provider value={searchSlot}><ShelvesPage /></HeaderSearchSlot.Provider>} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/backup" element={<BackupPage />} />
         </Routes>

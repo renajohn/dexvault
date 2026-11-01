@@ -25,6 +25,45 @@
 }
 
 /*
+ * On a computer the whole header holds at the top of the window, in the
+ * sections (App.tsx), its paddings of 20 px down to 8 as the page scrolls,
+ * nothing else changing size. For the first 12 px it goes up with the page;
+ * for the next 12 its row of buttons holds 8 px under the top of the window
+ * while its foot goes on up with the page, the page's top against it; then it
+ * holds, and the page passes under it. Its matter is always the same glass,
+ * its gradient a little transparent and what is under it blurred: at the top
+ * nothing is under it and it looks as it always did; no change of matter when
+ * the page passes under, which would flash (a gradient does not ease). The row holds by a transform the scroll itself drives
+ * (animation-timeline), drawn in the same frame as the scroll, not a frame late.
+ */
+@media (min-width: 768px) {
+  .App-header--sticky {
+    position: sticky;
+    top: -12px;
+    background: linear-gradient(135deg, rgba(26, 26, 26, 0.86) 0%, rgba(45, 45, 45, 0.86) 50%, rgba(26, 26, 26, 0.86) 100%);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    backdrop-filter: blur(20px) saturate(1.4);
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .App-header--sticky {
+      top: -24px;
+    }
+
+    .App-header--sticky .App-header-content {
+      animation: app-header-hold linear both;
+      animation-timeline: scroll(root);
+      animation-range: 12px 24px;
+    }
+  }
+}
+
+@keyframes app-header-hold {
+  from { transform: translateY(0); }
+  to { transform: translateY(12px); }
+}
+
+/*
  * On a phone a box holding a search (this header, the shelves' tabs and search)
  * scrolls away but for its search, which holds under the status bar
  * (utils/useStickySearch.ts pulls the box up by --sticky-tuck). Held there,

@@ -104,22 +104,41 @@ describe('ShelvesPage', () => {
     expect(field).toHaveValue('');
   });
 
-  it('va au disque choisi parmi les suggestions avec les flèches', async () => {
+  it('cherche dans toutes les sections, montre les suggestions par section et va dans celle du choix', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('tab', { name: /Music/ }));
     const field = screen.getByRole('combobox', { name: 'Find on the shelves' });
     fireEvent.change(field, { target: { value: 'e' } });
-    expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(2);
+    const suggestions = screen.getByRole('listbox');
+    expect(within(suggestions).getAllByRole('group').map(group => group.getAttribute('aria-label')))
+      .toEqual(['Films', 'Music', 'Classical', 'Elsewhere']);
+    expect(within(within(suggestions).getByRole('group', { name: 'Music' })).getAllByRole('option')).toHaveLength(2);
+    expect(within(suggestions).getByRole('group', { name: 'Elsewhere' })).toHaveTextContent('Wardrobe, top');
+    expect(screen.getByRole('status')).toHaveTextContent('6 found');
 
-    fireEvent.keyDown(field, { key: 'ArrowDown' });
-    fireEvent.keyDown(field, { key: 'ArrowDown' });
-    expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true');
-    fireEvent.keyDown(field, { key: 'Enter' });
-    expect(document.querySelector('[aria-current="true"]')).toHaveTextContent('Older');
-
-    // Once there, ↵ goes on to the next, round to the first.
+    // ↵ with nothing chosen: the first of the section shown.
     fireEvent.keyDown(field, { key: 'Enter' });
     expect(document.querySelector('[aria-current="true"]')).toHaveTextContent('Abbey Road');
+    // Then on to the next, into the next section.
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(document.querySelector('[aria-current="true"]')).toHaveTextContent('Older');
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(screen.getByRole('tab', { name: /Classical/ })).toHaveAttribute('aria-selected', 'true');
+    expect(document.querySelector('[aria-current="true"]')).toHaveTextContent('Water Music');
+
+    // The arrows choose among all the suggestions: the first is a film.
+    fireEvent.keyDown(field, { key: 'ArrowDown' });
+    fireEvent.keyDown(field, { key: 'ArrowDown' });
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(screen.getByRole('tab', { name: /Films/ })).toHaveAttribute('aria-selected', 'true');
+    expect(document.querySelector('[aria-current="true"]')).toHaveTextContent('Matrix');
+
+    // What is kept off the shelves is found too, in its place.
+    fireEvent.keyDown(field, { key: 'ArrowDown' });
+    fireEvent.click(within(screen.getByRole('group', { name: 'Elsewhere' })).getByRole('option'));
+    expect(screen.getByRole('tab', { name: /Elsewhere/ })).toHaveAttribute('aria-selected', 'true');
+    expect(document.querySelector('[aria-current="true"]')).toHaveTextContent('Die 32 Klaviersonaten');
   });
 
   it('range un CD sous un autre nom et ailleurs que sur les étagères', async () => {

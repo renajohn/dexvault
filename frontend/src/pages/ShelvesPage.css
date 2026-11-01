@@ -15,12 +15,6 @@
 .section-classical { --section-color: var(--section-classical); }
 .free { --section-color: var(--section-free); }
 
-.shelves-header h2 {
-  margin: 0 0 4px;
-  font-size: 1.6rem;
-  font-weight: 600;
-}
-
 .shelves-subtitle {
   margin: 0 0 16px;
   color: #9aa4b2;
@@ -39,27 +33,6 @@
 .shelves-tabs {
   flex-wrap: wrap}
 
-/*
- * On a phone the tabs scroll away but for the search, which holds under the
- * status bar (utils/useStickySearch.ts), the full width of the screen. Held
- * there it wears the menus' glass, and the shelves' headings stick under it.
- */
-@media (max-width: 767px) {
-  .shelves-controls.sticky-search {
-    z-index: 30;
-    margin: 0 -16px 12px;
-    padding: 0 16px 8px;
-    transition: background-color 0.2s ease;
-  }
-
-  .shelves-controls.sticky-search--stuck {
-    background: var(--dv-surface);
-    -webkit-backdrop-filter: blur(20px) saturate(1.4);
-    backdrop-filter: blur(20px) saturate(1.4);
-    box-shadow: 0 1px 0 rgba(251, 191, 36, 0.2);
-  }
-}
-
 .shelves-link {
   padding: 0;
   border: none;
@@ -77,44 +50,41 @@
   outline: none;
 }
 
-/* The search: its field, ▲ ▼ beside it, and the suggestions under it. */
-.shelves-search {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  width: 320px;
-  max-width: 100%;
-}
-
-.shelves-search .ui-input-box,
-.shelves-search > .ui-input {
-  flex: 1;
-  min-width: 0;
-}
-
-.shelves-search .ui-input-box__suffix {
+/* The search, in the app's header: the other sections' field (search-pills.css), the count, ✕ ▲ ▼ at its end. */
+.shelves-search-count {
+  margin-right: 4px;
+  color: var(--dv-text-faint);
+  font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-/* Escape empties it; the browser's ✕ would sit on the count. */
-.shelves-search input::-webkit-search-cancel-button {
-  display: none;
 }
 
 .shelves-search-none {
   color: var(--dv-danger);
 }
 
+/* The suggestions are a little taller than the pills' own. */
 .shelf-suggestions {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 20;
-  width: 420px;
-  max-width: calc(100vw - 32px);
+  max-height: min(640px, 70vh);
   padding: 4px;
+}
+
+/* A section's heading among the suggestions, and how many it found. */
+.shelf-suggestions-section {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.shelf-suggestions-count {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.shelf-suggestions-more {
+  padding: 2px 8px 4px 48px;
+  color: var(--dv-text-faint);
+  font-size: 0.72rem;
 }
 
 .shelf-suggestions ul {
@@ -561,10 +531,6 @@
 
   .shelf-editor {
     padding-left: 8px;
-  }
-
-  .shelves-search {
-    width: 100%;
   }
 
   .shelf-suggestion-where {
