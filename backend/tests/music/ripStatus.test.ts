@@ -77,6 +77,22 @@ describe('rip status', () => {
     expect(status.matches).toHaveLength(1);
   });
 
+  it('attend la lecture plus récente quand une synchro oublie celle en cours', async () => {
+    let release!: () => void;
+    const first = new Promise<void>(resolve => { release = resolve; });
+    jest.spyOn(navidromeService, 'getAlbums')
+      .mockImplementationOnce(async () => { await first; return []; })
+      .mockResolvedValue([album('nd-late', 'Late', 'X')]);
+    jest.spyOn(navidromeService, 'getSongs').mockResolvedValue(songs('nd-late', 'flac'));
+
+    const reading = ripStatusService.library();
+    // The stars' sync, meanwhile: the reading under way is forgotten.
+    ripStatusService.clearCache();
+    release();
+
+    expect((await reading).albums.map(a => a.id)).toEqual(['nd-late']);
+  });
+
   it('laisse de côté la wish list et dit quand Navidrome n’est pas configuré', async () => {
     jest.spyOn(navidromeService, 'isConfigured').mockReturnValue(false);
     const wished = await insertAlbum({ title: `Wished ${Math.random()}`, artist: ['X'], status: 'wish' });

@@ -264,12 +264,14 @@ const reread = (): Promise<void> => {
  * waits for Navidrome but the first one after a start or a sync.
  */
 const library = async (): Promise<Library> => {
-  if (!cache) await reread();
-  else if (Date.now() - cache.at >= CACHE_MS) {
+  // A reading forgotten halfway by a sync (the stars' every ten minutes) keeps nothing: the newer one is waited for.
+  for (let tries = 0; !cache && tries < 3; tries++) await reread();
+  if (!cache) throw new Error('Navidrome was read again and again under way, nothing kept');
+  if (Date.now() - cache.at >= CACHE_MS) {
     reread().catch(error => logger.warn(`Navidrome not read anew: ${(error as Error).message}`));
   }
   // The reading in hand: a sync may clear the cache while the CDs' lengths are read.
-  const read = cache!;
+  const read = cache;
   return { albums: read.albums, songs: read.songs, lengths: { cd: await cdTrackLengths(), navidrome: read.lengths } };
 };
 
