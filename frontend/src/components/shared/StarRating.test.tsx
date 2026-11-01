@@ -105,6 +105,18 @@ describe('StarRating under a finger: the dial', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
   });
 
+  it('gives 3 to a record of no stars let go on its grey 3, the finger not moved', () => {
+    const onChange = vi.fn();
+    render(<StarRating value={null} onChange={onChange} />);
+    const stars = screen.getByRole('group');
+
+    finger(stars, 'pointerdown', 300);
+    finger(stars, 'pointermove', 302);
+    finger(stars, 'pointerup', 302);
+    expect(onChange).toHaveBeenCalledWith(3);
+    expect(document.querySelector('.ui-star-dial')).toBeNull();
+  });
+
   it('turns from the half nearest stars given of another time (a book’s 4.2)', () => {
     const onChange = vi.fn();
     render(<StarRating value={4.2} onChange={onChange} />);

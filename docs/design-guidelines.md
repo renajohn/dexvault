@@ -366,7 +366,8 @@ toast('“Heat” left your Watch Next.', { action: { label: 'Undo', onClick: pu
   screen, large stars alone (no number: the stars say it). Up for more,
   down for less, by halves (`DIAL_STEP_PX`), 0 to 5, no wrapping; from the
   stars given, or from a **grey 3** on a record of none, gold once the
-  finger moves (3 is a choice too). Let go, they are given; back on the
+  finger moves (3 is a choice too, let go on it unmoved as well). Let go,
+  they are given; back on the
   stars given, or down to none on a record of none, nothing. Its line of
   words stays, empty or not: the glass never changes size.
 - An **album's** stars are `AlbumStarRating`, a **book's** `BookStarRating`

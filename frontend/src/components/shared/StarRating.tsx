@@ -103,8 +103,9 @@ export interface StarRatingProps {
  * half. Gold, flat, no glow (star-rating.css). The stars never take the focus:
  * the arrows go from one record to the next. Under a finger, a dial instead
  * (StarDial): drawn up the stars go up, down they go down, by halves, from
- * those given or from 3 for none; let go, they are given. Back where it
- * started, or a mere touch, gives nothing: the touch shows the dial a moment.
+ * those given or from 3 for none; let go, they are given, the 3 of a record
+ * of none too. Back on the stars given, or a mere touch on them, gives
+ * nothing: the touch shows the dial a moment.
  */
 const StarRating: React.FC<StarRatingProps> = ({ value, onChange, size = 'md', label = 'Your rating', className, describe }) => {
   const [preview, setPreview] = useState<number | null>(null);
@@ -145,15 +146,16 @@ const StarRating: React.FC<StarRatingProps> = ({ value, onChange, size = 'md', l
     const at = finger.current;
     finger.current = null;
     if (!at) return;
-    if (!at.moved) {
-      // A mere touch: the dial a moment, to say that it slides.
+    if (!at.moved && !at.seeded) {
+      // A mere touch on stars given: the dial a moment, to say that it slides.
       setDial({ value: at.from, seeded: at.seeded, hint: true });
       hintTimer.current = window.setTimeout(() => setDial(null), DIAL_HINT_MS);
       return;
     }
     setDial(null);
-    // Back to the stars given gives nothing; on a record of none, down to none is the way out.
-    const next = dialValue(at.from, at.y - event.clientY);
+    // Back to the stars given gives nothing; on a record of none, the 3 shown is given let go on it,
+    // moved or not, and down to none is the way out.
+    const next = at.moved ? dialValue(at.from, at.y - event.clientY) : at.from;
     if (next !== current && (at.seeded || next !== at.from)) onChange(next);
   };
   const onPointerCancel = () => {
