@@ -506,6 +506,43 @@ export const catalogueOf = (title: string): string[] => {
   return found;
 };
 
+export interface CatalogueRange { system: string; from: number; to: number }
+
+/** The runs of numbers a title names: "BWV 846-869" is a set, the Well-Tempered Clavier's first book, not 24 works. */
+export const rangesOf = (title: string): CatalogueRange[] => [...title.matchAll(/\b(BWV|HWV|WoO|KV|K|D|S|L)\.?\s*(\d+)\s*[-–]\s*(\d+)\b/g)]
+  .map(m => ({ system: m[1] === 'KV' ? 'K' : m[1], from: Number(m[2]), to: Number(m[3]) }))
+  .filter(range => range.to > range.from);
+
+const labelOf = (system: string, n: number) => `${system}${['BWV', 'HWV', 'WoO'].includes(system) ? '' : '.'} ${n}`;
+
+/** The numbers of a system a title holds: "Prelude and Fugue no. 1 in C major, BWV 846" holds BWV 846. */
+const numbersIn = (title: string, system: string): number[] =>
+  [...title.matchAll(new RegExp(`\\b${system === 'K' ? 'KV?' : system}\\.?\\s*(\\d+)`, 'g'))].map(m => Number(m[1]));
+
+/**
+ * The work a run of numbers is: the one its first number finds, or the work
+ * that one is part of, whose parts bear the first and the last numbers. The
+ * smallest that does: Book I, not the whole Well-Tempered Clavier.
+ */
+const setFor = async (range: CatalogueRange, composer: string): Promise<StoredWork | null> => {
+  const first = await byNumberHit(labelOf(range.system, range.from), composer);
+  if (!first) return null;
+  const covers = (work: StoredWork) => {
+    const numbers = new Set((work.parts || []).flatMap(part => numbersIn(part.title, range.system)));
+    return numbers.has(range.from) && numbers.has(range.to);
+  };
+  let level = [first.id];
+  // The work found, its parents, their parents.
+  for (let depth = 0; depth < 3 && level.length; depth++) {
+    const works: StoredWork[] = [];
+    for (const id of level.slice(0, 4)) works.push(await workWithParts(id, composer));
+    const covering = works.filter(covers).sort((a, b) => (a.parts?.length || 0) - (b.parts?.length || 0));
+    if (covering.length) return covering[0];
+    level = [...new Set(works.flatMap(work => work.parentIds))];
+  }
+  return null;
+};
+
 /** The title without what is not the work: the instrument, the edition, the composer. */
 export const workWordsOf = (title: string, composer: string | null): string => {
   let text = title.replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/---.*$/, ' ').replace(/\s-\s(?:piano|klavier)\b.*$/i, ' ');
@@ -699,8 +736,24 @@ const suggestFor = async (book: { title: string; composer: string | null }, take
 
   const words = workWordsOf(book.title, book.composer);
 
+  // A run of numbers: the set they make, when MusicBrainz knows it; its numbers one by one otherwise.
+  const inSets: CatalogueRange[] = [];
+  for (const range of rangesOf(book.title)) {
+    const set = await setFor(range, book.composer).catch(error => {
+      logger.warn(`No set for ${labelOf(range.system, range.from)}-${range.to}: ${(error as Error).message}`);
+      return null;
+    });
+    if (!set) continue;
+    offer({ id: set.id, title: set.title, composers: [book.composer] }, 'number');
+    inSets.push(range);
+  }
+  const inASet = (number: string) => inSets.some(range => {
+    const m = number.match(/^(\w+)\.? (\d+)$/);
+    return !!m && m[1] === range.system && Number(m[2]) >= range.from && Number(m[2]) <= range.to;
+  });
+
   // By its numbers: the work bearing it, not one of its movements.
-  for (const number of catalogueOf(book.title)) {
+  for (const number of catalogueOf(book.title).filter(number => !inASet(number))) {
     const hits = await search(`${quote(number)} AND artist:${quote(surname)}`);
     // "op. 39", not "op. 39 no. 15" unless the number says so; the one whose title the score's says best.
     const exact = new RegExp(`${number.replace(/[.]/g, '\\.').replace(/\s+/g, '\\s*')}(?!\\d)${/no\./.test(number) ? '' : '(?!\\s*(?:no|nr)\\.?\\s*\\d)'}`, 'i');

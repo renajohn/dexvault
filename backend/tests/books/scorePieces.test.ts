@@ -4,7 +4,7 @@ import { getDatabase } from '../../src/database';
 import musicbrainzService from '../../src/services/musicbrainzService';
 import wikidataWorksService from '../../src/services/wikidataWorksService';
 import imslpWorksService, { catalogueFor, piecesOf, unwiki } from '../../src/services/imslpWorksService';
-import scorePiecesService, { catalogueOf, partLabel, workWordsOf } from '../../src/services/scorePiecesService';
+import scorePiecesService, { catalogueOf, partLabel, rangesOf, workWordsOf } from '../../src/services/scorePiecesService';
 
 const run = (sql: string, params: unknown[] = []) => new Promise<number>((resolve, reject) =>
   getDatabase().run(sql, params, function (this: { lastID: number }, err: Error | null) { if (err) reject(err); else resolve(this.lastID); }));
@@ -30,6 +30,8 @@ describe('ce que dit le titre d’une partition', () => {
     expect(catalogueOf('Piano Sonata no.14 op.27/2 - "Moonlight"')).toEqual(['op. 27 no. 2']);
     expect(catalogueOf('Fantasy D Minor KV 397 (385g)')).toEqual(['K. 397']);
     expect(catalogueOf('Lettre à Élise WoO 59')).toEqual(['WoO 59']);
+    expect(rangesOf('Das wohltemperierte Klavier I, BWV 846–869')).toEqual([{ system: 'BWV', from: 846, to: 869 }]);
+    expect(rangesOf('Sonatas K. 1-30, op. 27/2')).toEqual([{ system: 'K', from: 1, to: 30 }]);
   });
 
   it('garde les mots de l’œuvre, sans l’instrument, l’édition ni le compositeur', () => {
@@ -151,6 +153,30 @@ describe('les pièces d’une partition et les enregistrements de la musique', (
     const suggestions = (await request(app).get(`/api/scores/${score}/suggestions`).expect(200)).body;
 
     expect(suggestions.map((s: { workId: string; why: string; parts: number }) => [s.workId, s.why, s.parts])).toEqual([[suite(812), 'number', 1], [suite(813), 'number', 1]]);
+  });
+
+  it('propose le recueil que forme une suite de numéros, plutôt que ses pièces une à une', async () => {
+    const t = tag();
+    const score = await run(`INSERT INTO books (title, authors, book_type, title_status, composer) VALUES (?, '[]', 'score', 'owned', 'Johann Sebastian Bach')`, [`Das wohltemperierte Klavier I, BWV 846-869 ${t}`]);
+    const [book, first] = [uuid(1, t), uuid(846, t)];
+    const searched: string[] = [];
+    jest.spyOn(musicbrainzService, 'searchWorks').mockImplementation(async query => {
+      searched.push(query);
+      return /BWV 846/.test(query)
+        ? [{ id: first, title: 'The Well-Tempered Clavier, Book I: Prelude and Fugue no. 1 in C major, BWV 846', score: 100, composers: ['Johann Sebastian Bach'], disambiguation: null }]
+        : [];
+    });
+    jest.spyOn(musicbrainzService, 'getWorkWithParts').mockImplementation(async id => (id === book
+      ? { id, title: 'The Well-Tempered Clavier, Book I', parentIds: [], parents: [],
+        parts: Array.from({ length: 24 }, (_, i) => ({ id: uuid(846 + i, t), title: `The Well-Tempered Clavier, Book I: Prelude and Fugue no. ${i + 1}, BWV ${846 + i}` })) }
+      : { id, title: `Prelude and Fugue ${id}`, parentIds: [book], parents: [{ id: book, title: 'The Well-Tempered Clavier, Book I' }],
+        parts: [{ id: `${id.slice(0, 30)}aaaaaa`, title: 'Prelude' }, { id: `${id.slice(0, 30)}bbbbbb`, title: 'Fugue' }] }));
+
+    const suggestions = (await request(app).get(`/api/scores/${score}/suggestions`).expect(200)).body;
+
+    expect(suggestions.map((s: { workId: string; why: string; parts: number }) => [s.workId, s.why, s.parts])).toEqual([[book, 'number', 24]]);
+    // Its numbers are not looked up one by one.
+    expect(searched).toHaveLength(1);
   });
 
   it('trouve dans Wikidata un recueil que MusicBrainz n’a pas, et relie ses pièces par leur numéro', async () => {
