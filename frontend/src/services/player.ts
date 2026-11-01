@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { readStored, writeStored } from '../utils/safeStorage';
 import { isComputer } from '../utils/isComputer';
 import type { EntryKey } from '../utils/listenNextEntry';
-import outputs, { knownOutputs, onOutputLeft, outputsLoaded, positionAt, subscribeOutputs, type OutputError, type OutputState } from './outputs';
+import outputs, { knownOutputs, soundingNow, onOutputLeft, outputsLoaded, positionAt, subscribeOutputs, type OutputError, type OutputState } from './outputs';
 import toast from '../components/shared/Toast';
 
 /** A file of the rip, as the player plays it. */
@@ -149,16 +149,26 @@ const writeResume = (resume: PlayerResume | null) => writeStored(RESUME_KEY, res
 
 const readLyricsOpen = (): boolean => readStored(LYRICS_KEY) === '1';
 
-/** The output chosen in this browser, kept from one visit to the next. */
+/** The output chosen in this browser, kept from one visit to the next, with when it last sounded there. */
 const OUTPUT_KEY = 'dv.player.output';
 const LOCAL: PlayerOutput = { kind: 'local' };
+/**
+ * An appliance chosen here holds this long after its last sound (a pause, an
+ * album over) or the last thing asked of it from here: an album played in
+ * the meantime goes there, CD after CD. Then it lets go, and Play plays here.
+ */
+export const SESSION_IDLE_MS = 30 * 60 * 1000;
+/** While it plays, the moment written down this often. */
+const HEARD_WRITTEN_MS = 60 * 1000;
 
-const readOutput = (): PlayerOutput => {
+const readOutput = (): { output: PlayerOutput; at: number } => {
   try {
     const value = JSON.parse(readStored(OUTPUT_KEY) || 'null');
-    return value?.kind === 'renderer' && typeof value.id === 'string' ? { kind: 'renderer', id: value.id, name: String(value.name || '') } : LOCAL;
+    return value?.kind === 'renderer' && typeof value.id === 'string'
+      ? { output: { kind: 'renderer', id: value.id, name: String(value.name || '') }, at: Number(value.at) || 0 }
+      : { output: LOCAL, at: 0 };
   } catch {
-    return LOCAL;
+    return { output: LOCAL, at: 0 };
   }
 };
 
@@ -192,7 +202,12 @@ export const formatOf = (current: PlayerState): string | null => {
 
 /** What the bar, the cards and Listen Next see: this browser's state, or an appliance's play. */
 let view: PlayerState = state;
-let chosen: PlayerOutput = typeof window !== 'undefined' ? readOutput() : LOCAL;
+const saved = typeof window !== 'undefined' ? readOutput() : { output: LOCAL, at: 0 };
+let chosen: PlayerOutput = saved.output;
+/** When the appliance chosen last sounded, or was last asked something from here. */
+let chosenAt = saved.at;
+let writtenAt = saved.at;
+let lapseTimer: ReturnType<typeof setTimeout> | null = null;
 /** An appliance playing, or paused, that the bar shows while nothing plays here. */
 let followed: { id: string; name: string } | null = null;
 /**
@@ -211,11 +226,61 @@ const set = (changes: Partial<PlayerState>) => {
 
 const sessionOf = (id: string): OutputState | null => knownOutputs().find(output => output.id === id)?.session ?? null;
 
+const writeChoice = () => {
+  writtenAt = chosenAt;
+  writeStored(OUTPUT_KEY, chosen.kind === 'local' ? '' : JSON.stringify({ ...chosen, at: chosenAt }));
+};
+
+const choose = (next: PlayerOutput, at = Date.now()) => {
+  chosen = next.kind === 'local' ? LOCAL : { kind: 'renderer', id: next.id, name: next.name };
+  chosenAt = at;
+  writeChoice();
+};
+
+/** The appliance chosen sounded, or was asked something from here, at `at`. */
+const heard = (at = Date.now()) => {
+  chosenAt = Math.max(chosenAt, at);
+  if (chosenAt - writtenAt >= HEARD_WRITTEN_MS) writeChoice();
+};
+
+/**
+ * The appliance chosen let go once silent for SESSION_IDLE_MS: this browser
+ * is the output again. True when it was let go. Until then, a timer for the
+ * moment it will be, so what the buttons say changes by itself.
+ */
+const lapse = (now = Date.now()): boolean => {
+  if (lapseTimer) clearTimeout(lapseTimer);
+  lapseTimer = null;
+  // Nothing known of it yet (a reload): the choice kept until the list says (effective() plays here meanwhile if it is old).
+  if (chosen.kind !== 'renderer' || !outputsLoaded()) return false;
+  const session = sessionOf(chosen.id);
+  if (soundingNow(session, now)) {
+    heard(now);
+    return false;
+  }
+  // Stopped (✕ from another device) or taken by something else (the TV on the Onkyo) since it was last asked from
+  // here: done there. Play would take it back from the TV. Chosen again, or ▶ in the bar, it is this browser's again.
+  if (session && (session.status === 'stopped' || session.status === 'taken') && (session.statusAt ?? 0) > chosenAt) {
+    choose(LOCAL, now);
+    return true;
+  }
+  // Its last sound: heard or asked here, as the server says (the Mac asleep meanwhile), or the last play told before the events stopped.
+  const told = session && (session.status === 'playing' || session.wanted) ? session.receivedAt ?? 0 : 0;
+  const last = Math.max(chosenAt, session?.quietAt ?? 0, told);
+  if (now - last < SESSION_IDLE_MS) {
+    lapseTimer = setTimeout(refresh, last + SESSION_IDLE_MS - now + 50);
+    return false;
+  }
+  choose(LOCAL, now);
+  return true;
+};
+
 /**
  * The bar follows an appliance that plays while nothing plays here and this
- * browser is the output, or, when nothing is in this browser's player at all,
- * one paused (the last one asked): Play on an album's card goes there, ▶
- * takes it up again. It lets go once that one stops, or this one plays.
+ * browser is the output: Play on an album's card goes there too, the same
+ * listening seen from elsewhere. It lets go once that one is silent (paused
+ * from another device, over), or this one plays. Asked something from here
+ * (⏸, ⏭, an album), it becomes the one chosen here, and holds as one does.
  */
 const follow = () => {
   for (const [id, mark] of declined) if (markOf(sessionOf(id)) !== mark) declined.delete(id);
@@ -225,14 +290,11 @@ const follow = () => {
   }
   if (followed) {
     const session = sessionOf(followed.id);
-    if (!session?.album || session.status === 'stopped' || declined.has(followed.id)) followed = null;
+    if (!session?.album || !soundingNow(session) || declined.has(followed.id)) followed = null;
   }
   if (!followed) {
-    const holding = knownOutputs().filter(output => output.reachable && output.session?.album && !declined.has(output.id));
-    const playing = holding.find(output => output.session!.status === 'playing');
-    const paused = state.album ? undefined
-      : holding.filter(output => output.session!.status === 'paused').sort((a, b) => b.session!.at - a.session!.at)[0];
-    const one = playing ?? paused;
+    const one = knownOutputs().find(output => output.reachable && output.session?.album && output.session.status === 'playing'
+      && soundingNow(output.session) && !declined.has(output.id));
     if (one) followed = { id: one.id, name: one.name };
   }
 };
@@ -241,7 +303,7 @@ const follow = () => {
 const effective = (): PlayerOutput => {
   if (chosen.kind === 'renderer') {
     const id = chosen.id;
-    if (!outputsLoaded()) return chosen;
+    if (!outputsLoaded()) return Date.now() - chosenAt < SESSION_IDLE_MS ? chosen : LOCAL;
     const listed = knownOutputs().find(output => output.id === id);
     if (listed) return { kind: 'renderer', id, name: listed.name };
   }
@@ -330,7 +392,8 @@ const letGoUnderPlay = () => {
   if (session?.status === 'playing' || session?.wanted) stopHere();
 };
 
-const refresh = () => {
+function refresh() {
+  lapse();
   follow();
   letGoUnderPlay();
   const output = effective();
@@ -343,10 +406,13 @@ const refresh = () => {
     ticker = null;
   }
   listeners.forEach(listener => listener());
-};
+}
 
-/** The appliance the commands go to, while the bar shows one. */
-const rendererId = (): string | null => (view.output.kind === 'renderer' ? view.output.id : null);
+/** The appliance the commands go to, while the bar shows one: the one chosen let go first if it has been silent too long. */
+const rendererId = (): string | null => {
+  if (lapse()) refresh();
+  return view.output.kind === 'renderer' ? view.output.id : null;
+};
 
 /** What went wrong on an appliance, said: away in orange, the rest in red. */
 export const reportOutputError = (error: unknown): void => {
@@ -371,6 +437,9 @@ const playCarried = (index: number, position: number): boolean => {
 const onRenderer = (work: (id: string) => Promise<unknown>): boolean => {
   const id = rendererId();
   if (!id) return false;
+  // Asked from here: the appliance followed becomes the one chosen, and the one chosen holds from now.
+  if (chosen.kind === 'local' && view.output.kind === 'renderer') choose(view.output);
+  else heard();
   work(id).catch(reportOutputError);
   return true;
 };
@@ -1080,10 +1149,15 @@ export const player = {
   stop: () => {
     if (carrying) {
       stopHere();
+      choose(LOCAL);
+      refresh();
       return;
     }
     if (onRenderer(id => outputs.stop(id))) {
+      // Done there: what is played next plays here.
+      choose(LOCAL);
       followed = null;
+      refresh();
       return;
     }
     stopHere();
@@ -1154,8 +1228,7 @@ export const player = {
     const from = view.output;
     const wasCarrying = carrying;
     const moving = transfer && view.playing && view.album !== null && view.tracks.length > 0;
-    chosen = next.kind === 'local' ? LOCAL : { kind: 'renderer', id: next.id, name: next.name };
-    writeStored(OUTPUT_KEY, chosen.kind === 'local' ? '' : JSON.stringify(chosen));
+    choose(next);
     followed = null;
     for (const output of knownOutputs()) {
       if (output.session?.album && output.session.status !== 'stopped' && !(next.kind === 'renderer' && next.id === output.id)) declined.set(output.id, markOf(output.session));
@@ -1281,7 +1354,10 @@ export const resetPlayer = () => {
   keepAwakeRelease = null;
   state = { album: null, queue: null, tracks: [], index: 0, playing: false, position: 0, duration: 0, barShown: false, resume: readResume(), error: null,
     lyricsOpen: readLyricsOpen(), output: LOCAL, outputStatus: null, upcoming: null, quality: readQuality(), light: false };
-  chosen = readOutput();
+  ({ output: chosen, at: chosenAt } = readOutput());
+  writtenAt = chosenAt;
+  if (lapseTimer) clearTimeout(lapseTimer);
+  lapseTimer = null;
   followed = null;
   declined.clear();
   lastOutput = LOCAL;

@@ -1037,7 +1037,8 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                     </span>
                     {ownPlay ? (
                       <button type="button" className="track-play" onClick={event => { own(event); if (current) player.toggle(); else playFrom(disc.number, Number(track.no)); }}
-                        onKeyDown={own} aria-label={`${current && nowPlaying ? 'Pause' : 'Play'} ${track.title}`} title={current && nowPlaying ? 'Pause' : 'Play'}>
+                        onKeyDown={own} aria-label={`${current && nowPlaying ? 'Pause' : 'Play'} ${track.title}${onAppliance ? ` on ${output.name}` : ''}`}
+                        title={current && nowPlaying ? 'Pause' : onAppliance ? `Play on ${output.name}` : 'Play'}>
                         {current && nowPlaying ? <BsPauseFill aria-hidden="true" /> : <BsPlayFill aria-hidden="true" />}
                       </button>
                     ) : playUrl && elsewhere.length > 0 ? (

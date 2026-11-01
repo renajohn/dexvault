@@ -44,6 +44,13 @@ export interface OutputState {
   error: string | null;
   /** Away, with a play kept for when it answers. */
   wanted?: boolean;
+  /** How long it had been silent when the server told (ms); null while it sounds, or if it never did. */
+  quietFor?: number | null;
+  /** This device's own: when the state came (by its clock), and when the appliance fell silent, by its clock too. */
+  receivedAt?: number;
+  quietAt?: number | null;
+  /** When this device first saw it in its status (stopped, taken…), by its clock. */
+  statusAt?: number;
 }
 
 export interface Output {
@@ -112,7 +119,8 @@ const leftListeners = new Set<(left: OutputLeft) => void>();
 const gaps: number[] = [];
 const GAPS_KEPT = 20;
 const noteGap = (state: OutputState, receivedAt: number) => {
-  if (!state.at) return;
+  // Only a play's `at` is fresh: one paused or stopped may be told long after (a list read at a reload).
+  if (!state.at || state.status !== 'playing') return;
   gaps.push(receivedAt - state.at);
   if (gaps.length > GAPS_KEPT) gaps.shift();
 };
@@ -133,11 +141,20 @@ export const positionAt = (state: Pick<OutputState, 'status' | 'position' | 'dur
 const same = <T>(previous: T | undefined, next: T): T =>
   (previous !== undefined && JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
 
-const steady = (previous: OutputState | null | undefined, next: OutputState | null): OutputState | null => {
+const steady = (previous: OutputState | null | undefined, next: OutputState | null, receivedAt = Date.now()): OutputState | null => {
   if (!next) return null;
   return { ...next, album: same(previous?.album, next.album), track: same(previous?.track ?? undefined, next.track),
-    tracks: same(previous?.tracks, next.tracks), upcoming: same(previous?.upcoming, next.upcoming) };
+    tracks: same(previous?.tracks, next.tracks), upcoming: same(previous?.upcoming, next.upcoming),
+    receivedAt, quietAt: next.quietFor == null ? null : receivedAt - next.quietFor,
+    statusAt: previous && previous.status === next.status ? previous.statusAt ?? receivedAt : receivedAt };
 };
+
+/** A play not told again for this long (states come every second while it plays) is not taken for sounding: the Mac woke up, the events not back yet. */
+export const SOUND_STALE_MS = 30_000;
+
+/** Whether it sounds now, playing or waiting to play, as told lately. */
+export const soundingNow = (session: OutputState | null | undefined, now = Date.now()): boolean =>
+  Boolean(session && (session.status === 'playing' || session.wanted) && now - (session.receivedAt ?? now) < SOUND_STALE_MS);
 
 const tell = () => listeners.forEach(listener => listener());
 
@@ -146,7 +163,7 @@ const takeList = (list: Output[], receivedAt = Date.now()) => {
   known = list.map(output => {
     const before = known.find(one => one.id === output.id);
     if (output.session) noteGap(output.session, receivedAt);
-    return { ...output, session: steady(before?.session, output.session) };
+    return { ...output, session: steady(before?.session, output.session, receivedAt) };
   });
   loaded = true;
   tell();
@@ -162,7 +179,7 @@ export const takeState = (state: OutputState, receivedAt = Date.now()): void => 
   const reachable = state.status === 'playing' ? true : state.status === 'unreachable' ? false : output.reachable;
   known = [...known.slice(0, at), {
     ...output, reachable, name: state.name || output.name, volume: state.volume ?? output.volume, muted: state.muted,
-    session: steady(output.session, state),
+    session: steady(output.session, state, receivedAt),
   }, ...known.slice(at + 1)];
   tell();
 };

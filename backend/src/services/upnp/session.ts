@@ -64,6 +64,13 @@ export interface OutputState {
   error: string | null;
   /** Away, with a play to give as soon as it answers: the bar shows it as playing, ⏸ forgets it. */
   wanted: boolean;
+  /**
+   * How long it has been silent (paused, an album over, away), in ms as the
+   * server counts it when it tells; null while it sounds, or if it never did.
+   * Not `at`, which every poll moves on: a page holds the appliance it chose
+   * so long after its last sound.
+   */
+  quietFor: number | null;
 }
 
 /** A session as written in output_sessions, to outlive a restart. */
@@ -77,6 +84,8 @@ export interface SavedSession {
   queue: 'listenNext' | null;
   token: string;
   turn: TurnState | null;
+  /** When it last sounded (server time, ms), to outlive a restart. */
+  soundAt?: number | null;
 }
 
 export interface SessionDeps {
@@ -165,6 +174,8 @@ export class OutputSession {
   position = 0;
   duration = 0;
   at = 0;
+  /** When it last sounded, playing or waiting to play (server time, ms); null if it never did. */
+  private soundAt: number | null = null;
   volume: number | null = null;
   muted = false;
   queue: 'listenNext' | null = null;
@@ -226,6 +237,7 @@ export class OutputSession {
       this.queue = saved.queue;
       this.status = saved.status === 'stopped' ? 'stopped' : 'paused';
       this.at = this.now();
+      this.soundAt = saved.soundAt ?? null;
       if (saved.queue === 'listenNext' && saved.turn) this.turn = this.makeTurn(saved.turn);
       this.counted = countedAt(this.tracks[this.index], this.position);
       this.announced = true;
@@ -435,6 +447,9 @@ export class OutputSession {
 
   state(): OutputState {
     const track = this.tracks[this.index];
+    const wanted = this.wantsPlay();
+    const sounding = this.status === 'playing' || wanted;
+    if (sounding) this.soundAt = this.now();
     return {
       id: this.id,
       name: this.deps.name(),
@@ -458,7 +473,8 @@ export class OutputSession {
       queue: this.queue,
       upcoming: this.queue === 'listenNext' && this.turn ? this.turn.upcoming() : [],
       error: this.error,
-      wanted: this.wantsPlay(),
+      wanted,
+      quietFor: sounding || this.soundAt == null ? null : Math.max(0, this.now() - this.soundAt),
     };
   }
 
@@ -484,6 +500,7 @@ export class OutputSession {
     return {
       album: this.album, tracks: this.tracks, index: this.index, position: Math.floor(this.position), duration: this.duration,
       status: this.status, queue: this.queue, token: this.token, turn: this.turn ? this.turn.snapshot() : null,
+      soundAt: this.status === 'playing' ? this.now() : this.soundAt,
     };
   }
 

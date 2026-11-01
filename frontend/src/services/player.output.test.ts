@@ -56,6 +56,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   resetOutputs();
   resetPlayer();
   vi.unstubAllGlobals();
@@ -335,13 +336,106 @@ describe('transfers, every source status', () => {
     expect(player.getState().output).toEqual({ kind: 'local' });
   });
 
-  it('follows an appliance paused when nothing is in the player here: an album’s Play goes there', async () => {
+  it('does not follow an appliance paused from elsewhere: an album’s Play plays here', () => {
     takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused' }));
-    expect(player.getState()).toMatchObject({ output: BUREAU, playing: false, barShown: true });
+    expect(player.getState()).toMatchObject({ output: { kind: 'local' }, barShown: false });
 
     player.playAlbum(album, tracks, 0);
-    await vi.waitFor(() => expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Abureau/play', body: { index: 0 } }));
-    expect(window.HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+    expect(commands()).toHaveLength(0);
+    expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+  });
+
+  it('keeps an appliance followed once asked something from here: paused from here, the next album still goes there', async () => {
+    takeState(session());
+    expect(player.getState().output).toEqual(SALON);
+    player.toggle(false);
+    takeState(session({ status: 'paused' }));
+    expect(player.getState().output).toEqual(SALON);
+
+    player.playAlbum(album, tracks, 0);
+    await vi.waitFor(() => expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/play' }));
+  });
+
+  it('plays CD after CD on Salon: an album over there, the next one played within 30 minutes goes there too', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    player.setOutput(SALON);
+    takeState(session());
+    vi.advanceTimersByTime(50 * 60 * 1000);
+    // An album over: back on its first track, paused (backend session.ts), never stopped, which only ✕ is.
+    takeState(session({ status: 'paused', index: 0, position: 0, at: Date.now(), quietFor: 0 }));
+    vi.advanceTimersByTime(25 * 60 * 1000);
+    expect(player.getState().output).toEqual(SALON);
+
+    player.playAlbum(album, tracks, 0);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/play' });
+  });
+
+  it('lets Salon go after 30 minutes of silence there: Play plays here again, and says so by itself', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    player.setOutput(SALON);
+    takeState(session());
+    takeState(session({ status: 'paused', at: Date.now(), quietFor: 0 }));
+    vi.advanceTimersByTime(29 * 60 * 1000);
+    expect(player.getState().output).toEqual(SALON);
+    vi.advanceTimersByTime(2 * 60 * 1000);
+    expect(player.getState().output).toEqual({ kind: 'local' });
+    expect(window.localStorage.getItem('dv.player.output')).toBeFalsy();
+
+    player.playAlbum(album, tracks, 0);
+    expect(commands().filter(call => call.url.endsWith('/play'))).toHaveLength(0);
+  });
+
+  it('lets go of Salon chosen yesterday, at a reload: this browser plays', () => {
+    window.localStorage.setItem('dv.player.output', JSON.stringify({ ...SALON, at: Date.now() - 24 * 60 * 60 * 1000 }));
+    resetPlayer();
+    expect(player.getState().output).toEqual({ kind: 'local' });
+    expect(player.rendererId()).toBeNull();
+  });
+
+  it('keeps Salon chosen while it plays, however long ago it was chosen', () => {
+    window.localStorage.setItem('dv.player.output', JSON.stringify({ ...SALON, at: Date.now() - 24 * 60 * 60 * 1000 }));
+    takeState(session());
+    resetPlayer();
+    expect(player.getState().output).toEqual(SALON);
+  });
+
+  it('plays here once Salon is stopped by ✕ from another device, or taken by the TV; chosen again, it holds', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    player.setOutput(SALON);
+    takeState(session());
+    vi.advanceTimersByTime(1000);
+    takeState(session({ status: 'stopped', quietFor: 0 }));
+    expect(player.getState().output).toEqual({ kind: 'local' });
+
+    vi.advanceTimersByTime(1000);
+    player.setOutput(SALON);
+    expect(player.getState().output).toEqual(SALON);
+    vi.advanceTimersByTime(1000);
+    takeState(session({ status: 'stopped', quietFor: 1000 }));
+    expect(player.getState().output).toEqual(SALON);
+    vi.advanceTimersByTime(1000);
+    takeState(session({ status: 'taken', quietFor: 2000 }));
+    expect(player.getState().output).toEqual({ kind: 'local' });
+    player.playAlbum(album, tracks, 0);
+    expect(commands()).toHaveLength(0);
+  });
+
+  it('keeps Salon taken by the TV once chosen again: ▶ takes it back', async () => {
+    takeState(session({ status: 'taken', quietFor: 0 }));
+    player.setOutput(SALON);
+    takeState(session({ status: 'taken', quietFor: 1000 }));
+    expect(player.getState()).toMatchObject({ output: SALON, outputStatus: 'taken' });
+    player.toggle(true);
+    await vi.waitFor(() => expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/resume' }));
+  });
+
+  it('plays here after ✕ on Salon', () => {
+    player.setOutput(SALON);
+    takeState(session());
+    player.stop();
+    takeState(session({ status: 'stopped' }));
+    expect(player.getState().output).toEqual({ kind: 'local' });
   });
 
   it('lets go of an appliance paused once this browser is chosen, until it plays again', () => {
@@ -391,5 +485,169 @@ describe('transfers, every source status', () => {
     });
     // Nothing here: this browser stays silent.
     expect(window.HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+  });
+});
+
+// The 30 minutes after an appliance's last sound: counted from the server's `quietFor`, never from `at`
+// (every poll moves it on, a restart too), and a "playing" not told again for a while not taken for a sound.
+describe('the output chosen, held 30 minutes after its last sound (review)', () => {
+  const MIN = 60 * 1000;
+  const LOCAL = { kind: 'local' as const };
+  const fake = () => vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+
+  it('lets Salon go 30 minutes after a pause, though the server, polling it paused, writes a new `at` every 5 s', () => {
+    fake();
+    player.setOutput(SALON);
+    takeState(session());
+    takeState(session({ status: 'paused', at: Date.now() }));
+    // backend session.poll(): paused on the appliance, polled every POLL_PAUSED_MS, `this.at = this.now()` each time, emitted.
+    for (let i = 0; i < 31 * 12; i++) {
+      vi.advanceTimersByTime(5000);
+      takeState(session({ status: 'paused', at: Date.now(), quietFor: (i + 1) * 5000 }));
+    }
+    expect(player.getState().output).toEqual(LOCAL);
+  });
+
+  it('lets Salon go 30 minutes after a pause, though a restart of the server wrote a new `at` meanwhile', () => {
+    fake();
+    player.setOutput(SALON);
+    takeState(session());
+    const pausedAt = Date.now();
+    takeState(session({ status: 'paused', at: pausedAt, quietFor: 0 }));
+    vi.advanceTimersByTime(20 * MIN);
+    // backend Session constructor, back from output_sessions: paused, `this.at = this.now()`, its last sound kept.
+    takeState(session({ status: 'paused', at: Date.now(), quietFor: 20 * MIN }));
+    vi.advanceTimersByTime(11 * MIN);
+    expect(player.getState().output).toEqual(LOCAL);
+  });
+
+  it('a Mac waking 3 hours later, Salon’s CD over long ago: Play plays here, not on Salon', () => {
+    fake();
+    player.setOutput(SALON);
+    takeState(session());
+    const asleep = Date.now();
+    // Asleep: no timer runs, the clock jumps. On waking the bar's ticker fires first, with the state from before.
+    vi.setSystemTime(asleep + 3 * 60 * MIN);
+    vi.advanceTimersByTime(1000);
+    // Then the events again: the CD ended 20 minutes after the Mac fell asleep.
+    takeState(session({ status: 'paused', at: asleep + 20 * MIN, quietFor: 160 * MIN }));
+    expect(player.getState().output).toEqual(LOCAL);
+    player.playAlbum(album, tracks, 0);
+    expect(commands().filter(call => call.url.endsWith('/play'))).toHaveLength(0);
+  });
+
+  it('a Mac waking 3 hours later, before the events come back: Play does not go to Salon on the word of a stale “playing”', () => {
+    fake();
+    player.setOutput(SALON);
+    takeState(session());
+    vi.setSystemTime(Date.now() + 3 * 60 * MIN);
+    vi.advanceTimersByTime(1000);
+    // The album was 331 s long and was "playing" 3 hours ago: that state cannot be true any more.
+    player.playAlbum(album, tracks, 0);
+    vi.advanceTimersByTime(1000);
+    expect(commands().filter(call => call.url.endsWith('/play'))).toHaveLength(0);
+  });
+
+  it('at a reload, keeps Salon whose CD ended 10 minutes ago, chosen an hour ago (the tab closed meanwhile)', async () => {
+    window.localStorage.setItem('dv.player.output', JSON.stringify({ ...SALON, at: Date.now() - 60 * MIN }));
+    // The page opens: the player before the list of outputs (lapse() runs with no session known).
+    resetOutputs();
+    resetPlayer();
+    list = [listed('uuid:salon', 'Salon', { session: session({ status: 'paused', at: Date.now() - 10 * MIN, quietFor: 10 * MIN }) }), listed('uuid:bureau', 'Bureau')];
+    await outputs.list();
+    expect(player.getState().output).toEqual(SALON);
+  });
+
+  it('at a reload, counts the 30 minutes from the CD’s end, not from the reload (the clock gap read off an old `at`)', async () => {
+    fake();
+    window.localStorage.setItem('dv.player.output', JSON.stringify({ ...SALON, at: Date.now() - 28 * MIN }));
+    resetOutputs();
+    resetPlayer();
+    // Over 20 minutes ago: the only `at` the page has seen, taken by clockGap() for the servers' lag.
+    list = [listed('uuid:salon', 'Salon', { session: session({ status: 'paused', at: Date.now() - 20 * MIN, quietFor: 20 * MIN }) }), listed('uuid:bureau', 'Bureau')];
+    await outputs.list();
+    expect(player.getState().output).toEqual(SALON);
+    vi.advanceTimersByTime(11 * MIN);
+    expect(player.getState().output).toEqual(LOCAL);
+  });
+
+  it('✕ in the bar with an album carried to Salon, not yet played there: the next album plays here', () => {
+    player.playAlbum(album, tracks, 1, 40);
+    player.toggle(false);
+    audios.forEach(audio => audio.dispatchEvent(new Event('pause')));
+    player.setOutput(SALON);
+    expect(player.getState()).toMatchObject({ output: SALON, album });
+    player.stop();
+    expect(player.getState().output).toEqual(LOCAL);
+  });
+
+  it('makes an appliance followed the one chosen at ⏸ from here, written down, held 30 minutes, then let go', async () => {
+    fake();
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau' }));
+    expect(player.getState().output).toEqual(BUREAU);
+    expect(window.localStorage.getItem('dv.player.output')).toBeFalsy();
+    player.toggle(false);
+    expect(JSON.parse(window.localStorage.getItem('dv.player.output')!)).toMatchObject({ id: 'uuid:bureau' });
+    await vi.advanceTimersByTimeAsync(10);
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused', at: Date.now() }));
+    vi.advanceTimersByTime(29 * MIN);
+    expect(player.getState().output).toEqual(BUREAU);
+    vi.advanceTimersByTime(2 * MIN);
+    expect(player.getState().output).toEqual(LOCAL);
+  });
+
+  it('holds Salon 30 minutes after the last command sent from here, not after it was chosen', () => {
+    fake();
+    player.setOutput(SALON);
+    takeState(session({ status: 'paused', at: Date.now() }));
+    vi.advanceTimersByTime(20 * MIN);
+    player.seek(10);
+    vi.advanceTimersByTime(20 * MIN);
+    expect(player.getState().output).toEqual(SALON);
+    vi.advanceTimersByTime(11 * MIN);
+    expect(player.getState().output).toEqual(LOCAL);
+  });
+
+  it('two appliances: Salon held here, Bureau paused from another device is not followed, Bureau playing is shown only once Salon lets go', () => {
+    fake();
+    player.setOutput(SALON);
+    takeState(session({ status: 'paused', at: Date.now() }));
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'paused', at: Date.now() }));
+    expect(player.getState().output).toEqual(SALON);
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'playing', at: Date.now() }));
+    // The choice made here wins while it holds.
+    expect(player.getState().output).toEqual(SALON);
+    vi.advanceTimersByTime(31 * MIN);
+    takeState(session({ id: 'uuid:bureau', name: 'Bureau', status: 'playing', at: Date.now() }));
+    expect(player.getState().output).toEqual(BUREAU);
+  });
+
+  it('lets go of Salon away (unreachable, no play kept) 30 minutes after the last thing asked of it', () => {
+    fake();
+    player.setOutput(SALON);
+    takeState(session({ status: 'unreachable', at: Date.now() }));
+    vi.advanceTimersByTime(31 * MIN);
+    expect(player.getState().output).toEqual(LOCAL);
+  });
+
+  it('keeps Salon while a play waits for it to answer (wanted), told again or not', () => {
+    fake();
+    player.setOutput(SALON);
+    takeState(session({ status: 'unreachable', wanted: true, at: Date.now() }));
+    vi.advanceTimersByTime(25 * MIN);
+    expect(player.getState().output).toEqual(SALON);
+    takeState(session({ status: 'unreachable', wanted: true, at: Date.now() - 25 * MIN }));
+    vi.advanceTimersByTime(25 * MIN);
+    expect(player.getState().output).toEqual(SALON);
+  });
+
+  it('starts Listen Next here once Salon has let go', async () => {
+    fake();
+    player.setOutput(SALON);
+    takeState(session({ status: 'stopped', at: Date.now() }));
+    vi.advanceTimersByTime(31 * MIN);
+    expect(player.rendererId()).toBeNull();
+    await listenNextQueue.start().catch(() => undefined);
+    expect(commands().filter(call => call.url.endsWith('/listen-next'))).toHaveLength(0);
   });
 });

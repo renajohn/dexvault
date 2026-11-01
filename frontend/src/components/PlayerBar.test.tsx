@@ -81,7 +81,8 @@ describe('PlayerBar on an appliance', () => {
   });
 
   it('says Salon plays something else, and Resume takes it back', () => {
-    act(() => { takeState(session({ status: 'taken' })); });
+    // Chosen while taken: it holds (taken after it was chosen, it lets go, and plays here).
+    act(() => { takeState(session({ status: 'taken' })); player.setOutput(SALON); });
     renderBar();
     expect(screen.getByText('Salon is playing something else')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument();

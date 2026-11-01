@@ -587,6 +587,32 @@ describe('commands and polls together', () => {
   });
 });
 
+describe('how long an appliance has been silent', () => {
+  beforeEach(async () => { r = await rig('onkyo'); });
+
+  it('says nothing while it plays, counts from its pause though every poll moves `at` on, and remembers it after a restart', async () => {
+    expect(stateOf(r).quietFor).toBeNull();
+    await r.session.playAlbum(albumOf(7), tracksOf(7), 0);
+    await r.playFor(10);
+    expect(stateOf(r).quietFor).toBeNull();
+    await r.session.toggle();
+    const pausedAt = r.fake.clock;
+    await r.playFor(60, 5);
+    const quiet = stateOf(r);
+    expect(quiet.status).toBe('paused');
+    expect(quiet.at).toBeGreaterThan(pausedAt);
+    expect(quiet.quietFor).toBeGreaterThanOrEqual(r.fake.clock - pausedAt);
+    expect(quiet.quietFor).toBeLessThanOrEqual(r.fake.clock - pausedAt + 2000);
+
+    const saved = r.session.saved();
+    const first = r;
+    r = await rig('onkyo', { saved });
+    r.fake.clock = first.fake.clock;
+    await first.close();
+    expect(stateOf(r).quietFor).toBe(quiet.quietFor);
+  });
+});
+
 describe('a restart of DexVault', () => {
   it('follows the appliance on if it still plays our track', async () => {
     const first = await rig('onkyo');
