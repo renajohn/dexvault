@@ -82,6 +82,13 @@ const StarDial: React.FC<{ value: number; seeded: boolean; hint: boolean; descri
   );
 };
 
+/** Under the pointer, what the stars a click gives mean: the dial's words, and its note on a line below. */
+const starsTitle = (stars: number, describe?: StarWords): string | undefined => {
+  const said = describe?.(stars);
+  if (!said?.words) return undefined;
+  return said.note ? `${said.words}\n${said.note}` : said.words;
+};
+
 const starsLabel = (stars: number) => (stars ? `${stars} star${stars > 1 ? 's' : ''}` : 'No stars');
 
 export interface StarRatingProps {
@@ -105,7 +112,8 @@ export interface StarRatingProps {
  * (StarDial): drawn up the stars go up, down they go down, by halves, from
  * those given or from 3 for none; let go, they are given, the 3 of a record
  * of none too. Back on the stars given, or a mere touch on them, gives
- * nothing: the touch shows the dial a moment.
+ * nothing: the touch shows the dial a moment. Under the pointer, each star's
+ * tooltip says what the stars a click gives mean (`describe`).
  */
 const StarRating: React.FC<StarRatingProps> = ({ value, onChange, size = 'md', label = 'Your rating', className, describe }) => {
   const [preview, setPreview] = useState<number | null>(null);
@@ -178,6 +186,8 @@ const StarRating: React.FC<StarRatingProps> = ({ value, onChange, size = 'md', l
     >
       {[1, 2, 3, 4, 5].map(star => {
         const holds = current === star || current === star - 0.5;
+        // The half pointed at in this star, else the whole star: the title is there as the pointer comes in.
+        const pointedHere = preview !== null && Math.ceil(preview) === star ? preview : star;
         return (
           <button
             key={star}
@@ -185,6 +195,7 @@ const StarRating: React.FC<StarRatingProps> = ({ value, onChange, size = 'md', l
             tabIndex={-1}
             className="ui-star"
             aria-label={starsLabel(star)}
+            title={starsTitle(pointedHere, describe)}
             aria-pressed={holds}
             onMouseMove={event => setPreview(pointed(event, star))}
             onClick={event => {

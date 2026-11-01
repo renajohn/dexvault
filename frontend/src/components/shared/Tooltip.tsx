@@ -71,7 +71,8 @@ export const TooltipHost: React.FC = () => {
       window.clearTimeout(timer);
       if (anchor.closest('[data-tooltip-off]')) return;
       if (Date.now() - lastHidden < WARM_MS) show(anchor, text);
-      else timer = window.setTimeout(() => show(anchor, text), DELAY_MS);
+      // Its words as they are by then: React may have written new ones while it waited.
+      else timer = window.setTimeout(() => show(anchor, anchor === lifted ? liftedText : text), DELAY_MS);
     };
 
     // Where the pointer rests while the tooltip waits: it shows where the pointer stopped.

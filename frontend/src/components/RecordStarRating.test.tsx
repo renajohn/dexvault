@@ -57,4 +57,16 @@ describe('AlbumStarRating and BookStarRating', () => {
     expect(document.querySelector('.ui-star-dial__words')).toHaveTextContent('Glad I read it');
     await waitFor(() => expect(document.querySelector('.ui-star-dial__hint')).toHaveTextContent('25 % of your rated books'));
   });
+
+  it('says under the pointer what the stars a click gives mean, by halves', async () => {
+    render(<AlbumStarRating value={3} onChange={() => undefined} />);
+    await waitFor(() => expect(musicService.getRatingCounts).toHaveBeenCalled());
+    const fourth = screen.getByRole('button', { name: '4 stars' });
+    await waitFor(() => expect(fourth).toHaveAttribute('title', 'Love it\n30 % of your rated albums'));
+    vi.spyOn(fourth, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 16 } as DOMRect);
+    fireEvent.mouseMove(fourth, { clientX: 4 });
+    expect(fourth).toHaveAttribute('title', 'Often\n0 % of your rated albums');
+    fireEvent.mouseMove(fourth, { clientX: 12 });
+    expect(fourth.getAttribute('title')).toMatch(/^Love it/);
+  });
 });
