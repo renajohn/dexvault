@@ -36,8 +36,7 @@ import toast from './shared/Toast';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
 import MixtapeMenu from './MixtapeMenu';
 import { useMixtapes } from '../utils/mixtapeStore';
-import { BsCassetteFill, BsXLg, BsLaptop } from 'react-icons/bs';
-import remote, { useRemotePlayers, type RemotePlayer } from '../services/remote';
+import { BsCassetteFill, BsXLg } from 'react-icons/bs';
 import { discsInWords, heldOf } from '../utils/listenNextEntry';
 
 /** How often, and how many times, an album's tracks are asked after while their words are looked up. */
@@ -586,15 +585,6 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   const resume = usePlayer(state => state.resume);
   const playingHere = nowAlbumId === Number(cd.id);
   const resumeHere = !playingHere && resume?.album.id === Number(cd.id) ? resume : null;
-  // The computers the remote can send this album or a track of it to.
-  const computers = useRemotePlayers().filter(p => p.online);
-  /** The album played on a computer, from its first track or from one. */
-  const playOn = (target: RemotePlayer, disc?: number, no?: number) => {
-    const index = disc == null ? 0 : Math.max(0, playerTracks.findIndex(track => track.disc === disc && track.no === no));
-    remote.send(target.id, { action: 'playAlbum', albumId: Number(cd.id), index })
-      .then(() => toast(`Playing on ${target.name}`, { tone: 'success' }))
-      .catch(e => toast((e as Error).message, { tone: 'danger' }));
-  };
   // The outputs, this browser and the appliances that answer, the current one ✓: the album played there, which is then the output.
   const known = useOutputs();
   const elsewhere: PlayerOutput[] = known.length === 0 || playerTracks.length === 0 ? [] : [
@@ -1050,17 +1040,14 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                         onKeyDown={own} aria-label={`${current && nowPlaying ? 'Pause' : 'Play'} ${track.title}`} title={current && nowPlaying ? 'Pause' : 'Play'}>
                         {current && nowPlaying ? <BsPauseFill aria-hidden="true" /> : <BsPlayFill aria-hidden="true" />}
                       </button>
-                    ) : playUrl && (computers.length > 0 || elsewhere.length > 0) ? (
-                      // A computer listening, or an appliance: this track here in Amperfy, or there from it on.
+                    ) : playUrl && elsewhere.length > 0 ? (
+                      // An appliance: this track here in Amperfy, or there from it on.
                       <span onClick={own} onKeyDown={own}>
                         <Menu label={`Play ${track.title}`} trigger={props => (
                           <button type="button" {...props} className="track-play" aria-label={`Play ${track.title}`} title="Play"><BsPlayFill aria-hidden="true" /></button>
                         )}>
                           <Menu.Item icon={<BsPlayFill />} onSelect={() => { window.location.href = playUrl; }}>Play here, in {appleMobile ? 'Amperfy' : 'Navidrome'}</Menu.Item>
                           {outputItems(disc.number, Number(track.no))}
-                          {computers.map(target => (
-                            <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target, disc.number, Number(track.no))}>Play on {target.name}</Menu.Item>
-                          ))}
                         </Menu>
                       </span>
                     ) : playUrl && (
@@ -1179,7 +1166,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
     </Button>
   );
 
-  /** More ways to listen: played on another output, from the start, in Navidrome or Amperfy, on a computer. */
+  /** More ways to listen: played on another output, from the start, in Navidrome or Amperfy. */
   const playMoreItems = ripAlbum && (
     <>
       {/* Played on another output, which is then the output: the appliances, this browser. */}
@@ -1195,13 +1182,10 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
           {appleMobile ? 'Open in Amperfy' : 'Open in Navidrome'}
         </Menu.Item>
       )}
-      {computers.map(target => (
-        <Menu.Item key={target.id} icon={<BsLaptop />} onSelect={() => playOn(target)}>Play on {target.name}</Menu.Item>
-      ))}
     </>
   );
   /** Whether the ▾ beside Play has a way to listen to offer. */
-  const hasPlayMore = Boolean(ripAlbum) && (ownPlayer || computers.length > 0 || elsewhere.length > 0);
+  const hasPlayMore = Boolean(ripAlbum) && (ownPlayer || elsewhere.length > 0);
 
   /** The whole album in or out. */
   const listenNextButton = (

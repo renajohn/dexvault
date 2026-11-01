@@ -37,10 +37,7 @@ import { ConfirmHost } from './components/shared/ConfirmDialog';
 import { IconButton } from './components/shared/Button';
 import { toast, toneOf, ToastHost } from './components/shared/Toast';
 import { TooltipHost } from './components/shared/Tooltip';
-import RemoteReporter from './components/RemoteReporter';
-import RemoteBar from './components/RemoteBar';
 import { connectOutputs } from './services/outputs';
-import { isComputer } from './services/remote';
 import { useMedia } from './utils/useNarrow';
 import { useStickySearch } from './utils/useStickySearch';
 import { HeaderSearchSlot } from './utils/headerSearchSlot';
@@ -782,8 +779,6 @@ function AppContent() {
         </Routes>
       </main>
       <PlayerBar />
-      {/* The remote: a computer tells what it plays and does what it is told; a phone tells it. */}
-      {isComputer() ? <RemoteReporter /> : <RemoteBar />}
       <LyricsPanel />
       <ConfirmHost />
       <ToastHost />

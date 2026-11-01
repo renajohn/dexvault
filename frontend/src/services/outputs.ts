@@ -324,11 +324,10 @@ const outputs = {
   /**
    * What plays on each output, as it changes, until stopped: the list
    * (`outputs`), one output's play (`state`), an album leaving Listen Next
-   * (`left`). The same reconnection as the remote's: a connection refused
-   * (the server restarting, a proxy's 502) opened again a little later each
-   * time; one a proxy keeps open with nothing behind, opened again after 45 s
-   * without the server's word; and at once when the page comes back in sight
-   * (an iPhone drops it while asleep).
+   * (`left`). A connection refused (the server restarting, a proxy's 502)
+   * opened again a little later each time; one a proxy keeps open with
+   * nothing behind, opened again after 45 s without the server's word; and at
+   * once when the page comes back in sight (an iPhone drops it while asleep).
    */
   listen: (handlers: { onOutputs?: (list: Output[]) => void; onState?: (state: OutputState) => void; onLeft?: (left: OutputLeft) => void }): (() => void) => {
     if (typeof EventSource === 'undefined') return () => undefined;

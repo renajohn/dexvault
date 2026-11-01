@@ -58,7 +58,7 @@ export interface OutputsOverrides {
   poll?: boolean;
 }
 
-/** A page's connection is kept open by a word now and then, as the remote's is. */
+/** A page's connection is kept open by a word now and then. */
 const KEEP_ALIVE_MS = 20_000;
 const MAX_LISTENERS = 50;
 

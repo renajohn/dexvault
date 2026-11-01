@@ -193,7 +193,7 @@ export const formatOf = (current: PlayerState): string | null => {
 /** What the bar, the cards and Listen Next see: this browser's state, or an appliance's play. */
 let view: PlayerState = state;
 let chosen: PlayerOutput = typeof window !== 'undefined' ? readOutput() : LOCAL;
-/** An appliance playing, or paused, that the bar shows while nothing plays here, as a remote would. */
+/** An appliance playing, or paused, that the bar shows while nothing plays here. */
 let followed: { id: string; name: string } | null = null;
 /**
  * Appliances left by a choice while they held an album, with what they were

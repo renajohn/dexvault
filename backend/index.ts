@@ -13,7 +13,6 @@ import musicController from './src/controllers/musicController';
 import mixtapeController from './src/controllers/mixtapeController';
 import musicService from './src/services/musicService';
 import bookController from './src/controllers/bookController';
-import remoteController from './src/controllers/remoteController';
 import outputController from './src/controllers/outputController';
 import bookService from './src/services/bookService';
 import backupController from './src/controllers/backupController';
@@ -294,16 +293,6 @@ app.get('/api/music/navidrome/stream/:id', playerController.stream);
 app.post('/api/music/navidrome/light/:id', playerController.prepareLight);
 app.get('/api/music/navidrome/light/:id', playerController.streamLight);
 app.get('/api/music/navidrome/waveform/:id', playerController.waveform);
-// The remote: what plays in which browser, and commands to it from another device.
-// Kept, behind REMOTE_ENABLED, until playing on the appliances (UPnP) is trusted.
-if (configManager.getUpnpOptions().remoteEnabled) {
-  app.get('/api/remote/players', remoteController.players);
-  app.put('/api/remote/players/:id', remoteController.report);
-  app.get('/api/remote/players/:id/commands', remoteController.commands);
-  app.put('/api/remote/players/:id/name', remoteController.rename);
-  app.post('/api/remote/players/:id/commands', remoteController.command);
-  app.post('/api/remote/acks/:commandId', remoteController.acknowledge);
-}
 // The appliances DexVault plays on (UPnP: the Onkyo, the WiiM), and what plays there
 app.get('/api/outputs', outputController.list);
 app.get('/api/outputs/events', outputController.events);

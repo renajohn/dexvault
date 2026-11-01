@@ -51,10 +51,9 @@ describe('without UPNP_MEDIA_BASE_URL', () => {
       { UPNP_MEDIA_BASE_URL: 'http://dexvault.lab.crog.org:3002/', UPNP_MAX_VOLUME: '60' });
     expect(options).toEqual({
       renderers: ['http://a/1.xml', 'http://b/2.xml'], mediaPort: 5000, mediaBaseUrl: 'http://dexvault.lab.crog.org:3002',
-      discovery: 'ssdp', maxVolume: 60, remoteEnabled: true,
+      discovery: 'ssdp', maxVolume: 60,
     });
     expect(upnpOptionsOf({}, {}, {})).toMatchObject({ renderers: [], mediaPort: 3002, mediaBaseUrl: '', discovery: 'off', maxVolume: 70 });
-    expect(upnpOptionsOf({}, {}, { REMOTE_ENABLED: 'false' }).remoteEnabled).toBe(false);
   });
 });
 

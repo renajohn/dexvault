@@ -76,8 +76,6 @@ services:
       - UPNP_MEDIA_BASE_URL=${UPNP_MEDIA_BASE_URL:-}
       # The volume DexVault never sets above, unless an appliance has its own.
       - UPNP_MAX_VOLUME=${UPNP_MAX_VOLUME:-70}
-      # The remote for the browsers, kept until playing on the appliances is trusted.
-      - REMOTE_ENABLED=${REMOTE_ENABLED:-true}
       # The backup runs at 3 a.m. local time: without TZ the container runs on UTC.
       - TZ=Europe/Zurich
     restart: unless-stopped

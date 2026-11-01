@@ -14,8 +14,6 @@ export interface UpnpOptions {
   discovery: 'off' | 'ssdp';
   /** The volume never set above this, unless an appliance has its own. */
   maxVolume: number;
-  /** The remote for the browsers (/api/remote), kept until UPnP is trusted. */
-  remoteEnabled: boolean;
 }
 
 type Source = Record<string, unknown> | null | undefined;
@@ -37,11 +35,6 @@ const numberOf = (value: unknown, fallback: number, min: number, max: number): n
   return Number.isFinite(number) && number >= min && number <= max ? Math.round(number) : fallback;
 };
 
-const flagOf = (value: unknown, fallback: boolean): boolean => {
-  if (value == null) return fallback;
-  return !/^(0|false|no|off)$/i.test(String(value).trim());
-};
-
 /** The options from the deployment's file, options.json and the environment. */
 export const upnpOptionsOf = (deployment: Source, data: Source, env: NodeJS.ProcessEnv = process.env): UpnpOptions => {
   const sources = [deployment, data];
@@ -51,6 +44,5 @@ export const upnpOptionsOf = (deployment: Source, data: Source, env: NodeJS.Proc
     mediaBaseUrl: String(pick('upnp_media_base_url', 'UPNP_MEDIA_BASE_URL', sources, env) ?? '').trim().replace(/\/+$/, ''),
     discovery: String(pick('upnp_discovery', 'UPNP_DISCOVERY', sources, env) ?? 'off').trim().toLowerCase() === 'ssdp' ? 'ssdp' : 'off',
     maxVolume: numberOf(pick('upnp_max_volume', 'UPNP_MAX_VOLUME', sources, env), 70, 0, 100),
-    remoteEnabled: flagOf(pick('remote_enabled', 'REMOTE_ENABLED', sources, env), true),
   };
 };
