@@ -58,6 +58,9 @@ describe('les numéros d’un titre', () => {
     ['Kinderscenen - Traümerei O 15 N 7', [{ system: 'op', main: 15, sub: 7 }]],
     ['Album pour la jeunesse - 1.Mélodie O 68 n°1', [{ system: 'op', main: 68, sub: 1 }]],
     ['Sonate n° 14 op. 27/2', [{ system: 'op', main: 27, sub: 2 }]],
+    ['Menuet G-dur, BWV Anh.114', [{ system: 'bwvanh', main: 114, sub: null }]],
+    ['Menuet BWV Anh 114,115,116 pour violons ou altos', [114, 115, 116].map(main => ({ system: 'bwvanh', main, sub: null }))],
+    ['8a. Polonaise F-dur, BWV Anh.117a', [{ system: 'bwvanha', main: 117, sub: null }]],
     ['Prelude and Fugue no. 1 in C major, BWV 846', [{ system: 'bwv', main: 846, sub: null }]],
     ['Das wohltemperierte Klavier I, BWV 846–869', []],
     ['Erbauliche Gedanken eines Tabakrauchers BWV 515a', [{ system: 'bwva', main: 515, sub: null }]],
@@ -127,6 +130,34 @@ describe('les pièces de Mutopia pour celles d’une partition', () => {
       ["Prelude: Op. 28, No. 4 ('Suffocation')"],
       ['Das Wohltemperierte Clavier I, Praeludium I', 'Das Wohltemperierte Clavier I, Fuga I'],
     ]);
+  });
+
+  it('trouve les menuets du Petit livre d’Anna Magdalena par leur numéro de l’Anhang, pas par leur nom', () => {
+    const book = 'Notebook for Anna Magdalena Bach';
+    const targets = matchPieces([
+      part(1, 'Menuet F-dur, BWV Anh.113', 'Menuet F-dur, BWV Anh.113', book),
+      part(1, 'Menuet G-dur, BWV Anh.114', 'Menuet G-dur, BWV Anh.114', book),
+      part(1, '8a. Polonaise F-dur, BWV Anh.117a', '8a. Polonaise F-dur, BWV Anh.117a', book),
+    ], [
+      entry('1', 'Menuet', 'BWV Anh. 113', 'Harpsichord, Piano, Clavichord'),
+      entry('2', 'Menuet', 'BWV Anh. 114', 'Harpsichord, Piano, Clavichord'),
+      entry('3', 'Menuet BWV Anh 114,115,116 pour violons ou altos', 'BWV Anh. 114, 115, 116', 'Violin, Viola'),
+      entry('4', 'Polonaise in F major', 'BWV Anh. 117a'),
+      entry('5', 'Polonaise in F major', 'BWV Anh. 117b'),
+    ]);
+    expect(targets.map(t => t.candidates.map(c => [c.id, c.checked]))).toEqual([
+      [['1', true]],
+      [['2', true], ['3', false]],
+      [['4', true]],
+    ]);
+  });
+
+  it('ne coche qu’une fois une pièce que la partition a deux fois', () => {
+    const book = 'Notebook for Anna Magdalena Bach';
+    const suite = 'Französische Suite Nr. 3 h-Moll, BWV 814';
+    const targets = matchPieces([part(1, suite, suite, book), { ...part(1, suite, suite, book), partWorkId: 'w-again' }],
+      [entry('1', 'French Suite no. 3 in B minor', 'BWV 814', 'Harpsichord, Piano')]);
+    expect(checkedOf(targets)).toEqual([['French Suite no. 3 in B minor'], []]);
   });
 
   it('de trente pièces sous un même numéro, coche celle que son nom dit', () => {

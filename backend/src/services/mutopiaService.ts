@@ -141,6 +141,10 @@ export const keysOf = (title: string, roman = false): Key[] => {
   const sub = numberIn(title);
   // BWV 515a is not BWV 515; BWV 812.2 is a version of 812.
   for (const m of title.matchAll(/\bBWV\s*(\d+)([a-z]?)(?:\.\d+)?(\s*[-–]\s*\d+)?/gi)) if (!m[3]) add(`bwv${m[2].toLowerCase()}`, m[1], null);
+  // The Anhang's own numbers, each of a list: "BWV Anh. 114, 115, 116" is three menuets.
+  for (const m of title.matchAll(/\bBWV\s*Anh\.?\s*(\d+[a-z]?(?:\s*,\s*\d+[a-z]?)*)/gi)) {
+    for (const one of m[1].split(/\s*,\s*/)) add(`bwvanh${one.replace(/\d+/, '').toLowerCase()}`, one.replace(/\D+$/, ''), null);
+  }
   for (const m of title.matchAll(/\bop(?:us)?\.?\s*(\d+)(?:\s*\/\s*(\d+))?/gi)) add('op', m[1], m[2] ? Number(m[2]) : sub);
   for (const m of title.matchAll(/(?:^|[\s,(])O\s+(\d+)\b/g)) add('op', m[1], sub);
   for (const m of title.matchAll(/\bK(?:V)?\.?\s*(\d+)/g)) add('k', m[1], null);
@@ -152,8 +156,8 @@ export const keysOf = (title: string, roman = false): Key[] => {
 
 /** Words of no help to tell a piece: its kind, its key, its numbers. */
 const NOISE = new Set(['no', 'nr', 'op', 'opus', 'in', 'major', 'minor', 'dur', 'moll', 'de', 'la', 'le', 'les', 'des', 'du', 'et', 'and', 'und',
-  'the', 'of', 'for', 'pour', 'piano', 'sharp', 'flat', 'bwv', 'cd', 'from', 'aus', 'der', 'die', 'das', 'en', 'un', 'une']);
-export const nameWordsOf = (name: string): string[] => plain(name.replace(/\b(?:BWV|op|L|K|CD|WoO|D|S)\.?\s*\d+\w*/gi, ' '))
+  'the', 'of', 'for', 'pour', 'piano', 'sharp', 'flat', 'bwv', 'anh', 'cd', 'from', 'aus', 'der', 'die', 'das', 'en', 'un', 'une']);
+export const nameWordsOf = (name: string): string[] => plain(name.replace(/\b(?:BWV(?:\s*Anh)?|op|L|K|CD|WoO|D|S)\.?\s*\d+\w*/gi, ' '))
   .split(' ').filter(word => word.length > 2 && !/^\d+$/.test(word) && !NOISE.has(word) && !(word in ROMAN));
 
 /** Every word of its name in the other's title: "Clair de lune" in "Suite Bergamasque: Clair de Lune". */
@@ -216,6 +220,8 @@ export const matchPieces = (wanted: Wanted[], entries: MutopiaEntry[]): MutopiaT
   // A score for the piano among them: a waltz for two guitars is not its.
   const keyboard = [...found.values()].flat().some(entry => KEYBOARD.test(entry.instrument || ''));
   const rank = (entry: MutopiaEntry) => (/fug/i.test(entry.title) ? 1 : 0);
+  // A piece a score holds twice (French Suite no. 3 in the books of 1722 and of 1725) is fetched once.
+  const taken = new Set<string>();
   return wanted.map(target => {
     const list = [...found.get(target)!].sort((a, b) => rank(a) - rank(b));
     const seen = new Set<string>();
@@ -229,6 +235,8 @@ export const matchPieces = (wanted: Wanted[], entries: MutopiaEntry[]): MutopiaT
       const words = new Set(nameWordsOf(target.name || target.title));
       likely = likely.filter(entry => nameWordsOf(entry.title).some(word => words.has(word)));
     }
+    likely = likely.filter(entry => !taken.has(entry.id));
+    for (const entry of likely) taken.add(entry.id);
     return {
       pieceId: target.pieceId,
       partWorkId: target.partWorkId,
