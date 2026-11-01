@@ -148,8 +148,36 @@ describe('les pièces prises sur Mutopia', () => {
     const zip = new AdmZip();
     zip.addFile('bach-french-suite-3-gigue-a4.pdf', await pdfOf(1));
     zip.addFile('french-suite-3-a4.pdf', await pdfOf(7));
-    const whole = await PDFDocument.load(wholeIn(zip.toBuffer(), 'https://www.mutopiaproject.org/ftp/BachJS/BWV814/french-suite-3/french-suite-3-a4-pdfs.zip'));
+    const whole = await PDFDocument.load(await wholeIn(zip.toBuffer(), 'https://www.mutopiaproject.org/ftp/BachJS/BWV814/french-suite-3/french-suite-3-a4-pdfs.zip'));
     expect(whole.getPageCount()).toBe(7);
+  });
+
+  // french-suite-5-a4-pdfs.zip: its seven movements alone, alphabetical, each
+  // here a page as wide as its place in the zip, to read the order back.
+  const MOVEMENTS = ['allemande', 'bourree', 'courante', 'gavotte', 'gigue', 'loure', 'sarabande'];
+  const suite5 = async () => {
+    const zip = new AdmZip();
+    for (const [i, name] of MOVEMENTS.entries()) {
+      const doc = await PDFDocument.create();
+      doc.addPage([101 + i, 842]);
+      zip.addFile(`french-suite-5-${name}-a4.pdf`, Buffer.from(await doc.save()));
+    }
+    return zip.toBuffer();
+  };
+  const suite5Url = 'https://www.mutopiaproject.org/ftp/BachJS/BWV816/french-suite-5/french-suite-5-a4-pdfs.zip';
+  const movementsOf = async (pdf: Buffer) =>
+    (await PDFDocument.load(pdf)).getPages().map(page => MOVEMENTS[Math.round(page.getWidth()) - 101]);
+
+  it('réunit les mouvements d’un zip sans l’œuvre entière, dans l’ordre des parties de la pièce', async () => {
+    const names = ['I. Allemande', 'II. Courante', 'III. Sarabande', 'IV. Gavotte', 'V. Bourrée', 'VI. Loure', 'VII. Gigue']
+      .map(name => `Französische Suite Nr. 5 G-Dur, BWV 816: ${name}`);
+    expect(await movementsOf(await wholeIn(await suite5(), suite5Url, names)))
+      .toEqual(['allemande', 'courante', 'sarabande', 'gavotte', 'bourree', 'loure', 'gigue']);
+  });
+
+  it('sans les parties, dans l’ordre d’une suite, la gigue en dernier', async () => {
+    expect(await movementsOf(await wholeIn(await suite5(), suite5Url, ['Französische Suite Nr. 5'])))
+      .toEqual(['allemande', 'courante', 'sarabande', 'bourree', 'gavotte', 'loure', 'gigue']);
   });
 
   const insert = (sql: string, params: unknown[]) => new Promise<number>((resolve, reject) =>

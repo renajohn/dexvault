@@ -299,16 +299,44 @@ const find = async (bookId: number): Promise<{ composer: { code: string; name: s
   }
 };
 
+/** Where a suite's movement stands when the score names none: a gigue last, galanteries after the sarabande. */
+const DANCES: Array<[RegExp, number]> = [
+  [/^(prelud|praelud|preamb|ouvert|overt|fantas|sinfon|toccat)/, 0],
+  [/^alleman/, 1], [/^(couran|corren)/, 2], [/^saraband/, 3], [/^gig/, 5],
+];
+const danceRank = (name: string) => DANCES.find(([word]) => word.test(name))?.[1] ?? 4;
+
 /**
  * The whole work in a zip of its movements' PDFs: french-suite-3-a4.pdf beside
- * bach-french-suite-3-allemande-a4.pdf and the others.
+ * bach-french-suite-3-allemande-a4.pdf and the others. A zip without it
+ * (french-suite-5's, its seven movements alone) gives them one after the
+ * other, in the order of the names given (the parts of the score's piece)
+ * when each is found among them, else in a suite's (allemande, courante,
+ * sarabande, the others, gigue): Mutopia's own is alphabetical.
  */
-export const wholeIn = (zip: Buffer, url: string): Buffer => {
-  const name = `${path.basename(url).replace(/-a4-pdfs\.zip$/, '')}-a4.pdf`;
+export const wholeIn = async (zip: Buffer, url: string, names: string[] = []): Promise<Buffer> => {
+  const base = path.basename(url).replace(/-a4-pdfs\.zip$/, '');
   const entries = new AdmZip(zip).getEntries().filter(entry => !entry.isDirectory && /\.pdf$/i.test(entry.entryName));
-  const whole = entries.find(entry => path.basename(entry.entryName) === name);
-  if (!whole) throw new ScoreFilesError(`${path.basename(url)} holds no ${name}`, 502);
-  return whole.getData();
+  const whole = entries.find(entry => path.basename(entry.entryName) === `${base}-a4.pdf`);
+  if (whole) return whole.getData();
+  if (!entries.length) throw new ScoreFilesError(`${path.basename(url)} holds no PDF`, 502);
+  const movements = entries.map(entry => {
+    const file = path.basename(entry.entryName);
+    const at = file.indexOf(`${base}-`);
+    const name = plain((at >= 0 ? file.slice(at + base.length + 1) : file).replace(/-a4\.pdf$/i, '').replace(/-/g, ' '));
+    return { entry, file, name };
+  });
+  const given = names.map(plain);
+  const found = movements.map(movement => given.findIndex(one => movement.name && ` ${one} `.includes(` ${movement.name} `)));
+  const byNames = found.every(index => index >= 0);
+  const ordered = movements.map((movement, i) => ({ ...movement, rank: byNames ? found[i] : danceRank(movement.name) }))
+    .sort((a, b) => a.rank - b.rank || a.file.localeCompare(b.file, undefined, { numeric: true }));
+  const out = await PDFDocument.create();
+  for (const { entry } of ordered) {
+    const doc = await PDFDocument.load(entry.getData(), { ignoreEncryption: true });
+    for (const copied of await out.copyPages(doc, doc.getPageIndices())) out.addPage(copied);
+  }
+  return Buffer.from(await out.save());
 };
 
 export interface MutopiaPick { pieceId: number; partWorkId: string | null; pdf: string }
@@ -329,8 +357,8 @@ const fetchInto = async (bookId: number, picks: unknown): Promise<ScoreFile[]> =
     return { pieceId: Number(pieceId), partWorkId: typeof partWorkId === 'string' && partWorkId ? partWorkId : null, pdf };
   });
   await scoreFilesService.list(bookId);
-  const pieceIds = new Set((await scorePiecesService.pieces(bookId)).map(piece => piece.id));
-  if (chosen.some(pick => !pieceIds.has(pick.pieceId))) throw new ScoreFilesError('A piece this score does not hold', 400);
+  const pieces = new Map((await scorePiecesService.pieces(bookId)).map(piece => [piece.id, piece]));
+  if (chosen.some(pick => !pieces.has(pick.pieceId))) throw new ScoreFilesError('A piece this score does not hold', 400);
   const out = await PDFDocument.create();
   const marks = new Map<string, { pieceId: number; partWorkId: string | null; startPage: number; endPage: number }>();
   for (const pick of chosen) {
@@ -341,7 +369,8 @@ const fetchInto = async (bookId: number, picks: unknown): Promise<ScoreFile[]> =
       logger.warn(`[Mutopia] ${pick.pdf}: ${(error as Error).message}`);
       throw new ScoreFilesError(`Mutopia did not give ${path.basename(pick.pdf)}`, 502);
     }
-    const doc = await PDFDocument.load(pick.pdf.endsWith('.zip') ? wholeIn(Buffer.from(bytes), pick.pdf) : bytes, { ignoreEncryption: true });
+    const names = pick.partWorkId ? [] : pieces.get(pick.pieceId)!.parts.map(part => part.title);
+    const doc = await PDFDocument.load(pick.pdf.endsWith('.zip') ? await wholeIn(Buffer.from(bytes), pick.pdf, names) : bytes, { ignoreEncryption: true });
     const startPage = out.getPageCount() + 1;
     for (const copied of await out.copyPages(doc, doc.getPageIndices())) out.addPage(copied);
     const key = `${pick.pieceId}:${pick.partWorkId || ''}`;
