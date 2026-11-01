@@ -555,8 +555,13 @@ const isMovement = (title: string): boolean => /:\s/.test(title);
 
 /** The words a search of Wikidata is given: the title's, without its numbers, volumes and keys. */
 const searchWordsOf = (words: string) => words
-  .replace(/\b(?:vol|book|livre|band|heft|en|in|majeur|mineur|major|minor|r[ée]b|for|the|a|la|le|les|de|des|et|und|pour|edition|reliee|lin)\b\.?/gi, ' ')
+  .replace(/\b(?:vol|book|livre|band|heft|teil|part|partie|tome|en|in|majeur|mineur|major|minor|r[ée]b|for|the|a|la|le|les|de|des|et|und|pour|edition|reliee|lin)\b\.?/gi, ' ')
+  // A volume in roman numerals: its number ranks the hits, it would only blur the search.
+  .replace(/\b[IVX]{1,4}\b/g, ' ')
   .replace(/[^\p{L}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+
+/** The numbers a title says, its volumes in roman too: "Teil 1" and "Das wohltemperierte Klavier I" both say 1. */
+const numbersOf = (text: string) => [...wordsOf(text, true)].filter(word => /^\d+$/.test(word));
 
 /**
  * IMSLP's pages of the composer's works whose titles say the score's ("4 Ballades"
@@ -589,7 +594,6 @@ const imslpPagesFor = async (title: string, words: string, composer: string): Pr
   const query = searchWordsOf(words);
   if (!query) return [];
   // Its numbers first: "Préludes Vol. 1" is Livre 1, before Livre 2.
-  const numbersOf = (text: string) => [...wordsOf(text, true)].filter(word => /^\d+$/.test(word));
   const wanted = numbersOf(words);
   const says = (page: string) => wanted.every(number => numbersOf(page.replace(/\s*\([^()]*\)\s*$/, '')).includes(number));
   const near = (pages: string[]) => pages.filter(page => nearness(words, page.replace(/\s*\([^()]*\)\s*$/, '')) >= 0.5)
@@ -650,7 +654,10 @@ const wikidataSuggestions = async (words: string, composer: string, taken: Set<s
   const hits = (await wikidataWorksService.searchWorks(query, composer))
     .filter(work => (work.mbWorkId || work.partQids.length)
       && work.labels.some(label => nearness(words, label) >= 0.5 && (numbered || !/\b(?:no|nr|n°)\.?\s*\d/i.test(label))));
-  const best = hits[0];
+  // Its numbers first: "Teil 1" is Book I, before the whole Well-Tempered Clavier and Book II.
+  const wanted = numbersOf(words);
+  const says = (work: WikidataWork) => work.labels.some(label => wanted.every(number => numbersOf(label).includes(number)));
+  const best = wanted.length ? hits.find(says) || hits[0] : hits[0];
   if (!best) return [];
   const leavesHeard = async (work: WikidataWork): Promise<number> => {
     const leaves = (await wikidataWorksService.works(work.partQids)).map(part => part.mbWorkId).filter((id): id is string => !!id);

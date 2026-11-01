@@ -179,6 +179,25 @@ describe('les pièces d’une partition et les enregistrements de la musique', (
     expect(searched).toHaveLength(1);
   });
 
+  it('trouve dans Wikidata le livre que dit son numéro, « Teil 1 » comme « livre I »', async () => {
+    const t = tag();
+    const score = await run(`INSERT INTO books (title, authors, book_type, title_status, composer) VALUES ('Das Wohltemperierte Klavier Teil 1', '[]', 'score', 'owned', 'Johann Sebastian Bach')`);
+    const [whole, one, two] = [uuid(1, t), uuid(2, t), uuid(3, t)];
+    const work = (qid: string, labels: string[], mbWorkId: string) => ({ qid, title: labels[0], labels, mbWorkId, imslp: null, catalogue: [], partQids: [] });
+    jest.spyOn(musicbrainzService, 'searchWorks').mockResolvedValue([]);
+    jest.spyOn(musicbrainzService, 'getWorkWithParts').mockImplementation(async id => ({ id, title: `Work ${id}`, parentIds: [], parents: [], parts: [] }));
+    const asked = jest.spyOn(wikidataWorksService, 'searchWorks').mockResolvedValue([
+      work('Q1', ['The Well-Tempered Clavier', 'Das Wohltemperierte Klavier'], whole),
+      work('Q3', ['The Well-Tempered Clavier 2', 'Das wohltemperierte Klavier II'], two),
+      work('Q2', ['The Well-Tempered Clavier 1', 'Das wohltemperierte Klavier I'], one),
+    ]);
+
+    const suggestions = (await request(app).get(`/api/scores/${score}/suggestions`).expect(200)).body;
+
+    expect(asked).toHaveBeenCalledWith('Das Wohltemperierte Klavier', 'Johann Sebastian Bach');
+    expect(suggestions.map((s: { workId: string }) => s.workId)).toEqual([one]);
+  });
+
   it('trouve dans Wikidata un recueil que MusicBrainz n’a pas, et relie ses pièces par leur numéro', async () => {
     const t = tag();
     const score = await run(`INSERT INTO books (title, authors, book_type, title_status, composer) VALUES ('Inventionen und Sinfonien', '[]', 'score', 'owned', 'Johann Sebastian Bach')`);
