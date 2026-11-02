@@ -123,7 +123,7 @@ describe('workGroups', () => {
     ]);
   });
 
-  it('reads a rip\'s " _ " for a colon, a dash before a movement\'s number, and tracks of one title as its parts', () => {
+  it('reads a rip\'s " _ " for a colon, a colon or a dash before a movement\'s number, and tracks of one title as its parts', () => {
     expect(workGroups([
       "Sonata no.4 in e flat _ 3. allegro",
       "Sonata no.4 in e flat _ rondo. poco allegretto e grazioso",
@@ -137,6 +137,8 @@ describe('workGroups', () => {
       'Sonata no.23 in f minor, op. 57',
       'Sonata no.24 in f sharp major, op. 78',
       'Sonata no.24 in f sharp major, op. 78',
+      'Suite no. 1 for 2 pianos, op. 5: I. Barcarolle: Allegretto',
+      "Suite no. 1 for 2 pianos, op. 5: II. La Nuit, l'Amour: Adagio sostenuto",
       'Hey Jude - 2015 Remaster',
       'Let It Be - 2015 Remaster',
     ])).toEqual([
@@ -152,6 +154,8 @@ describe('workGroups', () => {
       { work: 'Sonata no.23 in f minor, op. 57', movement: 'Part 2', first: false },
       { work: 'Sonata no.24 in f sharp major, op. 78', movement: 'Part 1', first: true },
       { work: 'Sonata no.24 in f sharp major, op. 78', movement: 'Part 2', first: false },
+      { work: 'Suite no. 1 for 2 pianos, op. 5', movement: 'I. Barcarolle: Allegretto', first: true },
+      { work: 'Suite no. 1 for 2 pianos, op. 5', movement: "II. La Nuit, l'Amour: Adagio sostenuto", first: false },
       null,
       null,
     ]);

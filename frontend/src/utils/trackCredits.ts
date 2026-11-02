@@ -123,16 +123,18 @@ export const discCredits = (tracks: CreditedTrack[], albumArtists: string[]): Di
 /**
  * A title as its work and its movement. A rip may have written its colon as
  * " _ " ("Sonata no.8 in c minor, op. 13 - 'pathetique' _ 1. grave"), taken
- * at the last; a dash parts them only before a movement's number
- * ("Sonata no.17 in d op.31 no.2 'the tempest' - 1. largo allegro",
- * "… - 4, Rondo. Allegro"), a dash in a work's name or between a movement's
- * tempi staying; else "Partita Nr.1 B-dur, BWV 825: I. Prélude", at the last colon.
+ * at the last. A colon or a dash before a movement's number comes next, the
+ * first: "Suite no. 1 for 2 pianos, op. 5: I. Barcarolle: Allegretto" keeps
+ * its movement's tempo, "Sonata no.17 in d op.31 no.2 'the tempest' - 1. largo
+ * allegro" and "… - 4, Rondo. Allegro" are parted, a dash in a work's name or
+ * between a movement's tempi staying. Else at the last colon:
+ * "Partita Nr.1 B-dur, BWV 825: Prélude".
  */
 const splitMovement = (title: string): { work: string; movement: string } | null => {
   const underscore = title.lastIndexOf(' _ ');
   if (underscore > 0) return { work: title.slice(0, underscore).trim(), movement: title.slice(underscore + 3).trim() };
-  const dash = /^(.+?)\s[-–—]\s((?:\d+|[IVXL]+)[.,]\s.+)$/.exec(title);
-  if (dash) return { work: dash[1].trim(), movement: dash[2].trim() };
+  const numbered = /^(.+?)(?::|\s[-–—])\s((?:\d+|[IVXL]+)[.,]\s.+)$/.exec(title);
+  if (numbered) return { work: numbered[1].trim(), movement: numbered[2].trim() };
   const at = title.lastIndexOf(': ');
   return at > 0 ? { work: title.slice(0, at).trim(), movement: title.slice(at + 2).trim() } : null;
 };
