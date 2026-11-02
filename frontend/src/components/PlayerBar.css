@@ -300,7 +300,13 @@
   transition: background-color 0.12s ease, transform 0.08s ease;
 }
 
-.player-bar-button:hover,
+/* Under a pointer only: a finger's tap leaves :hover on (iOS), and ⏭ stayed lit after it. */
+@media (hover: hover) {
+  .player-bar-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
 .player-bar-button:focus-visible {
   background: rgba(255, 255, 255, 0.1);
   outline: none;
@@ -323,7 +329,12 @@
   font-size: 1.35rem;
 }
 
-.player-bar-play:hover,
+@media (hover: hover) {
+  .player-bar-play:hover {
+    background: #fff;
+  }
+}
+
 .player-bar-play:focus-visible {
   background: #fff;
 }

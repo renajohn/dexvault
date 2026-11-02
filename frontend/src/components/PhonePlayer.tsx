@@ -608,10 +608,11 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const share = length > 0 ? Math.min(100, (position / length) * 100) : 0;
 
   const playButton = (big: boolean, disabled = false) => (waking ? (
-    // On its way: a spinner; a touch gives it up.
+    // On its way: ⏸, a gold ring going round it; a touch gives it up.
     <button type="button" className={`player-bar-button output-waking-play${big ? ' now-playing-play' : ' player-pill-play'}`}
       onClick={controls.toggle} aria-label="Cancel" disabled={disabled}>
-      <Spinner size={big ? 'lg' : 'md'} />
+      <BsPauseFill aria-hidden="true" />
+      <Spinner size="lg" className="output-waking-play__ring" />
     </button>
   ) : (
     <button type="button" className={`player-bar-button${big ? ' now-playing-play' : ' player-pill-play'}`}

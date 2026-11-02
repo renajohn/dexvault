@@ -11,7 +11,7 @@ import Menu, { MenuChevron } from './shared/Menu';
 import PlayerTracks from './PlayerTracks';
 import OutputMenu, { OutputEntries } from './OutputMenu';
 import OutputSettings from './OutputSettings';
-import { leaveForPlaying, showAlbum, showPlaying, useLeftAlbum, useShownAlbum } from '../services/phoneDoor';
+import { leaveForPlaying, showAlbum, showPlaying, useFullPlayer, useLeftAlbum, useShownAlbum } from '../services/phoneDoor';
 import PhonePlayer from './PhonePlayer';
 import PlayerFold from './PlayerFold';
 import NowPlayingDisc, { LeftAlbumDisc } from './NowPlayingDisc';
@@ -137,6 +137,8 @@ const PlayerBar: React.FC = () => {
   const inMusic = useLocation().pathname.startsWith('/musicdex');
   const outputName = output.kind === 'renderer' ? output.name : '';
   const wakeWords = useWakeWords(waking, outputName);
+  // The full screen player says the wait itself, with its way out: no steps over it.
+  const fullOpen = useFullPlayer();
   // A phone's width: a pill at the foot, full screen at a tap.
   const phone = useMedia('(max-width: 767px)');
   // The album a cover opened in the full screen player: at rest, unless it is the one playing.
@@ -255,7 +257,7 @@ const PlayerBar: React.FC = () => {
         return (
         <>
           {/* A long wait (the receiver turned on, its network): its steps over the bar, and the ways out. */}
-          {waking && wakeWords && output.kind === 'renderer' && isLongWake(waking, wakeWords) && (
+          {waking && wakeWords && output.kind === 'renderer' && !fullOpen && isLongWake(waking, wakeWords) && (
             <WakeSteps waking={waking} words={wakeWords} name={outputName} outputId={output.id} onCancel={() => player.toggle(false)} />
           )}
           <div className={`player-bar-progress${playing ? '' : ' player-bar-progress--paused'}`} role="slider" aria-label="Position in the track"
@@ -326,11 +328,11 @@ const PlayerBar: React.FC = () => {
                 <BsSkipBackwardFill aria-hidden="true" />
               </button>
               {waking ? (
-                // On its way: the spinner, ⏸ under the pointer; a click gives it up.
+                // On its way: ⏸, a gold ring going round it; a click gives it up.
                 <button type="button" className="player-bar-button player-bar-play output-waking-play" onClick={() => player.toggle(false)}
                   aria-label={`Cancel: do not start on ${outputName}`} title={`Cancel: do not start on ${outputName}`}>
-                  <Spinner size="md" />
-                  <BsPauseFill className="output-waking-play__pause" aria-hidden="true" />
+                  <BsPauseFill aria-hidden="true" />
+                  <Spinner size="lg" className="output-waking-play__ring" />
                 </button>
               ) : (
                 <button type="button" className="player-bar-button player-bar-play" onClick={() => player.toggle()} aria-label={playing ? 'Pause' : 'Play'}>

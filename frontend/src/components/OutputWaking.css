@@ -27,13 +27,28 @@
   to { transform: translateX(340%); }
 }
 
-/* ⏯ waiting: its spinner, and under the pointer ⏸, which gives up. */
-.output-waking-play .ui-spinner { color: currentColor; }
-.output-waking-play .output-waking-play__pause { display: none; }
-.output-waking-play:hover .ui-spinner,
-.output-waking-play:focus-visible .ui-spinner { display: none; }
-.output-waking-play:hover .output-waking-play__pause,
-.output-waking-play:focus-visible .output-waking-play__pause { display: inline; }
+/* ⏯ waiting: ⏸ in it (a click gives the play up), and round it the spinner, gold: the play on its way. */
+.output-waking-play {
+  position: relative;
+  overflow: visible;
+}
+
+.output-waking-play .output-waking-play__ring {
+  --spinner-size: 46px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: calc(var(--spinner-size) / -2) 0 0 calc(var(--spinner-size) / -2);
+  color: var(--dv-gold);
+  pointer-events: none;
+}
+
+.player-pill-play.output-waking-play .output-waking-play__ring { --spinner-size: 40px; }
+.now-playing-play.output-waking-play .output-waking-play__ring { --spinner-size: 92px; }
+
+@media (max-width: 767px) {
+  .player-bar-play.output-waking-play .output-waking-play__ring { --spinner-size: 56px; }
+}
 
 /* The steps, over the bar on its left. */
 .output-waking-steps {
