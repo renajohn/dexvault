@@ -13,6 +13,7 @@ import Button from './shared/Button';
 import Menu from './shared/Menu';
 import { AlbumStarRating } from './RecordStarRating';
 import { playingTime } from '../utils/albumHead';
+import { workGroups } from '../utils/trackCredits';
 import NowPlayingBars from './shared/NowPlayingBars';
 import { Loading } from './shared/Spinner';
 import OutputMenu, { OutputVolume } from './OutputMenu';
@@ -243,9 +244,10 @@ const SWIPE_HINT_KEY = 'dexvault-player-tracks-swipe-hint';
  * nothing; the grey dot of the Mac before the number of a track most listened
  * to, a small gold ♥ by its length when it is a favourite. Slid to the right,
  * let go, it opens the mixtapes; slid to the left, let go, it gives or takes
- * its ♥ (docs/superpowers/specs/2026-10-27-fav-et-populaire).
+ * its ♥ (docs/superpowers/specs/2026-10-27-fav-et-populaire). Under its
+ * work's head it says its movement alone (`name`), "I. Prélude".
  */
-const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing: boolean; play?: () => void; hint: boolean; onNewMixtape: () => void }> = ({ track, no, now, playing, play, hint, onNewMixtape }) => {
+const TrackLine: React.FC<{ track: PhoneTrack; name?: string; no: number; now: boolean; playing: boolean; play?: () => void; hint: boolean; onNewMixtape: () => void }> = ({ track, name, no, now, playing, play, hint, onNewMixtape }) => {
   const favourite = useFavourite(track.songId);
   const [menu, setMenu] = useState(false);
   const songId = track.songId;
@@ -259,7 +261,7 @@ const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing
         {track.popular && <span className="now-playing-tracks__popular" title="One of the album's most listened tracks"><span className="visually-hidden">Popular: </span></span>}
         {now ? <NowPlayingBars playing={playing} /> : no}
       </span>
-      <span className="now-playing-tracks__title">{track.title}</span>
+      <span className="now-playing-tracks__title">{name ?? track.title}</span>
       {favourite && <BsHeartFill className="now-playing-tracks__favourite" aria-label="Favourite" />}
       <span className="now-playing-tracks__time">{track.durationSec ? time(track.durationSec) : ''}</span>
     </button>
@@ -275,6 +277,19 @@ const TrackLine: React.FC<{ track: PhoneTrack; no: number; now: boolean; playing
     </SwipeRow>
   );
 };
+
+/**
+ * The head of a work over its movements, against the numbers: its name on two
+ * lines at most, how many movements and how long; gold while one of them
+ * plays. It stays at the top of the list while its movements scroll under it
+ * (docs/superpowers/specs/2026-11-02-mouvements-iphone).
+ */
+const WorkHead: React.FC<{ work: string; tracks: PhoneTrack[]; now: boolean }> = ({ work, tracks, now }) => (
+  <div className={`now-playing-work__head${now ? ' now-playing-work__head--now' : ''}`}>
+    <b>{work}</b>
+    {[`${tracks.length} movements`, playingTime(tracks.reduce((sum, one) => sum + (one.durationSec || 0), 0)) || null].filter(Boolean).join(' · ')}
+  </div>
+);
 
 /** Set once the first disc's head has shown, on a phone, that it slides. */
 const DISC_SWIPE_HINT_KEY = 'dexvault-player-disc-swipe-hint';
@@ -667,12 +682,33 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
               <DiscHeadLine number={group.disc} tracks={group.tracks.map(one => one.track)} head={props.album?.disc(group.disc) ?? null}
                 hint={discSwipeHint && g === 0 && Boolean(props.album)} />
             )}
-            {group.tracks.map(({ track: one, index: i }, no) => (
-              <TrackLine key={i} track={one} no={no + 1} now={i === props.index} playing={playing}
-                play={controls.playTrack ? () => controls.playTrack!(i) : undefined}
-                hint={swipeHint && one.songId === hintSongId}
-                onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })} />
-            ))}
+            {/* The movements of a work under its head, which says its name once; a track alone stays whole. */}
+            {(() => {
+              const works = workGroups(group.tracks.map(one => one.track.title));
+              const line = ({ track: one, index: i }: { track: PhoneTrack; index: number }, no: number) => (
+                <TrackLine key={i} track={one} name={works[no]?.movement} no={no + 1} now={i === props.index} playing={playing}
+                  play={controls.playTrack ? () => controls.playTrack!(i) : undefined}
+                  hint={swipeHint && one.songId === hintSongId}
+                  onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })} />
+              );
+              const lines: React.ReactNode[] = [];
+              for (let no = 0; no < group.tracks.length; no++) {
+                const work = works[no];
+                if (!work) { lines.push(line(group.tracks[no], no)); continue; }
+                let end = no;
+                while (works[end + 1] && !works[end + 1]!.first) end++;
+                const movements = group.tracks.slice(no, end + 1);
+                const from = no;
+                lines.push(
+                  <li key={`work-${group.tracks[no].index}`} className="now-playing-work">
+                    <WorkHead work={work.work} tracks={movements.map(one => one.track)} now={movements.some(one => one.index === props.index)} />
+                    <ol>{movements.map((one, k) => line(one, from + k))}</ol>
+                  </li>,
+                );
+                no = end;
+              }
+              return lines;
+            })()}
           </ol>
       ))}
       {props.onAllTracks && (

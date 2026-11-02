@@ -116,6 +116,26 @@ describe('PhonePlayer, its tracks’ hearts and dots', () => {
     expect(within(second).getByLabelText('Favourite')).toBeInTheDocument();
   });
 
+  it('puts the movements of a work under its head, which says its name once, gold while one of them plays', () => {
+    const partita = [
+      { title: 'Partita Nr.1 B-dur, BWV 825: I. Prélude', durationSec: 100 },
+      { title: 'Partita Nr.1 B-dur, BWV 825: II. Allemande', durationSec: 155 },
+      { title: 'Choral "Jesu Bleibet Meine Freude" Aus Kantate BWV 147', durationSec: 203 },
+    ];
+    render(phone({ tracks: partita, index: 1, controls: { toggle: vi.fn(), next: vi.fn(), previous: vi.fn(), playTrack: vi.fn() } }));
+    toTracks();
+
+    const head = document.querySelector('.now-playing-work__head')!;
+    expect(head).toHaveTextContent('Partita Nr.1 B-dur, BWV 825');
+    expect(head).toHaveTextContent('2 movements · 4 min');
+    expect(head).toHaveClass('now-playing-work__head--now');
+    expect(screen.getByRole('button', { name: /^1\s*I\. Prélude/ })).toBeInTheDocument();
+    expect(screen.queryByText('Partita Nr.1 B-dur, BWV 825: I. Prélude')).not.toBeInTheDocument();
+    // A track alone keeps its whole title, its number following the movements'.
+    expect(screen.getByRole('button', { name: /^3\s*Choral "Jesu Bleibet/ })).toBeInTheDocument();
+    expect(document.querySelectorAll('.now-playing-work__head')).toHaveLength(1);
+  });
+
   it('says over the tracks their count and length, what is left once it plays, and the album’s stars', async () => {
     const { rerender } = render(phone({ tracks, index: 0, starsOf: 25 }));
     toTracks();

@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DexVault — œuvres et mouvements dans les pistes de l'iPhone (prototype)</title>
+<style>
+  .proto {
+    --dv-gold: #fbbf24; --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-page: #1a1a1a; --dv-glass: rgba(255,255,255,.06); --dv-glass-hover: rgba(255,255,255,.11);
+    --dv-edge: rgba(255,255,255,.12); --dv-veil: rgba(255,255,255,.08); --dv-radius-sm: 7px; --dv-radius-md: 9px;
+    color: var(--dv-text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0e0e0e; padding: 20px; border-radius: 12px;
+  }
+  .proto * { box-sizing: border-box; }
+  .proto button { font: inherit; }
+  .wrap { display: grid; grid-template-columns: 393px minmax(0, 1fr); gap: 32px; align-items: start; }
+  .note { color: var(--dv-text-muted); }
+  .note h1 { color: var(--dv-text); font-size: 19px; margin: 0 0 6px; }
+  .note h2 { color: var(--dv-text); font-size: 15px; margin: 16px 0 4px; }
+  .note b { color: var(--dv-text); }
+  .note ul { padding-left: 18px; margin: 4px 0; } .note li { margin: 3px 0; }
+  .seg { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: var(--dv-radius-md); background: var(--dv-glass); box-shadow: inset 0 0 0 1px var(--dv-edge); margin: 6px 0; }
+  .seg button { all: unset; cursor: pointer; padding: 6px 11px; border-radius: var(--dv-radius-sm); font-weight: 600; font-size: 13px; color: var(--dv-text-muted); }
+  .seg button:hover { background: var(--dv-veil); }
+  .seg button.on { background: var(--dv-glass-hover); color: var(--dv-text); }
+  .opt { display: flex; gap: 8px; align-items: center; margin: 8px 0; cursor: pointer; }
+  .pro { color: #cfd8c9; } .con { color: #f0b37e; }
+  .vnote { display: none; } .vnote.on { display: block; }
+
+  /* L'iPhone, 393 × 852 */
+  .phone { position: relative; width: 393px; height: 852px; border-radius: 54px; overflow: hidden; background: var(--dv-page); box-shadow: 0 0 0 10px #232323, 0 0 0 11px #3a3a3a, 0 30px 80px rgba(0,0,0,.6); user-select: none; }
+  .status { position: absolute; inset: 0 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; font-weight: 600; font-size: 16px; z-index: 40; }
+  .island { position: absolute; left: 50%; top: 11px; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 41; }
+  .homebar { position: absolute; left: 50%; bottom: 8px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.7); z-index: 41; }
+  .bd { position: absolute; inset: 0; overflow: hidden; }
+  .bd .grad { position: absolute; left: -20%; top: -20%; width: 140%; height: 140%; filter: blur(42px) saturate(1.2); opacity: .5; background: radial-gradient(circle at 30% 20%, #6b5a3e, transparent 60%), radial-gradient(circle at 70% 60%, #2d3a4f, transparent 60%); }
+  .bd::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(26,26,26,.3), rgba(26,26,26,.88) 60%); }
+  .inner { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 56px 22px 40px; }
+  .handle { align-self: center; width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); margin: 6px 0 12px; flex: none; }
+  .head { flex: none; display: flex; gap: 12px; align-items: center; }
+  .head .cv { width: 56px; height: 56px; border-radius: 6px; flex: none; background: linear-gradient(135deg, #c9b38a, #6d5a3a); box-shadow: 0 4px 14px rgba(0,0,0,.45); display: grid; place-items: center; color: #2a2116; font: 600 10px/1.1 Georgia, serif; text-align: center; }
+  .head .w { flex: 1; min-width: 0; }
+  .head .t { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .head .s { font-size: 13px; color: var(--dv-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .head .stars { color: var(--dv-gold); font-size: 12px; letter-spacing: 1px; }
+
+  .list { flex: 1; min-height: 0; overflow-y: auto; margin: 12px -26px 0; padding: 0 18px 12px; scrollbar-width: none; position: relative; }
+  .list::-webkit-scrollbar { display: none; }
+  .ahead { margin: 4px 8px 10px; font-size: .8rem; color: var(--dv-text-muted); }
+  .list ol { margin: 0 0 8px; padding: 0; list-style: none; }
+  .disc { margin-top: 10px; padding: 6px 8px 0; border-top: 1px solid rgba(255,255,255,.08); min-height: 46px; display: flex; align-items: center; color: var(--dv-text-muted); }
+  .list ol:first-of-type .disc { margin-top: 0; border-top: 0; }
+  .disc b { color: var(--dv-text); font-weight: 600; margin-right: 4px; }
+
+  .tr { width: 100%; min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 6px 8px; border: 0; border-radius: var(--dv-radius-md); background: none; color: var(--dv-text); text-align: left; cursor: pointer; }
+  .tr:active { background: var(--dv-veil); }
+  .tr.now { color: var(--dv-gold); }
+  .no { position: relative; flex: none; width: 22px; display: flex; justify-content: center; color: var(--dv-text-muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+  .pop { position: absolute; left: -7px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--dv-text-muted); opacity: .8; }
+  .ti { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .two .ti, .ti.wrap { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+  .fav { flex: none; color: var(--dv-gold); font-size: 11px; }
+  .time { flex: none; color: var(--dv-text-muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+  .bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; }
+  .bars i { width: 3px; background: var(--dv-gold); border-radius: 1px; animation: b 0.9s ease-in-out infinite alternate; }
+  .bars i:nth-child(2) { animation-delay: -.3s; } .bars i:nth-child(3) { animation-delay: -.6s; }
+  @keyframes b { from { height: 3px; } to { height: 12px; } }
+
+  /* B : deux lignes */
+  .ti2 { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+  .ti2 .m { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .ti2 .o { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .76rem; color: var(--dv-text-muted); }
+  .two .ti2 .m { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+  /* A, D : tête d'œuvre */
+  .work { padding: 12px 8px 2px 8px; font-size: .8rem; line-height: 1.35; color: var(--dv-text-muted); }
+  .work b { display: block; color: #d6dbe1; font-weight: 600; font-size: .86rem; }
+  .work.now b { color: var(--dv-gold); }
+  .work + li .tr, .inwork .tr { }
+  .inwork .ti { color: inherit; }
+  .sticky .work { position: sticky; top: -1px; z-index: 3; background: rgba(28,27,25,.86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-radius: var(--dv-radius-md); margin: 0 -2px; }
+
+  /* C : repliées */
+  .wk { width: 100%; min-height: 52px; display: flex; align-items: center; gap: 12px; padding: 6px 8px; border: 0; border-radius: var(--dv-radius-md); background: none; color: var(--dv-text); text-align: left; cursor: pointer; }
+  .wk:active { background: var(--dv-veil); }
+  .wk .chev { flex: none; width: 22px; text-align: center; color: var(--dv-text-muted); transition: transform .2s; font-size: 12px; }
+  .wk.open .chev { transform: rotate(90deg); }
+  .wk .ti2 .m { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .wk.now .ti2 .m { color: var(--dv-gold); }
+  .mv .tr { padding-left: 22px; min-height: 40px; }
+  .mv .no { font-size: .78rem; }
+</style>
+</head>
+<body>
+<div class="proto">
+<div class="wrap">
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>●●● 􀛨</span></div>
+    <div class="island"></div>
+    <div class="bd"><div class="grad"></div></div>
+    <div class="inner">
+      <div class="handle"></div>
+      <div class="head">
+        <div class="cv">DINU<br>LIPATTI</div>
+        <div class="w">
+          <div class="t">Dinu Lipatti</div>
+          <div class="s">Dinu Lipatti · 1990</div>
+          <div class="stars">★★★★★</div>
+        </div>
+      </div>
+      <div class="list" id="list"></div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+
+  <div class="note">
+    <h1>Œuvres et mouvements dans les pistes</h1>
+    <p>Le lecteur plein écran, vue <b>Tracks</b>, sur un vrai coffret : Lipatti, 5 CD. Aujourd'hui chaque piste dit
+      « Partita Nr.1 B-dur, BWV 825: I. Pr… » et le mouvement, ce qui distingue les lignes, est justement ce qui tombe.</p>
+    <div class="seg" id="variants">
+      <button data-v="today">Aujourd'hui</button>
+      <button data-v="A" class="on">A · Têtes d'œuvre</button>
+      <button data-v="D">B · Tête collante</button>
+      <button data-v="B">C · Deux lignes</button>
+      <button data-v="C">D · Repliées</button>
+    </div>
+    <div class="seg" id="discs">
+      <button data-d="1" class="on">CD 1 · Bach, Scarlatti, Mozart</button>
+      <button data-d="2">CD 2 · Concertos</button>
+      <button data-d="4">CD 4 · Sonates</button>
+      <button data-d="5">CD 5 · Valses</button>
+      <button data-d="all">Tout le coffret</button>
+    </div>
+    <label class="opt"><input type="checkbox" id="two"> Le mouvement sur deux lignes au besoin</label>
+
+    <div class="vnote" data-v="today">
+      <h2>Aujourd'hui</h2>
+      <p>Une ligne par piste, titre entier coupé. Sur le CD 2, six lignes commencent par « Konzert Für Klavier Und Orch… » : impossible de savoir laquelle est l'Andante.</p>
+    </div>
+    <div class="vnote on" data-v="A">
+      <h2>A · Têtes d'œuvre (comme la fiche sur ordinateur)</h2>
+      <p>L'œuvre en petit titre, sur deux lignes au plus, avec « 6 mouvements · 17 min » ; dessous ses pistes ne disent que leur mouvement. Une piste seule (un choral, une sonate de Scarlatti) reste une ligne entière, sans tête. La même règle que <code>workGroups</code> sur ordinateur.</p>
+      <ul>
+        <li class="pro">Le plus lisible : chaque mouvement entier, l'œuvre dite une fois.</li>
+        <li class="pro">Rien de nouveau à apprendre ; les glissés (♥, mixtape) ne changent pas.</li>
+        <li class="con">Une tête de plus par œuvre : un peu plus long à défiler.</li>
+        <li class="con">Au milieu des valses, défilé, on ne voit plus de quelle œuvre on est (→ B).</li>
+      </ul>
+    </div>
+    <div class="vnote" data-v="D">
+      <h2>B · Tête collante</h2>
+      <p>A, mais la tête de l'œuvre reste en haut de la liste tant qu'on défile dans ses mouvements, sur le verre flouté, comme les lettres de l'app Contacts. Défiler le CD 5 pour voir.</p>
+      <ul>
+        <li class="pro">On sait toujours où on est, même au 12<sup>e</sup> des 14 valses.</li>
+        <li class="con">Une bande de plus en haut d'une liste déjà sous la pochette et le titre.</li>
+      </ul>
+    </div>
+    <div class="vnote" data-v="B">
+      <h2>C · Deux lignes</h2>
+      <p>Chaque piste : le mouvement en blanc, l'œuvre en gris dessous, répétée. Comme Apple Music Classical.</p>
+      <ul>
+        <li class="pro">Chaque ligne se suffit, utile quand on arrive par la piste qui joue.</li>
+        <li class="con">L'œuvre répétée six fois : du bruit gris, et les lignes sont plus hautes.</li>
+        <li class="con">L'œuvre, longue, reste coupée.</li>
+      </ul>
+    </div>
+    <div class="vnote" data-v="C">
+      <h2>D · Repliées</h2>
+      <p>Une ligne par œuvre (« 6 mouvements · 17 min »), le ▸ l'ouvre ; celle qui joue est ouverte. Toucher l'œuvre l'ouvre ou la ferme, toucher un mouvement le joue.</p>
+      <ul>
+        <li class="pro">Le coffret entier se lit d'un coup d'œil : 5 CD en quelques écrans.</li>
+        <li class="con">Un toucher de plus pour jouer le 2<sup>e</sup> mouvement ; jouer l'œuvre entière demande un geste à décider (glissé, ⋯ ?).</li>
+        <li class="con">Une ligne qui ne joue pas au toucher, au milieu de lignes qui jouent.</li>
+      </ul>
+    </div>
+    <h2>Ma recommandation</h2>
+    <p><b>A</b>, avec la tête collante de <b>B</b> si elle ne gêne pas sur l'iPhone, et le mouvement sur deux lignes au besoin (les concertos du CD 2). C'est ce que fait déjà la fiche sur ordinateur, et ça ne touche ni aux glissés ni au toucher qui joue.</p>
+  </div>
+</div>
+</div>
+
+<script>
+const D = {
+1: [["Partita Nr.1 B-dur, BWV 825: I. Prélude",100],["Partita Nr.1 B-dur, BWV 825: II. Allemande",155],["Partita Nr.1 B-dur, BWV 825: III. Courante",165],["Partita Nr.1 B-dur, BWV 825: IV. Sarabande",304],["Partita Nr.1 B-dur, BWV 825: V. Menuet I & II",145],["Partita Nr.1 B-dur, BWV 825: VI. Gigue",138],["Choralvorspiel \"Nun Komm', Der Heiden Heiland\", BWV 599",241],["Choralvorspiel \"Ich Ruf' Zu Dir, Herr Jesu Christ\", BWV 639",175],["Choral \"Jesu Bleibet Meine Freude\" Aus Kantate BWV 147",203],["Siciliana aus Sonate Nr. 2 für Flöte und Cembalo, BWV 1031",184],["Sonata E-dur, L.23 (KK380)",157],["Sonata D-moll, L.413 (KK9) \"Pastorale\"",194],["Klaviersonate Nr. 8 A-moll, KV 310: I. Allegro Maestoso",246],["Klaviersonate Nr. 8 A-moll, KV 310: II. Andante Cantabile Con Espressione",382],["Klaviersonate Nr. 8 A-moll, KV 310: III. Presto",180],["Impromptus, D.899: Impromptu Nr. 3 Ges-dur, D.899 Nr. 3",297],["Impromptus, D.899: Impromptu Nr. 2 Es-dur, D.899 Nr. 2",251]],
+2: [["Konzert Für Klavier Und Orchester A-moll, Op. 54: Allegro Affettuoso - Andante Espressivo - Tempo I - Kadenz - Allegro Molto",861],["Konzert Für Klavier Und Orchester A-moll, Op. 54: Intermezzo (Andantino Grazioso)",328],["Konzert Für Klavier Und Orchester A-moll, Op. 54: Allegro Vivace",593],["Konzert Für Klavier Und Orchester Nr. 21 C-dur, KV 467: Allegro Maestoso",917],["Konzert Für Klavier Und Orchester Nr. 21 C-dur, KV 467: Andante",434],["Konzert Für Klavier Und Orchester Nr. 21 C-dur, KV 467: Allegro Vivace Assai",387]],
+3: [["Konzert Für Klavier Und Orchester A-moll, Op.16: I. Allegro Molto Moderato",750],["Konzert Für Klavier Und Orchester A-moll, Op.16: II. Adagio",386],["Konzert Für Klavier Und Orchester A-moll, Op.16: III. Allegro Moderato Molto E Marcato - Andante Maestoso",597],["Konzert Für Klavier Und Orchester Nr. 1 E-moll, Op.11: Allegro Maestoso",1048],["Konzert Für Klavier Und Orchester Nr. 1 E-moll, Op.11: Romance (Larghetto)",600],["Konzert Für Klavier Und Orchester Nr. 1 E-moll, Op.11: Rondo (Vivace)",572]],
+4: [["Sonate Für Klavier Nr. 3 H-moll, Op. 58: I. Allegro Maestoso",531],["Sonate Für Klavier Nr. 3 H-moll, Op. 58: II. Scherzo (Molto Vivace)",152],["Sonate Für Klavier Nr. 3 H-moll, Op. 58: III. Largo",537],["Sonate Für Klavier Nr. 3 H-moll, Op. 58: IV. Finale (Presto Ma Non Tanto)",292],["Années De Pelerinage, II: Nr. 5: Petrarca-Sonett Nr. 104",373],["Miroirs: Nr. 4: Alborada Del Gracioso",341],["Walzer Für Klavier Zu Vier Händen, Op. 39 (Auswahl): Nr. 1 H-dur - Nr. 2 E-dur - Nr. 5 E-dur - Nr. 6 Cis-dur - Nr. 10 G-dur - Nr. 14 A-moll - Nr. 15 A-dur",496],["Sonate Für Klavier Nr. 3 D-dur, Op. 25: I. Vivace Con Brio",306],["Sonate Für Klavier Nr. 3 D-dur, Op. 25: II. Andantino",464],["Sonate Für Klavier Nr. 3 D-dur, Op. 25: III. Allegro Con Spirito",439]],
+5: [["Walzer Nr. 1-14: Nr. 4 F-dur, Op. 34 Nr. 3",130],["Walzer Nr. 1-14: Nr. 5 As-dur, Op. 42 \"Grande Valse\"",218],["Walzer Nr. 1-14: Nr. 6 Des-dur, Op. 64 Nr. 1 \"Minutenwalzer\"",103],["Walzer Nr. 1-14: Nr. 9 As-dur, Op. 69 Nr. 1 \"Abschiedwalzer\"",263],["Walzer Nr. 1-14: Nr. 7 Cis-moll, Op. 64 Nr. 2",184],["Walzer Nr. 1-14: Nr. 11 Ges-dur, Op. 70 Nr. 1",113],["Walzer Nr. 1-14: Nr. 10 H-moll, Op. 69 Nr. 2",210],["Walzer Nr. 1-14: Nr. 14 E-moll, Op. Posth.",161],["Walzer Nr. 1-14: Nr. 3 A-moll, Op. 34 Nr. 2",287],["Walzer Nr. 1-14: Nr. 8 As-dur, Op. 64 Nr. 3",171],["Walzer Nr. 1-14: Nr. 12 F-moll, Op. 70 Nr. 2",161],["Walzer Nr. 1-14: Nr. 13 Des-dur, Op. 70 Nr. 3",150],["Walzer Nr. 1-14: Nr. 1 Es-dur, Op. 18 \"Grande Valse Brillante\"",274],["Walzer Nr. 1-14: Nr. 2 As-dur, Op. 34 Nr. 1 \"Valse Brillante\"",270],["Etüde E-moll, Op. 25 Nr. 5",191],["Etüde Ges-dur, Op. 10 Nr. 5",100],["Barcarolle Fis-dur, Op. 60",507],["Nocturne Nr. 8 Des-dur, Op. 27 Nr. 2",344],["Mazurka Nr. 32 Cis-moll, Op. 50 Nr. 3",263]],
+};
+const NOW = { disc: 1, index: 3 };            // la Sarabande joue
+const POPULAR = new Set(['1:3', '2:1', '5:2', '4:2']);
+const FAV = new Set(['1:3', '5:12', '2:4']);
+let variant = 'A', disc = '1', two = false;
+const opened = new Set();
+
+const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+const mins = s => s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round(s % 3600 / 60)} min` : `${Math.round(s / 60)} min`;
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+// workGroups de trackCredits.ts
+const split = t => { const at = t.lastIndexOf(': '); return at > 0 ? { work: t.slice(0, at).trim(), movement: t.slice(at + 2).trim() } : null; };
+const groups = titles => { const p = titles.map(split); return p.map((x, i) => { if (!x) return null; const same = o => p[o]?.work === x.work; if (!same(i - 1) && !same(i + 1)) return null; return { ...x, first: !same(i - 1) }; }); };
+
+const isNow = (d, i) => NOW.disc === Number(d) && NOW.index === i;
+const bars = '<span class="bars"><i></i><i></i><i></i></span>';
+const no = (d, i, n) => `<span class="no">${POPULAR.has(`${d}:${i}`) ? '<span class="pop"></span>' : ''}${isNow(d, i) ? bars : n}</span>`;
+const tail = (d, i, sec) => `${FAV.has(`${d}:${i}`) ? '<span class="fav">♥</span>' : ''}<span class="time">${fmt(sec)}</span>`;
+const line = (d, i, n, inner, cls = '') => `<li class="${cls}"><button class="tr${isNow(d, i) ? ' now' : ''}" onclick="play(${d},${i})">${no(d, i, n)}${inner}${tail(d, i, D[d][i][1])}</button></li>`;
+
+function renderDisc(d, withHead) {
+  const tracks = D[d], g = groups(tracks.map(t => t[0]));
+  let h = '<ol>';
+  if (withHead) h += `<li class="disc"><span><b>Disc ${d}</b> · ${tracks.length} tracks · ${mins(tracks.reduce((a, t) => a + t[1], 0))}</span></li>`;
+  if (variant === 'today') tracks.forEach((t, i) => { h += line(d, i, i + 1, `<span class="ti">${esc(t[0])}</span>`); });
+  if (variant === 'B') tracks.forEach((t, i) => {
+    const w = g[i];
+    h += line(d, i, i + 1, w ? `<span class="ti2"><span class="m">${esc(w.movement)}</span><span class="o">${esc(w.work)}</span></span>` : `<span class="ti wrap">${esc(t[0])}</span>`);
+  });
+  if (variant === 'A' || variant === 'D') {
+    let i = 0;
+    while (i < tracks.length) {
+      const w = g[i];
+      if (!w) { h += line(d, i, i + 1, `<span class="ti wrap">${esc(tracks[i][0])}</span>`); i++; continue; }
+      let end = i; while (g[end + 1] && !g[end + 1].first) end++;
+      const sec = tracks.slice(i, end + 1).reduce((a, t) => a + t[1], 0);
+      const playingHere = NOW.disc === Number(d) && NOW.index >= i && NOW.index <= end;
+      h += `</ol><ol class="grp"><li class="work${playingHere ? ' now' : ''}"><b>${esc(w.work)}</b>${end - i + 1} mouvements · ${mins(sec)}</li>`;
+      for (let k = i; k <= end; k++) h += line(d, k, k + 1, `<span class="ti">${esc(g[k].movement)}</span>`, 'inwork');
+      h += '</ol><ol>';
+      i = end + 1;
+    }
+  }
+  if (variant === 'C') {
+    let i = 0;
+    while (i < tracks.length) {
+      const w = g[i];
+      if (!w) { h += line(d, i, i + 1, `<span class="ti wrap">${esc(tracks[i][0])}</span>`); i++; continue; }
+      let end = i; while (g[end + 1] && !g[end + 1].first) end++;
+      const key = `${d}:${i}`, sec = tracks.slice(i, end + 1).reduce((a, t) => a + t[1], 0);
+      const playingHere = NOW.disc === Number(d) && NOW.index >= i && NOW.index <= end;
+      const open = opened.has(key) || (playingHere && !opened.has('closed:' + key));
+      h += `<li><button class="wk${open ? ' open' : ''}${playingHere ? ' now' : ''}" onclick="toggle('${key}', ${playingHere})"><span class="chev">▶</span><span class="ti2"><span class="m">${esc(w.work)}</span><span class="o">${end - i + 1} mouvements${playingHere ? ` · ${g[NOW.index].movement}` : ''}</span></span><span class="time">${mins(sec)}</span></button></li>`;
+      if (open) for (let k = i; k <= end; k++) h += line(d, k, k - i + 1, `<span class="ti">${esc(g[k].movement)}</span>`, 'mv');
+      i = end + 1;
+    }
+  }
+  return (h + '</ol>').replace(/<ol><\/ol>/g, '');
+}
+
+function render() {
+  const list = document.getElementById('list');
+  const ds = disc === 'all' ? Object.keys(D) : [disc];
+  const all = ds.flatMap(d => D[d]);
+  list.className = `list${two ? ' two' : ''}${variant === 'D' ? ' sticky' : ''}`;
+  list.innerHTML = `<div class="ahead">${disc === 'all' ? `5 discs · ${all.length} tracks · ${mins(all.reduce((a, t) => a + t[1], 0))}` : `${D[disc].length} tracks · ${mins(D[disc].reduce((a, t) => a + t[1], 0))}`}</div>`
+    + ds.map(d => renderDisc(d, disc === 'all')).join('');
+  document.querySelectorAll('.vnote').forEach(n => n.classList.toggle('on', n.dataset.v === variant));
+}
+window.play = (d, i) => { NOW.disc = d; NOW.index = i; render(); };
+window.toggle = (key, playingHere) => {
+  if (playingHere) { opened.has('closed:' + key) ? opened.delete('closed:' + key) : opened.add('closed:' + key); }
+  else { opened.has(key) ? opened.delete(key) : opened.add(key); }
+  render();
+};
+document.getElementById('variants').onclick = e => { const b = e.target.closest('button'); if (!b) return; variant = b.dataset.v; document.querySelectorAll('#variants button').forEach(x => x.classList.toggle('on', x === b)); render(); };
+document.getElementById('discs').onclick = e => { const b = e.target.closest('button'); if (!b) return; disc = b.dataset.d; document.querySelectorAll('#discs button').forEach(x => x.classList.toggle('on', x === b)); document.getElementById('list').scrollTop = 0; render(); };
+document.getElementById('two').onchange = e => { two = e.target.checked; render(); };
+render();
+</script>
+</body>
+</html>
