@@ -1,0 +1,141 @@
+/*
+ * A play on its way to an appliance (OutputWaking.tsx): its words in the
+ * bar, gold while it goes as it should, orange when the appliance's network
+ * comes and goes; the cover greyed and the hand sweeping until it sounds;
+ * the steps of a long wait over the bar, in the menus' glass.
+ */
+
+.output-waking-words--gold { color: var(--dv-gold); }
+.output-waking-words--orange { color: var(--dv-orange); }
+
+/* Nothing sounds yet: the cover greyed, the bar's hand a light sweeping. */
+.player-bar--waking .player-bar-album img,
+.now-playing--waking .now-playing-cover img {
+  filter: grayscale(0.6);
+  opacity: 0.55;
+  transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.player-bar--waking .player-bar-progress span {
+  width: 30% !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: output-waking-sweep 1.6s linear infinite;
+}
+
+@keyframes output-waking-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(340%); }
+}
+
+/* ⏯ waiting: its spinner, and under the pointer ⏸, which gives up. */
+.output-waking-play .ui-spinner { color: currentColor; }
+.output-waking-play .output-waking-play__pause { display: none; }
+.output-waking-play:hover .ui-spinner,
+.output-waking-play:focus-visible .ui-spinner { display: none; }
+.output-waking-play:hover .output-waking-play__pause,
+.output-waking-play:focus-visible .output-waking-play__pause { display: inline; }
+
+/* The steps, over the bar on its left. */
+.output-waking-steps {
+  position: fixed;
+  z-index: 991;
+  left: calc(14px + var(--safe-left, 0px));
+  bottom: calc(var(--player-h, 64px) + 10px);
+  width: 330px;
+  padding: 12px 14px 8px;
+  animation: output-waking-in 0.2s ease-out;
+}
+
+@keyframes output-waking-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.output-waking-steps__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.output-waking-steps__clock {
+  font-weight: 400;
+  color: var(--dv-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.output-waking-steps__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.output-waking-step {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  align-items: start;
+  font-size: 0.8rem;
+  color: var(--dv-text-faint);
+}
+
+.output-waking-step small {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--dv-text-faint);
+}
+
+.output-waking-step--doing { color: var(--dv-text); }
+.output-waking-step--done { color: var(--dv-text-muted); }
+.output-waking-step--unsteady small { color: var(--dv-orange); }
+
+/* A step to come: an empty ring; under way: the spinner, gold (orange when its network comes and goes); done: gold, with a dark ✓. */
+.output-waking-step__mark {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px #555;
+}
+
+.output-waking-step .ui-spinner {
+  margin: 2px 1px 0;
+  color: var(--dv-gold);
+}
+
+.output-waking-step--unsteady .ui-spinner { color: var(--dv-orange); }
+
+.output-waking-step--done .output-waking-step__mark {
+  background: var(--dv-gold);
+  box-shadow: none;
+}
+
+.output-waking-step--done .output-waking-step__mark::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 7px;
+  border: solid var(--dv-gold-ink);
+  border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg);
+}
+
+.output-waking-steps__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+/* On the phone's full screen: the way out under the buttons. */
+.now-playing-elsewhere {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}

@@ -15,7 +15,7 @@ import { AlbumStarRating } from './RecordStarRating';
 import { playingTime } from '../utils/albumHead';
 import { workGroups } from '../utils/trackCredits';
 import NowPlayingBars from './shared/NowPlayingBars';
-import { Loading } from './shared/Spinner';
+import Spinner, { Loading } from './shared/Spinner';
 import OutputMenu, { OutputVolume } from './OutputMenu';
 import { lineAt, type LyricLine } from '../utils/lrc';
 import { LyricsMenu, TimingDrawer, TryBar } from './LyricsTiming';
@@ -28,6 +28,7 @@ import { readStored, writeStored } from '../utils/safeStorage';
 import SwipeRow from './SwipeRow';
 import toast from './shared/Toast';
 import './PhonePlayer.css';
+import './OutputWaking.css';
 
 const time = (seconds: number): string => {
   const s = Math.max(0, Math.floor(seconds));
@@ -74,6 +75,10 @@ export interface PhonePlayerProps {
   /** The appliance it plays on, for its volume; null on this iPhone. */
   outputId?: string | null;
   away?: boolean;
+  /** A play on its way to the appliance: the subtitle in its tone, the cover greyed, ⏯ a spinner, and the way out under the buttons. */
+  waking?: { tone: 'gold' | 'orange'; elsewhere: React.ReactNode } | null;
+  /** The receiver's other input that took it (TV): Resume is "Switch to NET". */
+  takenBy?: string | null;
   /** The appliance plays something else: its name, and Resume. */
   taken?: string | null;
   /** What is left to hear, with what of: over the tracks, in place of their count and length. */
@@ -344,7 +349,7 @@ type View = 'cover' | 'lyrics' | 'guide' | 'tracks' | 'info';
  * to come back to.
  */
 const PhonePlayer: React.FC<PhonePlayerProps> = props => {
-  const { cover, playing, position, length, hasNext, controls, favourite, away = false, taken = null } = props;
+  const { cover, playing, position, length, hasNext, controls, favourite, away = false, taken = null, waking = null, takenBy = null } = props;
   // Shared: the disc at the foot of a music window opens it too (services/phoneDoor).
   const full = useFullPlayer();
   const setFull = setFullPlayer;
@@ -602,12 +607,18 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
 
   const share = length > 0 ? Math.min(100, (position / length) * 100) : 0;
 
-  const playButton = (big: boolean, disabled = false) => (
+  const playButton = (big: boolean, disabled = false) => (waking ? (
+    // On its way: a spinner; a touch gives it up.
+    <button type="button" className={`player-bar-button output-waking-play${big ? ' now-playing-play' : ' player-pill-play'}`}
+      onClick={controls.toggle} aria-label="Cancel" disabled={disabled}>
+      <Spinner size={big ? 'lg' : 'md'} />
+    </button>
+  ) : (
     <button type="button" className={`player-bar-button${big ? ' now-playing-play' : ' player-pill-play'}`}
       onClick={controls.toggle} aria-label={playing ? 'Pause' : 'Play'} disabled={disabled}>
       {playing ? <BsPauseFill aria-hidden="true" /> : <BsPlayFill aria-hidden="true" />}
     </button>
-  );
+  ));
 
   const heart = favourite && (
     <button type="button" className={`player-bar-button now-playing-favourite${favourite.on ? ' now-playing-favourite--on' : ''}`}
@@ -645,7 +656,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const wordsOf = (withStars: boolean) => (
     <div className="now-playing-words">
       <span className="now-playing-track">{props.title}</span>
-      <span className="now-playing-artist">{props.subtitle}</span>
+      <span className={`now-playing-artist${waking ? ` output-waking-words--${waking.tone}` : ''}`}>{props.subtitle}</span>
       {withStars && starsOf != null && (
         <AlbumStarRating className="now-playing-stars" value={stars} onChange={rate} size="sm" label={`Your stars for ${cover.title}`} />
       )}
@@ -719,7 +730,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
 
   const sheet = (
     <div ref={sheetRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={props.rest ? cover.title : 'Now playing'} aria-hidden={!full} inert={!full}
-      className={`now-playing now-playing--${view}${full ? ' now-playing--open' : ''}${away ? ' now-playing--away' : ''}${fixing ? ' now-playing--timing' : ''}`}
+      className={`now-playing now-playing--${view}${full ? ' now-playing--open' : ''}${away ? ' now-playing--away' : ''}${waking ? ' now-playing--waking' : ''}${fixing ? ' now-playing--timing' : ''}`}
       onPointerDown={grab} onPointerMove={pull} onPointerUp={letGo} onPointerCancel={() => { start.current = null; place(null); }}
       onClickCapture={event => { if (dragged.current) { event.stopPropagation(); event.preventDefault(); } }}>
       {/* The cover again, blurred, under it all: each album its own light. */}
@@ -775,8 +786,8 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
           ) : taken ? (
             // The appliance plays something else: Resume takes it back at the same place.
             <div className="now-playing-taken">
-              <span>{taken} is playing something else</span>
-              <Button icon={<BsPlayFill />} onClick={controls.resume}>Resume</Button>
+              <span>{takenBy ? `${taken} is on ${takenBy}` : `${taken} is playing something else`}</span>
+              <Button icon={<BsPlayFill />} onClick={controls.resume}>{takenBy ? 'Switch to NET' : 'Resume'}</Button>
             </div>
           ) : (
             <div className="now-playing-transport">
@@ -789,6 +800,9 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
               </button>
             </div>
           )}
+
+          {/* On its way: listen elsewhere at once. */}
+          {waking?.elsewhere && view !== 'info' && <div className="now-playing-elsewhere">{waking.elsewhere}</div>}
 
           {/* An appliance's volume, under its ceiling. This iPhone's is its own buttons': a page cannot set it. */}
           {renderer && view !== 'info' && <div className="now-playing-volume"><OutputVolume output={renderer} slim /></div>}
@@ -858,13 +872,13 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
           <span className="player-pill-words">
             <span className="player-pill-track">{props.title}</span>
             <span className="player-pill-from">
-              {!away && props.where && <><BsSpeaker aria-hidden="true" /> {props.where} · </>}
-              {props.subtitle}
+              {!away && !waking && props.where && <><BsSpeaker aria-hidden="true" /> {props.where} · </>}
+              {waking ? <span className={`output-waking-words--${waking.tone}`}>{props.subtitle}</span> : props.subtitle}
             </span>
           </span>
         </button>
         {taken ? (
-          <Button size="sm" icon={<BsPlayFill />} onClick={controls.resume}>Resume</Button>
+          <Button size="sm" icon={<BsPlayFill />} onClick={controls.resume}>{takenBy ? 'Switch to NET' : 'Resume'}</Button>
         ) : (
           <>
             {playButton(false)}

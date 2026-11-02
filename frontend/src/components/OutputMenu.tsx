@@ -174,7 +174,7 @@ export const OutputEntries: React.FC<{ onSettings: (output: Output) => void; vol
       {list.map(one => {
         const target: PlayerOutput = { kind: 'renderer', id: one.id, name: one.name };
         return (
-          <Menu.Choice key={one.id} value={one.id} selected={sameOutput(output, target)} disabled={!one.reachable && !sameOutput(output, target)}
+          <Menu.Choice key={one.id} value={one.id} selected={sameOutput(output, target)} disabled={!one.reachable && one.power !== 'standby' && !sameOutput(output, target)}
             hint={outputHint(one)} onSelect={() => player.setOutput(target)}>
             {one.name}
           </Menu.Choice>

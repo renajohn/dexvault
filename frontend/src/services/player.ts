@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { readStored, writeStored } from '../utils/safeStorage';
 import { isComputer } from '../utils/isComputer';
 import type { EntryKey } from '../utils/listenNextEntry';
-import outputs, { knownOutputs, soundingNow, onOutputLeft, outputsLoaded, positionAt, subscribeOutputs, type OutputError, type OutputState } from './outputs';
+import outputs, { knownOutputs, onItsWay, soundingNow, onOutputLeft, outputsLoaded, positionAt, subscribeOutputs, type OutputError, type OutputState, type OutputWaking } from './outputs';
 import toast from '../components/shared/Toast';
 
 /** A file of the rip, as the player plays it. */
@@ -105,6 +105,10 @@ export interface PlayerState {
   output: PlayerOutput;
   /** An appliance that plays something else (taken), or does not answer (unreachable); null otherwise. */
   outputStatus: 'taken' | 'unreachable' | null;
+  /** A play on its way to the appliance that does not sound yet (turning it on, its network, the track given); null otherwise. */
+  outputWaking: OutputWaking | null;
+  /** The receiver's other input that took it (TV): ▶ there is "Switch to NET"; null otherwise. */
+  outputInput: string | null;
   /** Of Listen Next played on an appliance, the entries to come, as the server counts them; null here. */
   upcoming: EntryKey[] | null;
   /** How this browser plays the files: as they are, lighter (AAC 256), or lighter only while the network does not keep up. */
@@ -184,7 +188,7 @@ let state: PlayerState = {
   album: null, queue: null, tracks: [], index: 0, playing: false, position: 0, duration: 0, barShown: false,
   resume: typeof window !== 'undefined' ? readResume() : null, error: null,
   lyricsOpen: typeof window !== 'undefined' ? readLyricsOpen() : false,
-  output: LOCAL, outputStatus: null, upcoming: null,
+  output: LOCAL, outputStatus: null, outputWaking: null, outputInput: null, upcoming: null,
   quality: typeof window !== 'undefined' ? readQuality() : 'auto', light: false,
 };
 /**
@@ -265,7 +269,7 @@ const lapse = (now = Date.now()): boolean => {
     return true;
   }
   // Its last sound: heard or asked here, as the server says (the Mac asleep meanwhile), or the last play told before the events stopped.
-  const told = session && (session.status === 'playing' || session.wanted) ? session.receivedAt ?? 0 : 0;
+  const told = session && (session.status === 'playing' || onItsWay(session)) ? session.receivedAt ?? 0 : 0;
   const last = Math.max(chosenAt, session?.quietAt ?? 0, told);
   if (now - last < SESSION_IDLE_MS) {
     lapseTimer = setTimeout(refresh, last + SESSION_IDLE_MS - now + 50);
@@ -331,7 +335,7 @@ const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState 
   const track = session?.tracks[session.index];
   if (!sameOutput(lastOutput, output) || lastOutput.kind !== 'renderer' || lastOutput.name !== output.name) lastOutput = output;
   carrying = chosen.kind === 'renderer' && chosen.id === output.id && state.album !== null && !state.playing
-    && session?.status !== 'playing' && !session?.wanted;
+    && session?.status !== 'playing' && !onItsWay(session);
   if (carrying) {
     return {
       ...state,
@@ -342,6 +346,8 @@ const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState 
       output: lastOutput,
       outputStatus: (outputsLoaded() && !listed?.reachable) || session?.status === 'unreachable' ? 'unreachable'
         : session?.status === 'taken' ? 'taken' : null,
+      outputWaking: null,
+      outputInput: session?.status === 'taken' ? session.input ?? null : null,
       upcoming: null,
       light: false,
     };
@@ -354,15 +360,17 @@ const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState 
         : null,
     };
   }
-  const away = (outputsLoaded() && !listed?.reachable) || session?.status === 'unreachable';
+  // On its way (the receiver waking): waited for, not away.
+  const away = !session?.waking && ((outputsLoaded() && !listed?.reachable) || session?.status === 'unreachable');
   return {
     album: session?.album ?? null,
     queue: session?.queue ?? null,
     tracks: session?.tracks ?? NO_TRACKS,
     index: session?.index ?? 0,
     // Away with a play kept for when it answers: shown playing, ⏸ forgets it.
-    playing: session?.status === 'playing' || Boolean(session?.wanted),
-    position: session ? positionAt(session) : 0,
+    playing: session?.status === 'playing' || onItsWay(session),
+    // On its way, nothing sounds: the hand waits where it is.
+    position: session ? (session.waking ? session.position : positionAt(session)) : 0,
     duration: session?.duration || track?.durationSec || 0,
     barShown: Boolean(session?.album) && session?.status !== 'stopped',
     resume: lastResume.resume,
@@ -370,6 +378,8 @@ const rendererView = (output: PlayerOutput & { kind: 'renderer' }): PlayerState 
     lyricsOpen: state.lyricsOpen,
     output: lastOutput,
     outputStatus: away ? 'unreachable' : session?.status === 'taken' ? 'taken' : null,
+    outputWaking: session?.waking ?? null,
+    outputInput: session?.status === 'taken' ? session.input ?? null : null,
     upcoming: session?.queue === 'listenNext' ? session.upcoming : null,
     quality: state.quality,
     light: false,
@@ -389,7 +399,7 @@ const TICK_MS = 1000;
 const letGoUnderPlay = () => {
   if (chosen.kind !== 'renderer' || !state.album || state.playing) return;
   const session = sessionOf(chosen.id);
-  if (session?.status === 'playing' || session?.wanted) stopHere();
+  if (session?.status === 'playing' || onItsWay(session)) stopHere();
 };
 
 function refresh() {
@@ -417,7 +427,8 @@ const rendererId = (): string | null => {
 /** What went wrong on an appliance, said: away in orange, the rest in red. */
 export const reportOutputError = (error: unknown): void => {
   const refused = error as OutputError;
-  if (refused?.status === 'unreachable') toast(refused.message, { tone: refused.kept ? 'info' : 'warning' });
+  // A play kept for an appliance waking: the bar says so, step by step.
+  if (refused?.status === 'unreachable') { if (!refused.kept) toast(refused.message, { tone: 'warning' }); }
   else if (refused?.status === 'taken') toast(refused.message, { tone: 'info' });
   else toast((error as Error)?.message || 'The command did not go through', { tone: 'danger' });
 };
@@ -1272,7 +1283,7 @@ export const player = {
         restore ? restore(session.album as PlayerAlbum & { id: number }) : { queue: session.queue ?? undefined });
     }
     // Left while it plays, or while a play waits for it to answer: forgotten there, what of ours it plays paused.
-    if (session?.status === 'playing' || session?.wanted) outputs.toggle(from.id, false).catch(() => undefined);
+    if (session?.status === 'playing' || onItsWay(session)) outputs.toggle(from.id, false).catch(() => undefined);
   },
 
   getState: (): PlayerState => view,
@@ -1353,7 +1364,7 @@ export const resetPlayer = () => {
   if (keepAwakeRelease) clearTimeout(keepAwakeRelease);
   keepAwakeRelease = null;
   state = { album: null, queue: null, tracks: [], index: 0, playing: false, position: 0, duration: 0, barShown: false, resume: readResume(), error: null,
-    lyricsOpen: readLyricsOpen(), output: LOCAL, outputStatus: null, upcoming: null, quality: readQuality(), light: false };
+    lyricsOpen: readLyricsOpen(), output: LOCAL, outputStatus: null, outputWaking: null, outputInput: null, upcoming: null, quality: readQuality(), light: false };
   ({ output: chosen, at: chosenAt } = readOutput());
   writtenAt = chosenAt;
   if (lapseTimer) clearTimeout(lapseTimer);

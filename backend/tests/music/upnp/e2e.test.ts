@@ -60,7 +60,7 @@ describe('DexVault playing on the appliances, end to end', () => {
       mediaBaseUrl: `http://127.0.0.1:${mediaPort}`, mediaPort, maxVolume: 60,
     }, {
       // No Navidrome: the albums and the scrobbles stand in; the appliances asked by the test, on the fake clock.
-      poll: false, wait: async () => undefined,
+      poll: false, wait: async () => undefined, power: () => null,
       turnDeps: { listIds: async () => [], markPlayed: async () => null, repeat: async () => false },
       load: async albumId => albums.get(albumId) ?? { album: albumOf(albumId), tracks: [] },
       scrobble: async (songId, submission) => { scrobbles.push([songId, submission]); return { left: null }; },

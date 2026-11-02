@@ -5,6 +5,7 @@ import { RendererRegistry, type RendererEntry } from './renderers';
 import type { Renderer } from './device';
 import { OutputSession, type OutputState, type SavedSession, type SessionDeps } from './session';
 import { Poller } from './poller';
+import { Iscp, inputName, speaksIscp, type PowerControl, type PowerStatus } from './iscp';
 import { mediaTokens, startMediaServer } from './media';
 import type { UpnpOptions } from './options';
 import type { TurnDeps } from './turn';
@@ -31,6 +32,10 @@ export interface OutputListed {
   volume: number | null;
   muted: boolean;
   maxVolume: number;
+  /** A receiver that says so (eISCP): on or in standby; null when it cannot be told. */
+  power: 'on' | 'standby' | null;
+  /** The input it is on, by name (NET, TV); null when it cannot be told. */
+  input: string | null;
   session: OutputState | null;
 }
 
@@ -56,6 +61,8 @@ export interface OutputsOverrides {
   listen?: boolean;
   /** No polling on timers: the test polls. */
   poll?: boolean;
+  /** The eISCP of an appliance, by its host: a fake in the tests; none at all when it answers null. */
+  power?: (host: string) => PowerControl | null;
 }
 
 /** A page's connection is kept open by a word now and then. */
@@ -80,6 +87,8 @@ class Outputs {
   private server: http.Server | null = null;
   /** Writes to the base under way: a shutdown waits for them, so that the next start reads them. */
   private writes = new Set<Promise<unknown>>();
+  /** The receivers that speak eISCP, by UDN, and what each said last. */
+  private powers = new Map<string, { control: PowerControl; status: PowerStatus | null }>();
 
   get enabled(): boolean { return Boolean(this.options?.mediaBaseUrl); }
 
@@ -104,7 +113,8 @@ class Outputs {
       load: overrides.loadRenderer,
       search: overrides.search,
       now: overrides.now,
-      isBusy: id => this.sessions.get(id)?.session.status === 'playing',
+      // Its session asks it already, and reads its description again in turn with its calls.
+      isBusy: id => Boolean(this.sessions.get(id)?.session.busy()),
       onChange: entry => this.noted(entry),
     });
     // An appliance seen before and configured still is listed, away, even when it does not answer now.
@@ -133,6 +143,7 @@ class Outputs {
     }
     this.sessions.clear();
     this.told.clear();
+    this.powers.clear();
     await Promise.allSettled([...this.writes]);
     for (const listener of this.listeners) listener.end();
     this.listeners.clear();
@@ -173,6 +184,7 @@ class Outputs {
              ON CONFLICT(id) DO UPDATE SET location = excluded.location, device_name = excluded.device_name, model = excluded.model`,
         [udn, settings.name, settings.maxVolume, entry.location, name, model]).catch(error => logger.warn(`UPnP settings: ${(error as Error).message}`));
       }
+      this.notePower(udn, entry, renderer.description.manufacturer);
       if (!this.sessions.has(udn)) this.makeSession(udn);
       else if (entry.reachable) {
         const { session } = this.sessions.get(udn)!;
@@ -180,6 +192,40 @@ class Outputs {
       }
     }
     this.broadcast('outputs', null);
+  }
+
+  /** A receiver that speaks eISCP: its control made the first time, its power read again with its description. */
+  private notePower(id: string, entry: RendererEntry, manufacturer: string): void {
+    if (!this.powers.has(id)) {
+      if (!speaksIscp(manufacturer)) return;
+      const host = new URL(entry.location).hostname;
+      const control = this.overrides.power ? this.overrides.power(host) : new Iscp(host);
+      if (!control) return;
+      this.powers.set(id, { control: this.watched(id, control), status: null });
+    }
+    this.powers.get(id)!.control.status().catch(() => null);
+  }
+
+  /** Its control, every answer on its power kept and, when it changes, told to the pages. */
+  private watched(id: string, control: PowerControl): PowerControl {
+    const heard = (status: PowerStatus | null) => {
+      const known = this.powers.get(id);
+      if (!known) return;
+      const changed = known.status?.power !== status?.power || known.status?.input !== status?.input;
+      known.status = status;
+      if (changed) this.broadcast('outputs', null);
+    };
+    const now = (power: PowerStatus['power'], input: string | null) => heard({ power, input });
+    return {
+      status: async () => {
+        const status = await control.status();
+        heard(status);
+        return status;
+      },
+      turnOn: async () => { await control.turnOn(); now('on', '2B'); },
+      selectNet: async () => { await control.selectNet(); now('on', '2B'); },
+      standby: async () => { await control.standby(); now('standby', this.powers.get(id)?.status?.input ?? null); },
+    };
   }
 
   private makeSession(id: string): OutputSession {
@@ -191,6 +237,7 @@ class Outputs {
         if (entry) await this.registry!.refresh(entry);
       },
       reachable: () => Boolean(this.entryOf(id)?.reachable),
+      power: () => this.powers.get(id)?.control ?? null,
       mediaBase: options.mediaBaseUrl,
       name: () => this.nameOf(id),
       maxVolume: () => this.maxVolumeOf(id),
@@ -276,6 +323,8 @@ class Outputs {
         volume: session?.volume ?? null,
         muted: session?.muted ?? false,
         maxVolume: this.maxVolumeOf(id),
+        power: this.powers.get(id)?.status?.power ?? null,
+        input: inputName(this.powers.get(id)?.status?.input ?? null),
         session: session ? session.state() : null,
       };
     });

@@ -154,13 +154,12 @@ describe('the player on an output', () => {
     expect(refused).toMatchObject({ status: 'unreachable', kept: true });
   });
 
-  it('says what went wrong on an appliance in the right tone: a play kept quietly, away in orange, taken grey, the rest red', () => {
+  it('says what went wrong on an appliance in the right tone: a play kept left to the bar, away in orange, taken grey, the rest red', () => {
     reportOutputError(new OutputError('Salon is waking up: it plays as soon as it answers', 503, 'unreachable', true));
     reportOutputError(new OutputError('Salon does not answer: is it on?', 503, 'unreachable'));
     reportOutputError(new OutputError('Salon is playing something else', 409, 'taken'));
     reportOutputError(new OutputError('Play refused (701)', 502, null));
     expect(vi.mocked(toast).mock.calls).toEqual([
-      ['Salon is waking up: it plays as soon as it answers', { tone: 'info' }],
       ['Salon does not answer: is it on?', { tone: 'warning' }],
       ['Salon is playing something else', { tone: 'info' }],
       ['Play refused (701)', { tone: 'danger' }],

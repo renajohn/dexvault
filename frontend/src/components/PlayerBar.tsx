@@ -23,6 +23,8 @@ import { listenNextQueue, playingKey } from '../services/listenNextQueue';
 import { parseEntryKey } from '../utils/listenNextEntry';
 import musicService from '../services/musicService';
 import { loadPlayable } from '../utils/playAlbum';
+import Spinner from './shared/Spinner';
+import { isLongWake, ListenElsewhere, useWakeWords, WakeSteps } from './OutputWaking';
 import './PlayerBar.css';
 
 const time = (seconds: number): string => {
@@ -126,11 +128,15 @@ const PlayerBar: React.FC = () => {
   const [tracksOpen, setTracksOpen] = useState(false);
   const output = usePlayer(state => state.output);
   const outputStatus = usePlayer(state => state.outputStatus);
+  // A play on its way to the appliance (the Onkyo turned on, waited for): said step by step, until it sounds.
+  const waking = usePlayer(state => state.outputWaking);
+  const otherInput = usePlayer(state => state.outputInput);
   const format = usePlayer(formatOf);
   const upcoming = usePlayer(state => state.upcoming);
   const known = useOutputs();
   const inMusic = useLocation().pathname.startsWith('/musicdex');
   const outputName = output.kind === 'renderer' ? output.name : '';
+  const wakeWords = useWakeWords(waking, outputName);
   // A phone's width: a pill at the foot, full screen at a tap.
   const phone = useMedia('(max-width: 767px)');
   // The album a cover opened in the full screen player: at rest, unless it is the one playing.
@@ -195,7 +201,7 @@ const PlayerBar: React.FC = () => {
   const taken = outputStatus === 'taken';
 
   return (
-    <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}${phone ? ' player-bar--pill' : ''}`} role="region"
+    <div className={`player-bar${out ? ' player-bar-out' : ''}${away ? ' player-bar--away' : ''}${waking ? ' player-bar--waking' : ''}${phone ? ' player-bar--pill' : ''}`} role="region"
       aria-label={outputName ? `Playing on ${outputName}` : 'Player'} aria-hidden={!out}>
       {restAlbum && atRest ? (
         // A cover's album at rest: the same full screen, ▶ playing it, the disc of what plays at its foot.
@@ -216,7 +222,8 @@ const PlayerBar: React.FC = () => {
         if (phone) {
           return (
             <PhonePlayer title={track.title} cover={cover} playing={playing} position={position} length={length} hasNext={hasNext}
-              subtitle={away ? `${outputName}, away` : error || (track.artist != null ? `${track.artist} · ${album.title}` : album.artist)}
+              subtitle={wakeWords?.text ?? (away ? `${outputName}, away` : error || (track.artist != null ? `${track.artist} · ${album.title}` : album.artist))}
+              waking={wakeWords ? { tone: wakeWords.tone, elsewhere: output.kind === 'renderer' ? <ListenElsewhere waitingFor={output.id} align="start" /> : null } : null}
               where={outputName || null} outputId={output.kind === 'renderer' ? output.id : null}
               controls={{
                 toggle: () => player.toggle(), next: () => player.next(), previous: () => player.previous(),
@@ -233,7 +240,7 @@ const PlayerBar: React.FC = () => {
                 window.location.href = amperfyUrl(album.navidromeId!);
               } : null}
               favourite={{ on: favourite, toggle: () => { void toggleFavourite(); } }}
-              away={away} taken={taken ? outputName : null}
+              away={away} taken={taken ? outputName : null} takenBy={otherInput}
               left={left > 0 ? `${leftText(left)} left of ${fromListenNext ? 'Listen Next' : album.title}` : null}
               from={fromListenNext ? 'Listen Next' : album.title} format={format}
               infoOf={(track.albumId ?? album.id) != null ? { albumId: Number(track.albumId ?? album.id) } : null}
@@ -247,6 +254,10 @@ const PlayerBar: React.FC = () => {
         }
         return (
         <>
+          {/* A long wait (the receiver turned on, its network): its steps over the bar, and the ways out. */}
+          {waking && wakeWords && output.kind === 'renderer' && isLongWake(waking, wakeWords) && (
+            <WakeSteps waking={waking} words={wakeWords} name={outputName} outputId={output.id} onCancel={() => player.toggle(false)} />
+          )}
           <div className={`player-bar-progress${playing ? '' : ' player-bar-progress--paused'}`} role="slider" aria-label="Position in the track"
             aria-valuemin={0} aria-valuemax={Math.round(length)} aria-valuenow={Math.round(position)}
             aria-valuetext={`${time(position)} of ${time(length)}`} tabIndex={0} onClick={seek}
@@ -272,8 +283,9 @@ const PlayerBar: React.FC = () => {
                   <span className="player-bar-from">
                     {/* An appliance away: its name, greyed, says so; the rest of the bar waits for it. */}
                     {/* On a phone, which appliance plays it, its speaker gone into ⋯. */}
-                    {!away && outputName && <span className="player-bar-where"><BsSpeaker aria-hidden="true" /> {outputName} · </span>}
-                    {away ? `${outputName}, away` : error || (track.artist != null ? (
+                    {!away && !wakeWords && outputName && <span className="player-bar-where"><BsSpeaker aria-hidden="true" /> {outputName} · </span>}
+                    {wakeWords ? <span className={`output-waking-words--${wakeWords.tone}`}>{wakeWords.text}</span>
+                      : away ? `${outputName}, away` : error || (track.artist != null ? (
                       <>
                         {track.artist} · <button type="button" className="player-bar-mixtape" title={`Open ${album.title}`}
                           onClick={event => { event.stopPropagation(); if (album.id != null) navigate(`/musicdex?album=${album.id}`); }}>
@@ -303,8 +315,9 @@ const PlayerBar: React.FC = () => {
             {taken ? (
               // The appliance plays something else (another input, its own app): Resume takes it back at the same place.
               <div className="player-bar-transport player-bar-transport--taken">
-                <span className="player-bar-taken">{outputName} is playing something else</span>
-                <Button size="sm" icon={<BsPlayFill />} onClick={() => player.resume()}>Resume</Button>
+                {/* On the TV: someone may be watching, so NET only when asked. */}
+                <span className="player-bar-taken">{otherInput ? `${outputName} is on ${otherInput}` : `${outputName} is playing something else`}</span>
+                <Button size="sm" icon={<BsPlayFill />} onClick={() => player.resume()}>{otherInput ? 'Switch to NET' : 'Resume'}</Button>
               </div>
             ) : (
             <div className="player-bar-transport">
@@ -312,9 +325,18 @@ const PlayerBar: React.FC = () => {
               <button type="button" className="player-bar-button player-bar-previous" onClick={() => player.previous()} aria-label="Previous">
                 <BsSkipBackwardFill aria-hidden="true" />
               </button>
-              <button type="button" className="player-bar-button player-bar-play" onClick={() => player.toggle()} aria-label={playing ? 'Pause' : 'Play'}>
-                {playing ? <BsPauseFill aria-hidden="true" /> : <BsPlayFill aria-hidden="true" />}
-              </button>
+              {waking ? (
+                // On its way: the spinner, ⏸ under the pointer; a click gives it up.
+                <button type="button" className="player-bar-button player-bar-play output-waking-play" onClick={() => player.toggle(false)}
+                  aria-label={`Cancel: do not start on ${outputName}`} title={`Cancel: do not start on ${outputName}`}>
+                  <Spinner size="md" />
+                  <BsPauseFill className="output-waking-play__pause" aria-hidden="true" />
+                </button>
+              ) : (
+                <button type="button" className="player-bar-button player-bar-play" onClick={() => player.toggle()} aria-label={playing ? 'Pause' : 'Play'}>
+                  {playing ? <BsPauseFill aria-hidden="true" /> : <BsPlayFill aria-hidden="true" />}
+                </button>
+              )}
               <button type="button" className="player-bar-button" onClick={() => player.next()} disabled={!hasNext} aria-label="Next">
                 <BsSkipForwardFill aria-hidden="true" />
               </button>

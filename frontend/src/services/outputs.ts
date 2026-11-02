@@ -22,6 +22,20 @@ export interface OutputTrackState {
   durationSec: number | null;
 }
 
+/** Where a play on its way to an appliance is: turning it on, waiting for its network, giving it the track. */
+export type OutputWakeStep = 'on' | 'network' | 'starting';
+
+/** A play on its way to an appliance that does not sound yet. */
+export interface OutputWaking {
+  /** When it was asked, or the receiver turned on (the server's clock, ms). */
+  since: number;
+  step: OutputWakeStep;
+  /** DexVault turned the receiver on: given up before it sounds, it goes back to standby. */
+  poweredOn: boolean;
+  /** It answered, then did not again: its network comes and goes. */
+  unsteady: boolean;
+}
+
 /** What plays on an output, as the server tells it. */
 export interface OutputState {
   id: string;
@@ -44,6 +58,10 @@ export interface OutputState {
   error: string | null;
   /** Away, with a play kept for when it answers. */
   wanted?: boolean;
+  /** A play on its way that does not sound yet; null otherwise. */
+  waking?: OutputWaking | null;
+  /** Taken by another input of the receiver: its name (TV); null otherwise. */
+  input?: string | null;
   /** How long it had been silent when the server told (ms); null while it sounds, or if it never did. */
   quietFor?: number | null;
   /** This device's own: when the state came (by its clock), and when the appliance fell silent, by its clock too. */
@@ -67,6 +85,10 @@ export interface Output {
   muted: boolean;
   /** The volume DexVault never sends it above. */
   maxVolume: number;
+  /** A receiver that says so (the Onkyo): on or in standby; null when it cannot be told. */
+  power?: 'on' | 'standby' | null;
+  /** The input it is on (NET, TV); null when it cannot be told. */
+  input?: string | null;
   session: OutputState | null;
 }
 
@@ -152,9 +174,12 @@ const steady = (previous: OutputState | null | undefined, next: OutputState | nu
 /** A play not told again for this long (states come every second while it plays) is not taken for sounding: the Mac woke up, the events not back yet. */
 export const SOUND_STALE_MS = 30_000;
 
+/** A play kept for an appliance away, or on its way to it: the bar shows it as playing, ⏸ gives it up. */
+export const onItsWay = (session: OutputState | null | undefined): boolean => Boolean(session?.wanted || session?.waking);
+
 /** Whether it sounds now, playing or waiting to play, as told lately. */
 export const soundingNow = (session: OutputState | null | undefined, now = Date.now()): boolean =>
-  Boolean(session && (session.status === 'playing' || session.wanted) && now - (session.receivedAt ?? now) < SOUND_STALE_MS);
+  Boolean(session && (session.status === 'playing' || onItsWay(session)) && now - (session.receivedAt ?? now) < SOUND_STALE_MS);
 
 const tell = () => listeners.forEach(listener => listener());
 
@@ -176,7 +201,7 @@ export const takeState = (state: OutputState, receivedAt = Date.now()): void => 
   noteGap(state, receivedAt);
   const output = known[at];
   // A session playing answers, one away does not: the list's word follows it at once, whatever the last list said.
-  const reachable = state.status === 'playing' ? true : state.status === 'unreachable' ? false : output.reachable;
+  const reachable = state.status === 'playing' ? true : state.status === 'unreachable' && !state.waking ? false : output.reachable;
   known = [...known.slice(0, at), {
     ...output, reachable, name: state.name || output.name, volume: state.volume ?? output.volume, muted: state.muted,
     session: steady(output.session, state, receivedAt),
@@ -304,9 +329,14 @@ const outputs = {
   /** Listen Next played there, from entry `key` (and its track `index`), else from the top. */
   listenNext: (id: string, body: { key?: EntryKey; index?: number } = {}) => choose(id, 'listen-next', body, output => output),
   toggle: (id: string, playing?: boolean) => {
-    const undo = playing === undefined ? () => undefined : guess(id, output => (output.session && (output.session.status === 'playing' || output.session.status === 'paused')
-      ? { ...output, session: { ...output.session, status: playing ? 'playing' : 'paused', position: positionAt(output.session), at: Date.now() - clockGap() } }
-      : output));
+    const undo = playing === undefined ? () => undefined : guess(id, output => {
+      const session = output.session;
+      // ⏸ on a play on its way: given up at once, the ring gone.
+      if (session && !playing && onItsWay(session)) return { ...output, session: { ...session, waking: null, wanted: false } };
+      return session && (session.status === 'playing' || session.status === 'paused')
+        ? { ...output, session: { ...session, status: playing ? 'playing' : 'paused', position: positionAt(session), at: Date.now() - clockGap() } }
+        : output;
+    });
     return unless(undo, command(id, 'toggle', playing === undefined ? {} : { playing }));
   },
   next: (id: string) => command(id, 'next'),
@@ -443,9 +473,12 @@ export const subscribeOutputs = (listener: () => void): (() => void) => {
 /** The outputs as now known, drawn again as they change. */
 export const useOutputs = (): Output[] => useSyncExternalStore(subscribeOutputs, knownOutputs);
 
-/** What a hint says of an output in a menu: away, in use, playing, else its model. */
+/** What a hint says of an output in a menu: waking up, away, in standby, on another input, in use, playing, else its model. */
 export const outputHint = (output: Output): string => {
+  if (output.session?.waking) return output.session.waking.step === 'on' ? 'turning on…' : 'waking up…';
+  if (output.power === 'standby') return 'standby · Play turns it on';
   if (!output.reachable || output.session?.status === 'unreachable') return 'away';
+  if (output.input && output.input !== 'NET') return `on ${output.input}`;
   if (output.session?.status === 'taken') return 'in use';
   if (output.session?.status === 'playing') return [output.model, 'playing'].filter(Boolean).join(' · ');
   return output.model;

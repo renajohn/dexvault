@@ -119,8 +119,12 @@ const outputController = {
     if (body.from != null) {
       const from = outputs.session(String(body.from));
       if (!from?.handOver()) throw Object.assign(new Error('Nothing plays there'), { status: 400 });
-      // Paused first, its place read then: the one taking over starts where the other fell silent, not seconds before.
-      await from.pauseForTransfer();
+      // Silent there (on its way, away): its place is known, and it is let go in its own turn, not waited for:
+      // a Salon that does not answer would hold the play elsewhere for as long. Else paused first, its place read
+      // then: the one taking over starts where the other fell silent, not seconds before.
+      const silent = from.status !== 'playing' || from.state().waking != null;
+      if (silent) from.pauseForTransfer().catch(error => logger.warn(`Letting go of ${outputs.nameOf(from.id)}: ${(error as Error).message}`));
+      else await from.pauseForTransfer();
       const handed = from.handOver();
       if (!handed) throw Object.assign(new Error('Nothing plays there'), { status: 400 });
       await session.carryOver(handed.album, handed.tracks, handed.index, handed.position, handed.turn);

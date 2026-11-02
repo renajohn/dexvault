@@ -82,6 +82,8 @@ export class RendererRegistry {
   entries: RendererEntry[];
   private options: RegistryOptions;
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** The reads under way, by entry. */
+  private reading = new Map<RendererEntry, Promise<RendererEntry>>();
 
   constructor(options: RegistryOptions) {
     this.options = options;
@@ -97,7 +99,16 @@ export class RendererRegistry {
    * and when the appliance is there but its port is closed (a WiiM that
    * restarted), on the ports next to it.
    */
-  async refresh(entry: RendererEntry): Promise<RendererEntry> {
+  refresh(entry: RendererEntry): Promise<RendererEntry> {
+    // One read at a time: the minute's and a session's together had the Onkyo asked twice as it woke.
+    const under = this.reading.get(entry);
+    if (under) return under;
+    const reading = this.read(entry).finally(() => this.reading.delete(entry));
+    this.reading.set(entry, reading);
+    return reading;
+  }
+
+  private async read(entry: RendererEntry): Promise<RendererEntry> {
     const load = this.options.load ?? loadRenderer;
     const was = entry.reachable;
     entry.checkedAt = this.now();

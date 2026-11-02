@@ -43,7 +43,8 @@
     "build": "tsc",
     "prod": "tsx index.ts --deployment=../deployment.prod.json",
     "test": "jest --setupFilesAfterEnv=./tests/setup.js",
-    "eval": "jest --config evals/jest.config.js"
+    "eval": "jest --config evals/jest.config.js",
+    "live:salon": "tsx tests/live/salon-wake.live.ts"
   },
   "jest": {
     "testEnvironment": "node",

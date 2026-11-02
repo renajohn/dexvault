@@ -92,6 +92,65 @@ describe('PlayerBar on an appliance', () => {
     expect(commands().at(-1)!.url).toBe('/api/outputs/uuid%3Asalon/resume');
   });
 
+  it('says Salon is on the TV, and Switch to NET takes it back', () => {
+    act(() => { takeState(session({ status: 'taken', input: 'TV' })); player.setOutput(SALON); });
+    renderBar();
+    expect(screen.getByText('Salon is on TV')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to NET' }));
+    expect(commands().at(-1)!.url).toBe('/api/outputs/uuid%3Asalon/resume');
+  });
+
+  it('shows a play on its way to Salon turned on: the steps over the bar, ⏯ cancelling it, no word of away', () => {
+    const since = Date.now() - 24_000;
+    act(() => { takeState(session({ status: 'unreachable', wanted: true, waking: { since, step: 'network', poweredOn: true, unsteady: false } })); });
+    renderBar();
+    expect(document.querySelector('.player-bar-from')).toHaveTextContent('Salon is waking up · 0:24');
+    expect(document.querySelector('.player-bar--waking')).not.toBeNull();
+    expect(screen.queryByText('Salon, away')).not.toBeInTheDocument();
+    const steps = screen.getByRole('status', { name: '' });
+    expect(steps).toHaveTextContent('Turning Salon on');
+    expect(steps).toHaveTextContent('Switched to NET');
+    expect(steps).toHaveTextContent('Waiting for its network');
+    expect(screen.getByRole('button', { name: 'Listen elsewhere' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel: do not start on Salon' }));
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/toggle', body: { playing: false } });
+    // Given up at once, before the server says so.
+    expect(document.querySelector('.player-bar--waking')).toBeNull();
+  });
+
+  it('keeps the hand where it is while the play is on its way, though told playing', () => {
+    act(() => { takeState(session({ status: 'playing', position: 12, at: Date.now() - 9000, waking: { since: Date.now() - 9000, step: 'network', poweredOn: true, unsteady: true } })); });
+    renderBar();
+    expect(player.getState().position).toBe(12);
+  });
+
+  it('says in orange when Salon’s network comes and goes', () => {
+    act(() => { takeState(session({ status: 'unreachable', wanted: true, waking: { since: Date.now(), step: 'network', poweredOn: true, unsteady: true } })); });
+    renderBar();
+    expect(document.querySelector('.output-waking-words--orange')).toHaveTextContent('its network comes and goes');
+  });
+
+  it('says a short start in the bar alone, with no steps over it', () => {
+    act(() => { takeState(session({ status: 'paused', waking: { since: Date.now(), step: 'starting', poweredOn: false, unsteady: false } })); });
+    renderBar();
+    expect(document.querySelector('.player-bar-from')).toHaveTextContent('Starting on Salon…');
+    expect(document.querySelector('.output-waking-steps')).toBeNull();
+  });
+
+  it('carries the play here when Listen elsewhere chooses this computer, and Salon is no longer waited for', async () => {
+    // This browser plays: no sound in the tests.
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    act(() => { takeState(session({ status: 'unreachable', wanted: true, waking: { since: Date.now(), step: 'network', poweredOn: true, unsteady: false } })); });
+    renderBar();
+    fireEvent.click(screen.getByRole('button', { name: 'Listen elsewhere' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'This computer' }));
+    expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/toggle', body: { playing: false } });
+    expect(player.getState().output.kind).toBe('local');
+    expect(player.getState().album?.id).toBe(7);
+  });
+
   it('says Salon is away, greyed', async () => {
     house = [listed({ reachable: false, session: session({ status: 'paused' }) })];
     await act(async () => { await outputs.list(); });

@@ -23,6 +23,8 @@ const scrobbles: Array<[string, boolean]> = [];
 const turnDeps: TurnDeps = { listIds: async () => ['7:0', '8:0'], markPlayed: async () => null, repeat: async () => false };
 
 const overrides = {
+  // No eISCP: nothing asked of whatever listens on 127.0.0.1:60128 (the live bench).
+  power: () => null,
   listen: false, poll: false, wait: async () => undefined, turnDeps,
   load: async (albumId: number) => albums.get(albumId) ?? { album: albumOf(albumId), tracks: [] },
   scrobble: async (songId: string, submission: boolean) => { scrobbles.push([songId, submission]); return { left: null }; },
@@ -269,9 +271,10 @@ describe('with it', () => {
     try {
       for (let waited = 0; waited < 3000 && pages.some(page => !page.received.length); waited += 20) await new Promise(resolve => setTimeout(resolve, 20));
       await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7, index: 2 }).expect(200);
-      for (let waited = 0; waited < 3000 && pages.some(page => !page.received.join('').includes('event: state')); waited += 20) await new Promise(resolve => setTimeout(resolve, 20));
+      // The play on its way told first ("starting"), then playing.
+      for (let waited = 0; waited < 3000 && pages.some(page => !page.received.join('').includes('"status":"playing"')); waited += 20) await new Promise(resolve => setTimeout(resolve, 20));
       for (const page of pages) {
-        const state = /event: state\ndata: (.*)\n\n/.exec(page.received.join(''));
+        const state = /event: state\ndata: (.*"status":"playing".*)\n\n/.exec(page.received.join(''));
         expect(JSON.parse(state![1])).toMatchObject({ id: ONKYO, status: 'playing', index: 2 });
       }
     } finally {
@@ -293,11 +296,13 @@ describe('with it', () => {
       expect(response.headers['content-type']).toBe('text/event-stream');
       await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7 }).expect(200);
       // Written as the play starts, read when it comes: a loaded machine takes a while.
-      for (let waited = 0; waited < 3000 && !received.join('').includes('event: state'); waited += 20) await new Promise(resolve => setTimeout(resolve, 20));
+      for (let waited = 0; waited < 3000 && !received.join('').includes('"status":"playing"'); waited += 20) await new Promise(resolve => setTimeout(resolve, 20));
       const text = received.join('');
       expect(text).toContain(': listening');
       expect(text).toMatch(/event: outputs\ndata: \[/);
-      const state = /event: state\ndata: (.*)\n\n/.exec(text);
+      // On its way first, said so; then playing.
+      expect(text).toMatch(/event: state\ndata: .*"waking":\{[^}]*"step":"starting"/);
+      const state = /event: state\ndata: (.*"status":"playing".*)\n\n/.exec(text);
       expect(state).not.toBeNull();
       expect(JSON.parse(state![1])).toMatchObject({ id: ONKYO, status: 'playing', album: { id: 7 }, track: { title: 'Track 1' }, at: expect.any(Number) });
     } finally {

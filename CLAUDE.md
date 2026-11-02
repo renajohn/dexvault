@@ -26,6 +26,8 @@ npm start            # runs dist/start.sh
 cd backend && npm test
 # Evalsets: score the vision model against the live LLM server (and TMDB with TMDB_API_KEY); never part of npm test
 cd backend && npm run eval
+# Live bench: the real server playing on a fake Onkyo (UPnP + eISCP: standby, network drops) and a fake WiiM, in real time (~3 min, port 60128)
+cd backend && npm run live:salon            # all scenarios; `-- tv cancel` for some, `-- --hold` to keep it running on :3111
 
 # Frontend tests
 cd frontend && npx vitest              # interactive watch mode
