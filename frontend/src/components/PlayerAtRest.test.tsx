@@ -109,6 +109,15 @@ describe('The phone’s full screen player, on an album a cover opened', () => {
     expect(tracks).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('says ▶ plays on the Salon when the Salon is chosen, not on this iPhone', async () => {
+    await outputs.list();
+    player.setOutput(SALON);
+    page();
+    act(() => { showAlbum(shown); });
+    const sheet = fullScreen('Kind of Blue');
+    expect(within(sheet).getByRole('button', { name: 'Output: Salon' })).toHaveTextContent('Salon');
+  });
+
   it('shows it at rest when nothing plays: its line, ▶ playing it, its tracks playing from one', async () => {
     const playAlbum = vi.spyOn(player, 'playAlbum').mockImplementation(() => undefined);
     page();

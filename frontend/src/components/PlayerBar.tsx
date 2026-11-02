@@ -209,6 +209,8 @@ const PlayerBar: React.FC = () => {
         // A cover's album at rest: the same full screen, ▶ playing it, the disc of what plays at its foot.
         <PhonePlayer title={atRest.title} subtitle={atRest.artist} cover={{ src: atRest.cover, title: atRest.title }}
           playing={false} position={0} length={0} hasNext={false}
+          // Where its ▶ will play: the output chosen (Salon), not this iPhone.
+          where={outputName || null} outputId={output.kind === 'renderer' ? output.id : null}
           controls={{ toggle: () => atRest.playFrom(0), next: () => undefined, previous: () => undefined, playTrack: atRest.playable ? atRest.playFrom : undefined }}
           guideOf={Number(restAlbum.id)} tracks={atRest.shownTracks} index={-1} from=""
           infoOf={{ albumId: Number(restAlbum.id), known: restAlbum }}
