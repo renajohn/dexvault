@@ -120,8 +120,19 @@ export const discCredits = (tracks: CreditedTrack[], albumArtists: string[]): Di
   return { common, perTrack, musicians };
 };
 
-/** "Partita Nr.1 B-dur, BWV 825: I. Prélude" as its work and its movement, at the last colon. */
+/**
+ * A title as its work and its movement. A rip may have written its colon as
+ * " _ " ("Sonata no.8 in c minor, op. 13 - 'pathetique' _ 1. grave"), taken
+ * at the last; a dash parts them only before a movement's number
+ * ("Sonata no.17 in d op.31 no.2 'the tempest' - 1. largo allegro",
+ * "… - 4, Rondo. Allegro"), a dash in a work's name or between a movement's
+ * tempi staying; else "Partita Nr.1 B-dur, BWV 825: I. Prélude", at the last colon.
+ */
 const splitMovement = (title: string): { work: string; movement: string } | null => {
+  const underscore = title.lastIndexOf(' _ ');
+  if (underscore > 0) return { work: title.slice(0, underscore).trim(), movement: title.slice(underscore + 3).trim() };
+  const dash = /^(.+?)\s[-–—]\s((?:\d+|[IVXL]+)[.,]\s.+)$/.exec(title);
+  if (dash) return { work: dash[1].trim(), movement: dash[2].trim() };
   const at = title.lastIndexOf(': ');
   return at > 0 ? { work: title.slice(0, at).trim(), movement: title.slice(at + 2).trim() } : null;
 };
@@ -134,7 +145,14 @@ const splitMovement = (title: string): { work: string; movement: string } | null
  * a track under no heading.
  */
 export const workGroups = (titles: string[]): Array<{ work: string; movement: string; first: boolean } | null> => {
-  const parts = titles.map(splitMovement);
+  // Tracks of one title in a row, nothing to tell them apart ("Sonata no.23 in f minor, op. 57" three times, a scene of an opera in two): its parts in order.
+  const twin = (index: number) => titles[index] === titles[index - 1] || titles[index] === titles[index + 1];
+  const parts = titles.map((title, index) => {
+    if (!twin(index)) return splitMovement(title);
+    let first = index;
+    while (titles[first - 1] === title) first--;
+    return { work: title, movement: `Part ${index - first + 1}` };
+  });
   return parts.map((part, index) => {
     if (!part) return null;
     const same = (other: number) => parts[other]?.work === part.work;

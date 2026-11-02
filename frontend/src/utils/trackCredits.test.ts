@@ -122,4 +122,38 @@ describe('workGroups', () => {
       null,
     ]);
   });
+
+  it('reads a rip\'s " _ " for a colon, a dash before a movement\'s number, and tracks of one title as its parts', () => {
+    expect(workGroups([
+      "Sonata no.4 in e flat _ 3. allegro",
+      "Sonata no.4 in e flat _ rondo. poco allegretto e grazioso",
+      "Sonata no.8 in c minor, op. 13 - 'pathetique' _ 1. grave-allegro di molto e con brio",
+      "Sonata no.8 in c minor, op. 13 - 'pathetique' _ 2. adagio cantabile",
+      "Sonata no.17 in d op.31 no.2 'the tempest' - 1. largo allegro",
+      "Sonata no.17 in d op.31 no.2 'the tempest' - 2. adagio",
+      'Sonata No. 7 In D Major, Op. 10 No. 3 - 3. Menuetto, Allegro',
+      'Sonata No. 7 In D Major, Op. 10 No. 3 - 4, Rondo. Allegro',
+      'Sonata no.23 in f minor, op. 57',
+      'Sonata no.23 in f minor, op. 57',
+      'Sonata no.24 in f sharp major, op. 78',
+      'Sonata no.24 in f sharp major, op. 78',
+      'Hey Jude - 2015 Remaster',
+      'Let It Be - 2015 Remaster',
+    ])).toEqual([
+      { work: 'Sonata no.4 in e flat', movement: '3. allegro', first: true },
+      { work: 'Sonata no.4 in e flat', movement: 'rondo. poco allegretto e grazioso', first: false },
+      { work: "Sonata no.8 in c minor, op. 13 - 'pathetique'", movement: '1. grave-allegro di molto e con brio', first: true },
+      { work: "Sonata no.8 in c minor, op. 13 - 'pathetique'", movement: '2. adagio cantabile', first: false },
+      { work: "Sonata no.17 in d op.31 no.2 'the tempest'", movement: '1. largo allegro', first: true },
+      { work: "Sonata no.17 in d op.31 no.2 'the tempest'", movement: '2. adagio', first: false },
+      { work: 'Sonata No. 7 In D Major, Op. 10 No. 3', movement: '3. Menuetto, Allegro', first: true },
+      { work: 'Sonata No. 7 In D Major, Op. 10 No. 3', movement: '4, Rondo. Allegro', first: false },
+      { work: 'Sonata no.23 in f minor, op. 57', movement: 'Part 1', first: true },
+      { work: 'Sonata no.23 in f minor, op. 57', movement: 'Part 2', first: false },
+      { work: 'Sonata no.24 in f sharp major, op. 78', movement: 'Part 1', first: true },
+      { work: 'Sonata no.24 in f sharp major, op. 78', movement: 'Part 2', first: false },
+      null,
+      null,
+    ]);
+  });
 });
