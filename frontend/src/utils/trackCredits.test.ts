@@ -160,4 +160,36 @@ describe('workGroups', () => {
       null,
     ]);
   });
+
+  it('takes for two tracks the longest work they share, and keeps the tracks after it under it while they open with it', () => {
+    expect(workGroups([
+      'Symphonie G-dur Hob. I: 88: 1. Adagio - Allegro',
+      'Symphonie G-dur Hob. I: 88: 3. Menuetto: Allegretto',
+      'Symphonie G-dur Hob. I: 92 "Oxford-Symphonie": 1. Adagio - Allegro Spiritoso',
+      'Symphonie G-dur Hob. I: 92 "Oxford-Symphonie": 2. Adagio',
+      'Symphony no. 9: II. Largo',
+      'Symphony no. 9: III: Scherzo: Molto vivace',
+      'Requiem d‐moll, KV 626: II. „Kyrie“ (Chor)',
+      'Requiem d‐moll, KV 626: III. Sequenz: No. 1. „Dies irae“ (Chor)',
+      'Requiem d‐moll, KV 626: III. Sequenz: No. 2.„Tuba mirum“ (Sopran, Alt, Tenor, Bass)',
+      'Concerto pour 2 violons BWV 1040 – I',
+      'Concerto pour 2 violons BWV 1040 – II',
+      'Concerto for Organ, 2 Oboes, Strings and Continuo in G minor, op. 4 no. 1: Adagio',
+      'Concerto for Organ, 2 Oboes, Strings and Continuo in G minor, op. 4 No. 1: Andante',
+    ]).map(group => group && `${group.first ? '▌' : ' '}${group.work} | ${group.movement}`)).toEqual([
+      '▌Symphonie G-dur Hob. I: 88 | 1. Adagio - Allegro',
+      ' Symphonie G-dur Hob. I: 88 | 3. Menuetto: Allegretto',
+      '▌Symphonie G-dur Hob. I: 92 "Oxford-Symphonie" | 1. Adagio - Allegro Spiritoso',
+      ' Symphonie G-dur Hob. I: 92 "Oxford-Symphonie" | 2. Adagio',
+      '▌Symphony no. 9 | II. Largo',
+      ' Symphony no. 9 | III: Scherzo: Molto vivace',
+      '▌Requiem d‐moll, KV 626 | II. „Kyrie“ (Chor)',
+      ' Requiem d‐moll, KV 626 | III. Sequenz: No. 1. „Dies irae“ (Chor)',
+      ' Requiem d‐moll, KV 626 | III. Sequenz: No. 2.„Tuba mirum“ (Sopran, Alt, Tenor, Bass)',
+      '▌Concerto pour 2 violons BWV 1040 | I',
+      ' Concerto pour 2 violons BWV 1040 | II',
+      '▌Concerto for Organ, 2 Oboes, Strings and Continuo in G minor, op. 4 no. 1 | Adagio',
+      ' Concerto for Organ, 2 Oboes, Strings and Continuo in G minor, op. 4 no. 1 | Andante',
+    ]);
+  });
 });
