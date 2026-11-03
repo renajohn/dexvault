@@ -143,6 +143,32 @@ describe('MusicDetailCard tracks', () => {
   });
 
 
+  it('shows the rip’s files on no track of the CD under Bonus, after the CD’s, and plays one from there', async () => {
+    vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    vi.spyOn(window.HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(window.HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    vi.stubGlobal('fetch', vi.fn((url: string) => (String(url).includes('/scrobble/') ? Promise.resolve(new Response('{}')) : Promise.reject(new Error('offline')))));
+    const bonus = { ...ripped.tracks[0], track: 4, title: 'The Road to Home', suffix: 'm4a', bitDepth: null, bitRate: 256, path: '4.m4a' };
+    (musicService.getNavidromeTracks as any).mockResolvedValue({
+      ...ripped, tracks: [...ripped.tracks, bonus].map(track => ({ ...track, id: `song-${track.track}` })),
+    });
+    render(<MusicDetailCard cd={cd() as any} onClose={() => {}} onEdit={() => {}} onDelete={() => {}} />);
+
+    expect(await screen.findByText('Bonus')).toBeInTheDocument();
+    expect(screen.getByText('The Road to Home')).toBeInTheDocument();
+    // The head still says what the CD holds, and its rip stays lossless, the bonus counted apart.
+    expect(screen.getByText(/^CD · 3 tracks/)).toBeInTheDocument();
+    expect(screen.getByText('Lossless')).toBeInTheDocument();
+    expect(screen.getByText(/3 of 3 tracks · FLAC · 16-bit · 44\.1 kHz · stereo · \+ 1 bonus \(AAC\)/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play The Road to Home' }));
+    const { player } = await import('../services/player');
+    expect(player.getState()).toMatchObject({ index: 3, playing: true });
+    expect(player.getState().tracks.map(track => track.title)).toEqual(['Track 1', 'Track 2', 'Track 3', 'The Road to Home']);
+    player.stop();
+    vi.unstubAllGlobals();
+  });
+
   it('plays a ripped track from its number, and opens its words from the tag or its credits from the row', async () => {
     (musicService.getNavidromeTracks as any).mockResolvedValue({
       ...ripped, tracks: ripped.tracks.map(track => ({ ...track, url: `https://music.lab/song/${track.track}` })),

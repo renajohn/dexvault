@@ -16,6 +16,8 @@ export interface PlayerTrack {
   starred?: boolean;
   /** One of the album's most listened tracks: the grey dot of its line in the player's tracks. */
   popular?: boolean;
+  /** A file of the rip that is no track of the CD (a bonus bought apart): after the CD's, under a head of its own. */
+  extra?: boolean;
   /**
    * A song of a mixtape: its own artist, the CD or digital album of DexVault it
    * comes from, and that album's cover, which the bar shows while it plays.

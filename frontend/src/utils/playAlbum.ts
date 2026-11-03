@@ -28,26 +28,46 @@ export const playerAlbumOf = (album: AlbumLike, rip?: RipTracks | null): PlayerA
 const fileFormat = (file: RipTrackFile): Pick<PlayerTrack, 'lossless' | 'format'> =>
   (file.suffix ? { lossless: isLossless(file), format: formatName(file) } : {});
 
+/** The files of the rip in their order: disc, then track. */
+const byPlace = (files: RipTrackFile[]): RipTrackFile[] =>
+  files.filter(file => file.id).sort((a, b) => a.discNumber - b.discNumber || a.track - b.track);
+
+/**
+ * The files of the rip that are no track of the CD: bonus tracks bought apart
+ * and put with the album, say. They play after the CD's, with their own titles.
+ */
+export const extraFilesOf = (album: AlbumLike, rip: RipTracks | null | undefined): RipTrackFile[] => {
+  if (!rip?.found) return [];
+  const discs = album.discs || [];
+  if (!discs.some(disc => disc.tracks.length > 0)) return [];
+  const onCd = new Set(discs.flatMap(disc => disc.tracks.map(track => `${disc.number}-${Number(track.no)}`)));
+  return byPlace(rip.tracks).filter(file => !onCd.has(`${file.discNumber}-${file.track}`));
+};
+
 /**
  * The CD's tracks that have a file in the rip, in the CD's order, with its
- * titles. An album DexVault knows no tracks of (a wish, say, whose files
- * Navidrome has) plays the rip as it is, in its order, with its titles.
+ * titles, then the rip's files that are on no track of the CD. An album
+ * DexVault knows no tracks of (a wish, say, whose files Navidrome has) plays
+ * the rip as it is, in its order, with its titles.
  */
 export const playerTracksOf = (album: AlbumLike, rip: RipTracks | null | undefined): PlayerTrack[] => {
   if (!rip?.found) return [];
   const known = (album.discs || []).some(disc => disc.tracks.length > 0);
   if (!known) {
-    return rip.tracks
-      .filter(file => file.id)
-      .sort((a, b) => a.discNumber - b.discNumber || a.track - b.track)
+    return byPlace(rip.tracks)
       .map(file => ({ songId: file.id!, title: file.title, disc: file.discNumber, no: file.track, durationSec: file.durationSec ?? null, starred: file.starred, ...fileFormat(file) }));
   }
-  return (album.discs || []).flatMap(disc => disc.tracks.flatMap(track => {
+  const onCd = (album.discs || []).flatMap(disc => disc.tracks.flatMap(track => {
     const file = ripFileFor(rip.tracks, disc.number, Number(track.no));
     return file?.id
       ? [{ songId: file.id, title: track.title, disc: disc.number, no: Number(track.no), durationSec: file.durationSec ?? track.durationSec ?? null, starred: file.starred, ...(track.popular ? { popular: true } : {}), ...fileFormat(file) }]
       : [];
   }));
+  const extras = extraFilesOf(album, rip).map(file => ({
+    songId: file.id!, title: file.title, disc: file.discNumber, no: file.track, durationSec: file.durationSec ?? null,
+    starred: file.starred, extra: true, ...fileFormat(file),
+  }));
+  return [...onCd, ...extras];
 };
 
 /**

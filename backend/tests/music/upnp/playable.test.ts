@@ -16,6 +16,14 @@ describe('an album as an appliance plays it (the page’s playAlbum, on the serv
     ]);
   });
 
+  it('plays after the CD’s tracks the files of the rip on none of them, bonus tracks bought apart, with their own titles', () => {
+    const album = { id: 9, title: 'This Is the Life', discs: [{ number: 1, tracks: [{ no: 1, title: 'One' }, { no: 2, title: 'Two' }] }] };
+    const tracks = playerTracksOf(album, { found: true, tracks: [file(1, 12), file(1, 2), file(1, 11), file(1, 1)] });
+    expect(tracks.map(track => [track.songId, track.title, track.extra])).toEqual([
+      ['s1-1', 'One', undefined], ['s1-2', 'Two', undefined], ['s1-11', 'file 1-11', true], ['s1-12', 'file 1-12', true],
+    ]);
+  });
+
   it('plays the rip as it is when DexVault knows no tracks, and nothing without a rip', () => {
     const album = { id: 8, title: 'B', discs: [] };
     expect(playerTracksOf(album, { found: true, tracks: [file(2, 1), file(1, 1)] }).map(track => track.songId)).toEqual(['s1-1', 's2-1']);

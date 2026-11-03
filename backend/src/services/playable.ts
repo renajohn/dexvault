@@ -20,6 +20,8 @@ export interface PlayerTrack {
   starred?: boolean;
   /** One of the album's most listened tracks (ListenBrainz): the grey dot of its line. */
   popular?: boolean;
+  /** A file of the rip that is no track of the CD (a bonus bought apart): played after the CD's. */
+  extra?: boolean;
   /** A song of a mixtape: its own artist, the album of DexVault it comes from and that album's cover. */
   artist?: string;
   albumId?: number | null;
@@ -94,25 +96,35 @@ export const playerAlbumOf = (album: AlbumLike, rip?: RipTracks | null): PlayerA
 const ripFileFor = (files: NavidromeTrackFile[], disc: number, track: number): NavidromeTrackFile | null =>
   files.find(file => file.discNumber === disc && file.track === track) ?? null;
 
+/** The files of the rip in their order: disc, then track. */
+const byPlace = (files: NavidromeTrackFile[]): NavidromeTrackFile[] =>
+  files.filter(file => file.id).sort((a, b) => a.discNumber - b.discNumber || a.track - b.track);
+
 /**
  * The CD's tracks that have a file in the rip, in the CD's order, with its
- * titles; an album DexVault knows no tracks of plays the rip as it is.
+ * titles, then the rip's files on no track of the CD (bonus tracks bought
+ * apart, say) with their own; an album DexVault knows no tracks of plays the
+ * rip as it is.
  */
 export const playerTracksOf = (album: AlbumLike, rip: RipTracks | null | undefined): PlayerTrack[] => {
   if (!rip?.found) return [];
-  const known = (album.discs || []).some(disc => disc.tracks.length > 0);
+  const discs = album.discs || [];
+  const known = discs.some(disc => disc.tracks.length > 0);
   if (!known) {
-    return rip.tracks
-      .filter(file => file.id)
-      .sort((a, b) => a.discNumber - b.discNumber || a.track - b.track)
+    return byPlace(rip.tracks)
       .map(file => ({ songId: file.id!, title: file.title, disc: file.discNumber, no: file.track, durationSec: file.durationSec ?? null, starred: file.starred, suffix: file.suffix }));
   }
-  return (album.discs || []).flatMap(disc => disc.tracks.flatMap(track => {
+  const onCd = discs.flatMap(disc => disc.tracks.flatMap(track => {
     const file = ripFileFor(rip.tracks, disc.number, Number(track.no));
     return file?.id
       ? [{ songId: file.id, title: track.title, disc: disc.number, no: Number(track.no), durationSec: file.durationSec ?? track.durationSec ?? null, starred: file.starred, suffix: file.suffix, ...(track.popular ? { popular: true } : {}) }]
       : [];
   }));
+  const places = new Set(discs.flatMap(disc => disc.tracks.map(track => `${disc.number}-${Number(track.no)}`)));
+  const extras = byPlace(rip.tracks)
+    .filter(file => !places.has(`${file.discNumber}-${file.track}`))
+    .map(file => ({ songId: file.id!, title: file.title, disc: file.discNumber, no: file.track, durationSec: file.durationSec ?? null, starred: file.starred, suffix: file.suffix, extra: true }));
+  return [...onCd, ...extras];
 };
 
 /** The rip of an album, as /api/music/albums/:id/navidrome-tracks gives it. */

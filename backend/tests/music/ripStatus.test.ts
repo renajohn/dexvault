@@ -63,6 +63,22 @@ describe('rip status', () => {
     expect(await statusOf(id)).toMatchObject({ state: 'lossy', formats: ['AAC'] });
   });
 
+  it('juge le rip sur les pistes du CD : un bonus acheté à part en AAC le laisse lossless', async () => {
+    const title = `This Is the Life ${Math.random().toString(36).slice(2, 8)}`;
+    const id = await insertAlbum({ title, artist: ['Amy Macdonald'] });
+    for (const no of [1, 2]) {
+      await new Promise<void>((resolve, reject) => getDatabase().run(
+        'INSERT INTO tracks (album_id, disc_number, track_number, title) VALUES (?, 1, ?, ?)', [id, no, `Track ${no}`],
+        (err: Error | null) => (err ? reject(err) : resolve())));
+    }
+    jest.spyOn(navidromeService, 'getAlbums').mockResolvedValue([album('nd-6', title, 'Amy Macdonald')]);
+    jest.spyOn(navidromeService, 'getSongs').mockResolvedValue([1, 2, 3].map(track => ({
+      albumId: 'nd-6', discNumber: 1, track, suffix: track === 3 ? 'm4a' : 'flac', bitDepth: track === 3 ? null : 16,
+    })) as any);
+
+    expect(await statusOf(id)).toMatchObject({ state: 'lossless', formats: ['AAC', 'FLAC'] });
+  });
+
   it('trouve une partie d’un titre Discogs traduit, mais pas le même titre d’un autre artiste', async () => {
     const word = Math.random().toString(36).slice(2, 8);
     const id = await insertAlbum({ title: `Cellokonzerte ${word} • Cello Concertos ${word}`, artist: ['Antonio Vivaldi', 'Mstislav Rostropovich'] });

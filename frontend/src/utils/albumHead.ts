@@ -26,15 +26,25 @@ export interface RipSummary {
   /** "FLAC · 16-bit · 44.1 kHz · stereo" when the files agree, else the formats they mix: "FLAC, MP3". */
   format: string;
   files: number;
+  /** The files on no track of the CD, bonus tracks bought apart: "4 bonus (AAC)". */
+  extras?: string;
 }
 
-export const ripSummary = (rip: RipTracks): RipSummary | null => {
+/**
+ * How the rip stands, judged by its files on the CD's tracks: `extras`, the
+ * files on none of them, are only counted after.
+ */
+export const ripSummary = (rip: RipTracks, extras: RipTrackFile[] = []): RipSummary | null => {
   if (!rip.found || rip.tracks.length === 0) return null;
-  const formats = [...new Set(rip.tracks.map(ripFormat))];
+  const apart = new Set(extras);
+  const onCd = rip.tracks.filter(file => !apart.has(file));
+  const files = onCd.length > 0 ? onCd : rip.tracks;
+  const formats = [...new Set(files.map(ripFormat))];
   return {
-    state: rip.tracks.every(isLossless) ? 'lossless' : 'lossy',
-    format: formats.length === 1 ? formats[0] : [...new Set(rip.tracks.map(formatName))].join(', '),
-    files: rip.tracks.length,
+    state: files.every(isLossless) ? 'lossless' : 'lossy',
+    format: formats.length === 1 ? formats[0] : [...new Set(files.map(formatName))].join(', '),
+    files: files.length,
+    ...(onCd.length > 0 && extras.length > 0 ? { extras: `${extras.length} bonus (${[...new Set(extras.map(formatName))].join(', ')})` } : {}),
   };
 };
 

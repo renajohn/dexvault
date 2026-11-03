@@ -561,6 +561,21 @@
   color: var(--dv-gold);
 }
 
+/* The bonus tracks' head: the files put with the album that are no track of its CD. */
+.now-playing-bonus {
+  padding: 14px 8px 2px;
+  color: var(--dv-text);
+  font-size: 0.86rem;
+  font-weight: 600;
+  list-style: none;
+}
+
+.now-playing-bonus span {
+  color: var(--dv-text-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
 /* The tracks most listened to: the Mac's small grey dot, left of the number, never gold. */
 .now-playing-tracks__popular {
   position: absolute;

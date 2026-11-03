@@ -99,6 +99,8 @@ const sameTitle = (a: string, b: string): boolean => {
 export interface TrackLengths {
   cd: Map<number, number[]>;
   navidrome: Map<string, number[]>;
+  /** Each CD's tracks, "disc-track": a rip's files on none of them (bonus tracks bought apart) say nothing of the CD's rip. */
+  cdPlaces?: Map<number, Set<string>>;
 }
 
 const MIN_TRACKS = 3;
@@ -108,22 +110,25 @@ const sameTracks = (cd: number[] | undefined, copy: number[] | undefined): boole
   Boolean(cd && copy && cd.length >= MIN_TRACKS && cd.length === copy.length
     && cd.every((length, index) => Math.abs(length - copy[index]) <= TOLERANCE_SEC));
 
-/** Each CD's track lengths, null when one of them is unknown. */
-const cdTrackLengths = (): Promise<Map<number, number[]>> =>
+/** Each CD's track lengths, none when one of them is unknown; and each CD's tracks, "disc-track". */
+const cdTracks = (): Promise<{ lengths: Map<number, number[]>; places: Map<number, Set<string>> }> =>
   new Promise((resolve, reject) =>
     getDatabase().all(
-      'SELECT album_id, duration_sec FROM tracks ORDER BY album_id, disc_number, track_number',
+      'SELECT album_id, disc_number, track_number, duration_sec FROM tracks ORDER BY album_id, disc_number, track_number',
       [],
-      (err: Error | null, rows: Array<{ album_id: number; duration_sec: number | null }>) => {
+      (err: Error | null, rows: Array<{ album_id: number; disc_number: number; track_number: number; duration_sec: number | null }>) => {
         if (err) { reject(err); return; }
         const lengths = new Map<number, number[]>();
+        const places = new Map<number, Set<string>>();
         const incomplete = new Set<number>();
         for (const row of rows) {
           if (row.duration_sec == null) incomplete.add(row.album_id);
           lengths.set(row.album_id, [...(lengths.get(row.album_id) || []), row.duration_sec ?? 0]);
+          if (!places.has(row.album_id)) places.set(row.album_id, new Set());
+          places.get(row.album_id)!.add(`${row.disc_number || 1}-${row.track_number}`);
         }
         for (const id of incomplete) lengths.delete(id);
-        resolve(lengths);
+        resolve({ lengths, places });
       }));
 
 const navidromeTrackLengths = (songs: NavidromeSong[]): Map<string, number[]> => {
@@ -185,8 +190,19 @@ export const groupSongs = (songs: NavidromeSong[]): Map<string, NavidromeSong[]>
   return byAlbum;
 };
 
-const albumState = (album: NavidromeAlbum, songsByAlbum: Map<string, NavidromeSong[]>): RipState => {
-  const songs = songsByAlbum.get(album.id) || [];
+/**
+ * The files of a copy that are the CD's tracks: a bonus bought apart and put
+ * with the album, in AAC say, leaves the CD's rip lossless. A copy numbered
+ * otherwise than the CD keeps all its files.
+ */
+export const cdSongsOf = (songs: NavidromeSong[], places: Set<string> | undefined): NavidromeSong[] => {
+  if (!places || places.size === 0) return songs;
+  const onCd = songs.filter(song => places.has(`${song.discNumber ?? 1}-${song.track ?? 0}`));
+  return onCd.length > 0 ? onCd : songs;
+};
+
+const albumState = (album: NavidromeAlbum, songsByAlbum: Map<string, NavidromeSong[]>, places?: Set<string>): RipState => {
+  const songs = cdSongsOf(songsByAlbum.get(album.id) || [], places);
   return songs.length > 0 && songs.every(isLossless) ? 'lossless' : 'lossy';
 };
 
@@ -272,7 +288,8 @@ const library = async (): Promise<Library> => {
   }
   // The reading in hand: a sync may clear the cache while the CDs' lengths are read.
   const read = cache;
-  return { albums: read.albums, songs: read.songs, lengths: { cd: await cdTrackLengths(), navidrome: read.lengths } };
+  const cd = await cdTracks();
+  return { albums: read.albums, songs: read.songs, lengths: { cd: cd.lengths, navidrome: read.lengths, cdPlaces: cd.places } };
 };
 
 /**
@@ -282,7 +299,8 @@ const library = async (): Promise<Library> => {
 const bestCopy = (album: AlbumFormatted, navidrome: Library): NavidromeAlbum | null => {
   const songsByAlbum = groupSongs(navidrome.songs);
   const matches = matchesOf(album, navidrome.albums, navidrome.lengths)
-    .sort((a, b) => Number(albumState(b.candidate, songsByAlbum) === 'lossless') - Number(albumState(a.candidate, songsByAlbum) === 'lossless')
+    .sort((a, b) => Number(albumState(b.candidate, songsByAlbum, navidrome.lengths.cdPlaces?.get(album.id)) === 'lossless')
+      - Number(albumState(a.candidate, songsByAlbum, navidrome.lengths.cdPlaces?.get(album.id)) === 'lossless')
       || Number(b.match === 'musicbrainz') - Number(a.match === 'musicbrainz'));
   return matches[0]?.candidate ?? null;
 };
@@ -448,13 +466,11 @@ const ripStatusService = {
     }
 
     const songsByAlbum = groupSongs(navidrome.songs);
-    const stateOf = (album: NavidromeAlbum) => albumState(album, songsByAlbum);
-
     const albums = owned.map(album => {
       const matches = matchesOf(album, navidrome.albums, navidrome.lengths);
 
       // A CD ripped again sits next to its old MP3 copy until that one is deleted: the best copy counts.
-      const states = matches.map(({ candidate }) => stateOf(candidate));
+      const states = matches.map(({ candidate }) => albumState(candidate, songsByAlbum, navidrome.lengths.cdPlaces?.get(album.id)));
       const state: RipState = states.includes('lossless') ? 'lossless' : states.length > 0 ? 'lossy' : 'none';
       counts[state]++;
       const formats = [...new Set(matches.flatMap(({ candidate }) => (songsByAlbum.get(candidate.id) || []).map(formatName)))].sort();

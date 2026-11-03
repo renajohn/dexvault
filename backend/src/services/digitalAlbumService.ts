@@ -3,7 +3,7 @@ import Track from '../models/track';
 import { getDatabase } from '../database';
 import type { AlbumFormatted } from '../types';
 import navidromeService, { type NavidromeAlbum } from './navidromeService';
-import ripStatusService, { groupSongs, matchesOf, qualityOf, type Library, type Quality } from './ripStatusService';
+import ripStatusService, { cdSongsOf, groupSongs, matchesOf, qualityOf, type Library, type Quality } from './ripStatusService';
 import musicService from './musicService';
 import imageService from './imageService';
 import scorePiecesService from './scorePiecesService';
@@ -103,7 +103,9 @@ const reconcile = async (): Promise<DigitalAlbumsReport | null> => {
 
   // How good each album's files are, kept on the album for the search: a CD's best copy, 'none' for a CD not ripped.
   const songsByAlbum = groupSongs(navidrome.songs);
-  const qualityIn = (navidromeId: string): Quality => qualityOf(songsByAlbum.get(navidromeId) || []).quality;
+  // A CD's files alone: a bonus bought apart and put with it leaves its rip as good as it is.
+  const qualityIn = (navidromeId: string, places?: Set<string>): Quality =>
+    qualityOf(cdSongsOf(songsByAlbum.get(navidromeId) || [], places)).quality;
   const fileQualities = new Map<number, string | null>();
 
   // The copies of a CD of the collection or of a wish are theirs, not albums of their own.
@@ -112,7 +114,7 @@ const reconcile = async (): Promise<DigitalAlbumsReport | null> => {
   for (const album of cdsAndWishes) {
     const copies = matchesOf(album, navidrome.albums, navidrome.lengths).map(({ candidate }) => candidate.id);
     copies.forEach(id => taken.add(id));
-    const qualities = copies.map(qualityIn);
+    const qualities = copies.map(id => qualityIn(id, navidrome.lengths.cdPlaces?.get(album.id)));
     fileQualities.set(album.id, QUALITIES.find(quality => qualities.includes(quality))
       ?? (album.titleStatus !== 'wish' && /CD|Unknown/i.test(album.format || 'Unknown') ? 'none' : null));
   }

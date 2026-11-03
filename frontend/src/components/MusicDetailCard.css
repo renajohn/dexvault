@@ -955,6 +955,13 @@
   margin: 0;
 }
 
+/* Where the bonus tracks come from, quieter than their head. */
+.disc-title-note {
+  color: #9aa4b2;
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
 /* The discs held, after "In Listen Next": quieter than the words. */
 .music-detail-next-discs {
   font-weight: 400;

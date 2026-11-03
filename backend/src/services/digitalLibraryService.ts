@@ -4,7 +4,7 @@ import NavidromeListener, { type Favourite } from '../models/navidromeListener';
 import type { DayPlays } from '../models/navidromePlay';
 import type { AlbumFormatted } from '../types';
 import navidromeService, { type NavidromeAlbum, type NavidromeSong } from './navidromeService';
-import ripStatusService, { formatName, groupSongs, matchesOf, qualityOf, type Library, type Quality, type RipMatch } from './ripStatusService';
+import ripStatusService, { cdSongsOf, formatName, groupSongs, matchesOf, qualityOf, type Library, type Quality, type RipMatch } from './ripStatusService';
 
 export type { Quality };
 import listenHistoryService, { localDay } from './listenHistoryService';
@@ -218,9 +218,12 @@ const build = async (navidrome: Library, configured: boolean, error?: string): P
       }
       continue;
     }
-    const hasLossless = matches.some(({ candidate }) => qualities.get(candidate.id)?.quality === 'lossless');
+    // A copy is as good as its files on the CD's tracks: a bonus bought apart leaves a rip lossless.
+    const places = navidrome.lengths.cdPlaces?.get(album.id);
+    const lossless = (id: string) => qualityOf(cdSongsOf(songsByAlbum.get(id) || [], places)).quality === 'lossless';
+    const hasLossless = matches.some(({ candidate }) => lossless(candidate.id));
     for (const { candidate, match } of matches) {
-      if (hasLossless && qualities.get(candidate.id)?.quality !== 'lossless') {
+      if (hasLossless && !lossless(candidate.id)) {
         oldCopies.push({
           albumId: album.id, title: album.title, navidromeId: candidate.id, name: candidate.name,
           formats: [...new Set((songsByAlbum.get(candidate.id) || []).map(formatName))].sort(),

@@ -17,11 +17,11 @@ import { isAppleMobile, openListen, trackListenUrl } from '../utils/navidrome';
 import { ripFileFor } from '../utils/trackDetail';
 import { localOutputName, player, sameOutput, usePlayer, type PlayerOutput } from '../services/player';
 import { useOutputs } from '../services/outputs';
-import { playerAlbumOf, playerTracksOf } from '../utils/playAlbum';
+import { extraFilesOf, playerAlbumOf, playerTracksOf } from '../utils/playAlbum';
 import { playingTime, ripSummary, urlLabel } from '../utils/albumHead';
 import TrackDetails from './TrackDetails';
 import { useScrollKeys, useStepKeys } from './shared/DetailSteps';
-import type { AlbumOverlap, RipTracks } from '../services/musicService';
+import type { AlbumOverlap, RipTrackFile, RipTracks } from '../services/musicService';
 import './MusicDetailCard.css';
 import ShelfCode from './shared/ShelfCode';
 import NowPlayingBars from './shared/NowPlayingBars';
@@ -67,17 +67,21 @@ interface CdTrack {
 interface CdDisc {
   number: number;
   tracks: CdTrack[];
+  /** Files of the rip on no track of the CD: bonus tracks bought apart, say. */
+  extra?: boolean;
 }
 
-/** The discs of a rip, its files in their order, with the titles and lengths of their tags. */
-const discsOfRip = (rip: RipTracks | null | undefined): CdDisc[] => {
-  if (!rip?.found) return [];
+/** Files of a rip by disc, in their order, with the titles and lengths of their tags. */
+const discsOfFiles = (files: RipTrackFile[]): CdDisc[] => {
   const byDisc = new Map<number, CdTrack[]>();
-  for (const file of [...rip.tracks].sort((a, b) => a.discNumber - b.discNumber || a.track - b.track)) {
+  for (const file of [...files].sort((a, b) => a.discNumber - b.discNumber || a.track - b.track)) {
     byDisc.set(file.discNumber, [...(byDisc.get(file.discNumber) || []), { no: file.track, title: file.title, durationSec: file.durationSec ?? undefined }]);
   }
   return [...byDisc].map(([number, tracks]) => ({ number, tracks }));
 };
+
+/** The discs of a rip, its files in their order, with the titles and lengths of their tags. */
+const discsOfRip = (rip: RipTracks | null | undefined): CdDisc[] => (rip?.found ? discsOfFiles(rip.tracks) : []);
 
 interface CdData {
   musicbrainzReleaseId?: string | null;
@@ -612,7 +616,9 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   const albumArtists = Array.isArray(cd.artist) ? cd.artist : [cd.artist];
   // The tracks DexVault knows; for an album it knows none of (a wish, say), those of its rip in Navidrome.
   const discs: CdDisc[] = (cd.discs || []).some((disc: CdDisc) => disc.tracks.length > 0) ? cd.discs! : discsOfRip(rip);
-  const discsCredits = discs.map((disc: CdDisc) => discCredits(disc.tracks, albumArtists));
+  // After them, the rip's files on no track of the CD (bonus tracks bought apart), under a head of their own.
+  const shownDiscs: CdDisc[] = [...discs, ...discsOfFiles(extraFilesOf(cd, rip)).map(disc => ({ ...disc, extra: true }))];
+  const discsCredits = shownDiscs.map((disc: CdDisc) => discCredits(disc.tracks, albumArtists));
 
   // What the head says of the CD as an object: its format, size and length in one murmur…
   const trackCount = discs.reduce((count, disc) => count + disc.tracks.length, 0);
@@ -642,7 +648,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   ].filter(Boolean).join(' · ');
 
   const links = Object.entries(cd.urls || {}).filter((entry): entry is [string, string] => Boolean(entry[1]));
-  const summary = rip?.found ? ripSummary(rip) : null;
+  const summary = rip?.found ? ripSummary(rip, extraFilesOf(cd, rip)) : null;
 
   // The rip as Navidrome holds it: its state first, the format and the count of files in a murmur.
   let ripText: React.ReactNode;
@@ -657,6 +663,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       <span className="album-head-muted">
         {trackCount > 0 && ` · ${summary.files} of ${trackCount} tracks`}
         {' · '}{summary.format}
+        {summary.extras && ` · + ${summary.extras}`}
       </span>
     </>
   );
@@ -952,9 +959,9 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   );
 
   /** The tracks need no title: a line above them says where they start. */
-  const tracks = discs.length > 0 && (
+  const tracks = shownDiscs.length > 0 && (
     <div className="album-tracks">
-      {discs.map((disc: CdDisc, discIndex: number) => {
+      {shownDiscs.map((disc: CdDisc, discIndex: number) => {
         const credits = discsCredits[discIndex];
         // The movements of a work go under its heading, which says who wrote and who plays them all;
         // under a movement, only what differs. Who wrote the rest is in each track's credits.
@@ -969,7 +976,11 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
         });
         return (
           <div key={discIndex} className="disc-tracks mb-3">
-            {discs.length > 1 && (
+            {disc.extra ? (
+              <div className="disc-head">
+                <h6 className="disc-title">Bonus <span className="disc-title-note">· in Navidrome, not on the CD</span></h6>
+              </div>
+            ) : discs.length > 1 && (
               <div className="disc-head">
                 <h6 className="disc-title">Disc {disc.number}</h6>
                 {/* This disc alone in Listen Next, or out; held when the whole album is. */}
@@ -989,9 +1000,10 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
             )}
             <div className="track-list">
               {disc.tracks.map((track: CdTrack, trackIndex: number) => {
-                const key = `${disc.number}-${trackIndex}`;
-                const open = selectedTrack === key;
-                const words = withWords.has(`${disc.number}-${track.no}`);
+                const key = `${disc.extra ? 'extra-' : ''}${disc.number}-${trackIndex}`;
+                // A bonus is no track of DexVault: nothing of its own to open, credits or words.
+                const open = !disc.extra && selectedTrack === key;
+                const words = !disc.extra && withWords.has(`${disc.number}-${track.no}`);
                 const file = rip?.found ? ripFileFor(rip.tracks, disc.number, Number(track.no)) : null;
                 const playUrl = file ? trackListenUrl(file, appleMobile) : null;
                 const ownPlay = ownPlayer && Boolean(file?.id);
@@ -1009,13 +1021,16 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                   </div>
                 )}
                 <div
-                  className={`track-item track-selectable${open ? ' track-selected' : ''}${work ? ' track-in-work' : ''}${current ? ' track-current' : ''}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={open}
-                  aria-controls={open ? `track-details-${key}` : undefined}
-                  onClick={() => toggleTrack(key)}
+                  className={`track-item${disc.extra ? '' : ' track-selectable'}${open ? ' track-selected' : ''}${work ? ' track-in-work' : ''}${current ? ' track-current' : ''}`}
+                  {...(disc.extra ? {} : {
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-expanded': open,
+                    'aria-controls': open ? `track-details-${key}` : undefined,
+                    onClick: () => toggleTrack(key),
+                  })}
                   onKeyDown={(event: React.KeyboardEvent) => {
+                    if (disc.extra) return;
                     if (event.target !== event.currentTarget) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();

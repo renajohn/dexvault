@@ -239,6 +239,8 @@ export interface PhoneTrack {
   songId?: string;
   starred?: boolean;
   popular?: boolean;
+  /** A file of the rip on no track of the CD: after the CD's, under "Bonus". */
+  extra?: boolean;
 }
 
 /** Set once the first line has shown, on a phone, that the tracks slide. */
@@ -705,6 +707,10 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
               );
               const lines: React.ReactNode[] = [];
               for (let no = 0; no < group.tracks.length; no++) {
+                // The bonus tracks, bought apart and put with the album, under a head of their own.
+                if (group.tracks[no].track.extra && !group.tracks[no - 1]?.track.extra) {
+                  lines.push(<li key="bonus" className="now-playing-bonus">Bonus <span>· not on the CD</span></li>);
+                }
                 const work = works[no];
                 if (!work) { lines.push(line(group.tracks[no], no)); continue; }
                 let end = no;

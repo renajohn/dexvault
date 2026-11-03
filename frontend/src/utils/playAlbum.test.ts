@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { playerTracksOf, shuffledTracks } from './playAlbum';
+import { extraFilesOf, playerTracksOf, shuffledTracks } from './playAlbum';
 import type { RipTracks } from '../services/musicService';
 
 const file = (discNumber: number, track: number, title: string) => ({
@@ -30,6 +30,16 @@ describe('playerTracksOf', () => {
 
     expect(playerTracksOf(album, rip([file(1, 1, 'one.flac'), file(1, 2, 'two.flac')])).map(track => track.popular))
       .toEqual([true, undefined]);
+  });
+
+  it('plays after the CD’s tracks the rip’s files on none of them, bonus tracks bought apart, with their own titles', () => {
+    const album = { id: 424, title: 'This Is the Life', discs: [{ number: 1, tracks: [{ no: 1, title: 'Mr Rock & Roll' }, { no: 2, title: 'This Is the Life' }] }] };
+    const tracks = playerTracksOf(album, rip([file(1, 11, 'The Road to Home'), file(1, 2, 'two.flac'), file(1, 1, 'one.flac')]));
+
+    expect(tracks.map(track => [track.no, track.title, track.extra])).toEqual([
+      [1, 'Mr Rock & Roll', undefined], [2, 'This Is the Life', undefined], [11, 'The Road to Home', true],
+    ]);
+    expect(extraFilesOf(album, rip([file(1, 1, 'one.flac')]))).toEqual([]);
   });
 
   it('has nothing to play without a rip', () => {

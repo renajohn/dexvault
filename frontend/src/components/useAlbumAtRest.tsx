@@ -162,7 +162,7 @@ export interface AlbumAtRest {
 }
 
 /** A line of the player's tracks (PhonePlayer.PhoneTrack), for a CD with no rip: no song to play. */
-export interface PhoneTrackLike { title: string; durationSec: number | null; disc?: number; songId?: string; starred?: boolean; popular?: boolean }
+export interface PhoneTrackLike { title: string; durationSec: number | null; disc?: number; songId?: string; starred?: boolean; popular?: boolean; extra?: boolean }
 
 /**
  * The album a cover opened in the phone's full screen player, while another

@@ -8,6 +8,7 @@ import musicService, { type AlbumOverlap, type RipTracks } from '../services/mus
 import scorePiecesService, { type AlbumScore } from '../services/scorePiecesService';
 import { setFullPlayer, showAlbum, useAlbumManagement, type ShownAlbum } from '../services/phoneDoor';
 import { ripSummary, urlLabel } from '../utils/albumHead';
+import { extraFilesOf } from '../utils/playAlbum';
 import { ricardoUrl } from '../utils/digitalLibrary';
 import AlbumNotes from './AlbumNotes';
 import AlbumStory from './AlbumStory';
@@ -165,7 +166,7 @@ const AlbumInfo: React.FC<AlbumInfoProps> = ({ albumId, known = null }) => {
   const wished = album.titleStatus === 'wish';
   const artist = Array.isArray(album.artist) ? album.artist.join(', ') : album.artist || '';
   const trackCount = (album.discs || []).reduce((count, disc) => count + disc.tracks.length, 0);
-  const summary = rip?.found ? ripSummary(rip) : null;
+  const summary = rip?.found ? ripSummary(rip, extraFilesOf(album, rip)) : null;
   const released = [album.releaseYear, album.country, (album.labels || []).join(', ')].filter(Boolean).join(' · ');
   const firstRelease = album.releaseGroupFirstReleaseDate ? String(album.releaseGroupFirstReleaseDate) : '';
   const original = firstRelease && firstRelease.slice(0, 4) !== String(album.releaseYear ?? '') ? firstRelease : null;
@@ -252,6 +253,7 @@ const AlbumInfo: React.FC<AlbumInfoProps> = ({ albumId, known = null }) => {
         <span className="album-info-muted">
           {trackCount > 0 ? ` · ${summary.files} of ${trackCount} tracks` : ` · ${summary.files} tracks`}
           {' · '}{summary.format}
+          {summary.extras && ` · + ${summary.extras}`}
           {plays != null && plays > 0 && ` · ${plays} play${plays === 1 ? '' : 's'} in 90 days`}
         </span>
         {summary.state === 'lossy' && hasCd && <span className="album-info-lossy"> · rip the CD again</span>}
