@@ -144,7 +144,7 @@ const loadMixtape = async (album: AlbumLike, listenNext: boolean): Promise<Playa
     songId: song.songId, title: song.title, disc: 1, no: index + 1, durationSec: song.durationSec,
     artist: song.artist, albumId: song.albumId, cover: imageUrlOf(song.cover), place: index,
   }));
-  const order = listenNext ? await shuffleOrder(album.id, tracks.length) : null;
+  const order = listenNext ? await shuffleOrder(album.id, mixtape.songs) : null;
   return {
     album: { ...playerAlbumOf(album), navidromeId: null, url: mixtape.url, artist: mixtapeArtists(album.artist) },
     tracks: order && order.length === tracks.length && order.every(place => tracks[place])

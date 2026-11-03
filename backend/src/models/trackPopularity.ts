@@ -50,6 +50,15 @@ const TrackPopularity = {
       [albumId, deezerAlbumId, new Date().toISOString()]);
   },
 
+  /** Every album's, by album id. */
+  findAll: async (): Promise<Map<number, TrackRank[]>> => {
+    const rows = await all<TrackRank & { albumId: number }>(`SELECT album_id AS albumId, disc_number AS discNumber, track_number AS trackNumber,
+      deezer_rank AS rank, listens FROM track_popularity`);
+    const byAlbum = new Map<number, TrackRank[]>();
+    for (const { albumId, ...rank } of rows) byAlbum.set(albumId, [...(byAlbum.get(albumId) || []), rank]);
+    return byAlbum;
+  },
+
   findByAlbum: async (albumId: number): Promise<TrackRank[]> =>
     all<TrackRank>(`SELECT disc_number AS discNumber, track_number AS trackNumber, deezer_rank AS rank, listens
       FROM track_popularity WHERE album_id = ?`, [albumId]),

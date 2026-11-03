@@ -5,6 +5,7 @@ import navidromeService, { type NavidromePlaylist, type NavidromePlaylistEntry }
 import ripStatusService from './ripStatusService';
 import imageService from './imageService';
 import listenNextPlaylistService, { PLAYLIST_NAME } from './listenNextPlaylistService';
+import { withWorks } from './mixtapeWorks';
 import { getDatabase } from '../database';
 import logger from '../logger';
 import type { AlbumFormatted } from '../types';
@@ -33,6 +34,9 @@ export interface MixtapeSongShown extends MixtapeSong {
   /** The CD or digital album of DexVault the file is a copy of, null when none stands for it. */
   albumId: number | null;
   cover: string | null;
+  /** The work it plays under with the songs beside it, and its own part of it ("II. Largo"); null for a song alone. */
+  work: string | null;
+  movement: string | null;
 }
 
 export interface MixtapeShown {
@@ -230,7 +234,7 @@ const mixtapeService = {
     }
     const covers = new Map<number, string | null>();
     const songs: MixtapeSongShown[] = [];
-    for (const song of record.songs) {
+    for (const song of withWorks(record.songs)) {
       const origin = origins.get(song.navidromeAlbumId) ?? null;
       if (origin != null && !covers.has(origin)) covers.set(origin, (await Album.findById(origin))?.cover ?? null);
       songs.push({ ...song, albumId: origin, cover: origin != null ? covers.get(origin) ?? null : null });

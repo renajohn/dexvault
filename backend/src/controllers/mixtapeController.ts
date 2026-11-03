@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import mixtapeService, { MixtapeGoneError, type MixtapeEdit } from '../services/mixtapeService';
 import logger from '../logger';
 import { shuffleOrder } from '../services/mixtapeShuffle';
+import mixtapeSearchService from '../services/mixtapeSearchService';
 
 /** A Navidrome id: letters, digits, dashes and underscores. */
 const SONG_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -57,6 +58,18 @@ const mixtapeController = {
     }
   },
 
+  /** What plays and the words find, for a mixtape's Add tracks…: albums, works, songs. */
+  search: async (req: Request, res: Response): Promise<void> => {
+    const query = typeof req.query.q === 'string' ? req.query.q : '';
+    if (query.length > MAX_NAME) { res.status(400).json({ error: 'The search is too long' }); return; }
+    if (!mixtapeService.isConfigured()) { res.json({ albums: [], works: [], tracks: [] }); return; }
+    try {
+      res.json(await mixtapeSearchService.search(query));
+    } catch (error) {
+      fail(res, error, 'Failed to search what plays');
+    }
+  },
+
   get: async (req: Request, res: Response): Promise<void> => {
     const albumId = albumIdOf(req);
     if (albumId == null) { res.status(400).json({ error: 'albumId must be a number' }); return; }
@@ -65,7 +78,7 @@ const mixtapeController = {
       const mixtape = await mixtapeService.get(albumId);
       if (!mixtape) { res.status(404).json({ error: 'Mixtape not found' }); return; }
       // Played shuffled from Listen Next: the order drawn, as places, for DexVault's player to play it so.
-      res.json({ ...mixtape, listenNextOrder: await shuffleOrder(albumId, mixtape.songs.length) });
+      res.json({ ...mixtape, listenNextOrder: await shuffleOrder(albumId, mixtape.songs) });
     } catch (error) {
       fail(res, error, 'Failed to read the mixtape');
     }

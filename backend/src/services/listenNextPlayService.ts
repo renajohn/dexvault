@@ -88,7 +88,7 @@ const leave = async (collectionId: number, entry: Entry, at: number): Promise<Li
   await run('DELETE FROM album_collections WHERE collection_id = ? AND album_id = ? AND disc = ?', [collectionId, entry.id, entry.disc]);
   const departure = await ListenNextPlay.addDeparture(entry.id, place?.collection_order ?? null, at, Boolean(place?.suggested), entry.disc);
   const mixtape = await Mixtape.findByAlbumId(entry.id);
-  if (mixtape) await drawAgain(entry.id, mixtape.songs.length);
+  if (mixtape) await drawAgain(entry.id, mixtape.songs);
   listenNextPlaylistService.schedule();
   logger.info(`Listen Next: "${entry.title}"${entry.disc ? `, disc ${entry.disc},` : ''} played to its end, out of the list`);
   return departure;
@@ -209,7 +209,7 @@ const listenNextPlayService = {
   setShuffled: async (albumId: number, shuffled: boolean): Promise<boolean> => {
     const mixtape = await Mixtape.findByAlbumId(albumId);
     if (!mixtape) return false;
-    await shuffleMixtape(albumId, mixtape.songs.length, shuffled);
+    await shuffleMixtape(albumId, mixtape.songs, shuffled);
     listenNextPlaylistService.schedule();
     return true;
   },

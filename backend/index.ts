@@ -386,6 +386,7 @@ app.post('/api/collections/listen-next/played/:albumId', musicController.markLis
 // Mixtapes: the owner's playlists in Navidrome, kept as albums of their own.
 app.get('/api/music/mixtapes', mixtapeController.list);
 app.post('/api/music/mixtapes', mixtapeController.create);
+app.get('/api/music/mixtapes/search', mixtapeController.search);
 app.get('/api/music/mixtapes/:albumId', mixtapeController.get);
 app.patch('/api/music/mixtapes/:albumId', mixtapeController.update);
 app.delete('/api/music/mixtapes/:albumId', mixtapeController.remove);

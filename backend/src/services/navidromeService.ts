@@ -46,6 +46,9 @@ export interface NavidromeSong {
   discNumber?: number;
   track?: number;
   durationSec?: number | null;
+  /** Its title and artist as tagged: what a mixtape's search reads. */
+  title?: string;
+  artist?: string;
 }
 
 type SubsonicResponse<T> = { 'subsonic-response': T & { status: 'ok' | 'failed'; error?: { code: number; message: string } } };
@@ -153,7 +156,7 @@ type RawAlbumSong = {
   playCount?: number; played?: string; userRating?: number; starred?: string;
 };
 type RawSong = {
-  id?: string; albumId?: string; suffix?: string; bitDepth?: number; bitRate?: number; samplingRate?: number;
+  id?: string; albumId?: string; title?: string; artist?: string; suffix?: string; bitDepth?: number; bitRate?: number; samplingRate?: number;
   discNumber?: number; track?: number; duration?: number; playCount?: number; played?: string; userRating?: number; starred?: string;
 };
 
@@ -419,6 +422,7 @@ const navidromeService = {
         bitRate: song.bitRate || null, samplingRate: song.samplingRate || null,
         discNumber: song.discNumber || 1, track: song.track || 0, durationSec: song.duration ?? null,
         playCount: song.playCount || 0, played: song.played || null, userRating: song.userRating || 0, starred: Boolean(song.starred),
+        title: song.title || '', artist: song.artist || '',
       })));
       if (page.length < PAGE_SIZE) return songs;
     }
