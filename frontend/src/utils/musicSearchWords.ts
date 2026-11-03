@@ -3,7 +3,7 @@ import { musicSchema } from '../components/shared/search/schemas/music';
 
 /**
  * What MusicDex's page reads in its search before the backend does: whether it
- * asks what Navidrome has (Digital on) or for the mixtapes (Mixtapes on). Read
+ * asks what Navidrome has (Digital on). Read
  * with the search pills' own reading, so `-key:`, `!key:`, true/false,
  * with/without, y/n, 1/0 and the keys' other names (fav:) mean what they mean
  * to the backend.
@@ -15,7 +15,3 @@ const filters = (q: string): ParsedToken[] =>
 const NAVIDROME_KEYS = new Set(['cd', 'file', 'ripped', 'favourites']);
 
 export const asksNavidrome = (q: string): boolean => filters(q).some(t => NAVIDROME_KEYS.has(t.def!.key));
-
-/** mixtape:yes, or -mixtape:no: the search wants the mixtapes. */
-export const asksMixtapes = (q: string): boolean => filters(q).some(t =>
-  t.def!.key === 'mixtape' && !!t.canon && (t.neg ? t.canon.every(v => v === 'no') : t.canon.includes('yes')));

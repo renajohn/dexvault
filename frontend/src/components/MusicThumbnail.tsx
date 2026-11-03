@@ -36,15 +36,18 @@ interface MusicThumbnailProps {
   digital?: AlbumDigital;
   /** In Buy: why, and the bookmark and ✕ under the pointer in place of Listen Next. */
   buy?: { reason: string | null; wished: boolean; onWish: () => void; onDismiss?: () => void };
+  /** In MusicDex's view of the mixtapes: its line under the name ("54 tracks · 3 h 16") in place of its artists, its ⋯, and no Mixtape tag. */
+  mixtapeView?: { line: string; menu: React.ReactNode };
 }
 
-const MusicThumbnail: React.FC<MusicThumbnailProps> = ({ cd, onClick, onListenNextChange, isInListenNext: isInListenNextProp, listenNextTitle, dataItemId, dataFirstLetter, digital, buy }) => {
+const MusicThumbnail: React.FC<MusicThumbnailProps> = ({ cd, onClick, onListenNextChange, isInListenNext: isInListenNextProp, listenNextTitle, dataItemId, dataFirstLetter, digital, buy, mixtapeView }) => {
   const [togglingListenNext, setTogglingListenNext] = useState<boolean>(false);
 
   // Use prop if provided, otherwise local state (for backwards compatibility)
   const isInListenNext = isInListenNextProp !== undefined ? isInListenNextProp : false;
   const mixtape = isMixtape(cd);
   const getArtistDisplay = (): string => {
+    if (mixtapeView) return mixtapeView.line;
     if (mixtape) return mixtapeArtists(cd.artist);
     if (Array.isArray(cd.artist)) {
       return cd.artist.join(', ');
@@ -110,7 +113,8 @@ const MusicThumbnail: React.FC<MusicThumbnailProps> = ({ cd, onClick, onListenNe
         <AlbumPlayButton albumId={cd.id} title={cd.title} offerPlay
           onUnripped={onClick} className="thumbnail-play" />
         <ShelfCode kind="album" id={cd.id} />
-        {mixtape && (
+        {mixtapeView && <div className="thumbnail-more">{mixtapeView.menu}</div>}
+        {mixtape && !mixtapeView && (
           <CoverTagStack direction="row" className="digital-marks">
             <CoverTag variant="plain" title="A mixtape: a playlist of yours in Navidrome"><BsCassetteFill aria-hidden="true" />Mixtape</CoverTag>
           </CoverTagStack>

@@ -910,3 +910,37 @@
   opacity: 0.35;
 }
 .now-playing-rest__cd { color: var(--dv-silver); }
+
+/* A mixtape at rest: a track held lifts (useLiftToMove), a gold line where it will go. */
+.now-playing-tracks--mixtape {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.now-playing-tracks--mixtape [data-unit] {
+  position: relative;
+}
+
+.now-playing-unit--lifted {
+  z-index: 5;
+  border-radius: 10px;
+  background: rgba(60, 60, 60, 0.92);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 0.15s ease;
+}
+
+.now-playing-unit--drop::before,
+.now-playing-unit--drop-end::after {
+  content: "";
+  position: absolute;
+  z-index: 6;
+  right: 12px;
+  left: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--dv-gold);
+}
+
+.now-playing-unit--drop::before { top: -1px; }
+.now-playing-unit--drop-end::after { bottom: -1px; }

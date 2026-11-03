@@ -4,10 +4,13 @@ import { musicSchema } from './music';
 
 const { keys } = musicSchema;
 
-/** The keys the backend reads (backend/src/models/album.ts, favouriteAlbumService), mood: aside: nothing fills it. */
+/**
+ * The keys the backend reads (backend/src/models/album.ts, favouriteAlbumService), mood: aside: nothing fills it;
+ * nor mixtape:, the mixtapes having their own view of MusicDex.
+ */
 const BACKEND_KEYS = [
   'artist', 'title', 'genre', 'track', 'label', 'country', 'composer', 'performer', 'conductor', 'instrument', 'work',
-  'year', 'stars', 'cd', 'file', 'ripped', 'rated', 'mixtape', 'classical', 'favourites',
+  'year', 'stars', 'cd', 'file', 'ripped', 'rated', 'classical', 'favourites',
 ];
 
 describe('MusicDex’s search keys', () => {

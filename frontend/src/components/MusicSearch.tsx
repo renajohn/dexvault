@@ -31,6 +31,9 @@ import { DigitalChips, DigitalNotices, type DigitalFilter } from './DigitalStrip
 import DigitalMarks from './shared/DigitalMarks';
 import BoughtCdDialog from './BoughtCdDialog';
 import MixtapeDialog from './MixtapeDialog';
+import MixtapesGrid from './MixtapesGrid';
+import { showMixtapeOnPhone } from './useMixtapeAtRest';
+import { keepView, pathOfView, viewOfPath, type MusicDexView } from '../utils/musicDexView';
 import { reloadMixtapes, useMixtapes } from '../utils/mixtapeStore';
 import { isMixtape } from '../utils/mixtape';
 import { BsBookmarkFill, BsCartFill, BsChevronRight } from 'react-icons/bs';
@@ -41,7 +44,7 @@ import Button from './shared/Button';
 import Segmented from './shared/Segmented';
 import Notice from './shared/Notice';
 import Spinner, { Loading } from './shared/Spinner';
-import { asksMixtapes, asksNavidrome } from '../utils/musicSearchWords';
+import { asksNavidrome } from '../utils/musicSearchWords';
 import { isKept, useKeptState } from '../utils/kept';
 import { useMedia, useNarrow } from '../utils/useNarrow';
 import Progressive from './shared/Progressive';
@@ -59,9 +62,6 @@ interface MusicSearchProps {
   refreshTrigger?: number;
   searchCriteria?: { searchText?: string; [key: string]: any } | null;
 }
-
-/** Whether the mixtapes show among the albums: on unless turned off. */
-const MIXTAPES_ON_KEY = 'dexvault.musicdex.mixtapes';
 
 interface Album {
   /** How well a search's plain words name it (shared/search/bestMatch.ts). */
@@ -174,12 +174,12 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     return asked && FILTERS.includes(asked) ? asked : 'all';
   });
   const [showDismissed, setShowDismissed] = useState(false);
-  // Mixtapes on: the owner's playlists in Navidrome join the grid among the CDs.
-  const [mixtapesOn, setMixtapesOn] = useState<boolean>(() => readStored(MIXTAPES_ON_KEY) !== '0');
-  const { mixtapes } = useMixtapes();
-  // With a search, the mixtapes it finds, by their name or what they hold.
-  const [mixtapesFound, setMixtapesFound] = useState<Album[] | null>(null);
-  const [openMixtape, setOpenMixtape] = useState<number | null>(null);
+  // The albums or the mixtapes (/musicdex/mixtapes): the same section, its search and Listen Next shared.
+  const view = viewOfPath(location.pathname);
+  // Read as MusicDex opens: the toggles of a CD's tracks and Listen Next's mixtapes know them.
+  useMixtapes();
+  // A mixtape's card: just made (its name typed first, gone if left empty), or to rename.
+  const [openMixtape, setOpenMixtape] = useState<{ id: number; fresh?: boolean; naming?: boolean } | null>(null);
   // The album whose CD was just bought, its dialog open.
   const [buying, setBuying] = useState<any>(null);
   const digital = useDigitalLibrary(digitalOn);
@@ -505,39 +505,23 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     return () => { current = false; };
   }, [digitalOn, searchText, extraCds]);
 
-  useEffect(() => {
-    setMixtapesFound(null);
-    if (!mixtapesOn || !searchText) return undefined;
-    let current = true;
-    musicService.searchAlbums(searchText, { mixtapes: true })
-      .then(found => { if (current) setMixtapesFound(found as Album[]); })
-      .catch(error => console.warn('Search among the mixtapes failed:', error));
-    return () => { current = false; };
-  }, [mixtapesOn, searchText, mixtapes]);
-
-  const toggleMixtapes = () => {
-    const next = !mixtapesOn;
-    setMixtapesOn(next);
-    writeStored(MIXTAPES_ON_KEY, next ? '1' : '0');
-  };
-
   // Read again with the albums: a playlist made or changed in Amperfy shows as the page is opened again.
   useEffect(() => { reloadMixtapes(); }, [refreshTrigger]);
 
-  // mixtape:yes (or -mixtape:no) asks for the mixtapes: it turns Mixtapes on.
-  useEffect(() => {
-    if (mixtapesOn || !asksMixtapes(searchCriteria?.searchText || '')) return;
-    setMixtapesOn(true);
-    writeStored(MIXTAPES_ON_KEY, '1');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchCriteria?.searchText]);
-
-  // A mixtape asked for as an album (from Listen Next, ‹ ›, the player's bar): its own card.
+  // A mixtape asked for as an album (from Listen Next, ‹ ›, the player's bar): its own card; on a phone, the full screen player.
   useEffect(() => {
     if (!isMixtape(selectedCdDetails)) return;
-    setOpenMixtape(Number(selectedCdDetails.id));
+    if (phone) showAlbum(selectedCdDetails as ShownAlbum, 'tracks');
+    else setOpenMixtape({ id: Number(selectedCdDetails.id) });
     setSelectedCdDetails(null);
-  }, [selectedCdDetails]);
+  }, [selectedCdDetails]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** A mixtape of the view of the mixtapes: its card; on a phone, the full screen player, its Add tracks… open on its name for a new one. */
+  const openMixtapeOf = (id: number, how?: { fresh?: boolean; naming?: boolean }) => {
+    if (!phone) { setOpenMixtape({ id, ...how }); return; }
+    showMixtapeOnPhone(id, how?.fresh || how?.naming ? { naming: true, fresh: Boolean(how.fresh) } : undefined)
+      .catch(() => toast('This mixtape could not be read', { tone: 'danger' }));
+  };
 
   /**
    * The grid with Digital on: the CDs, and the albums with no CD that
@@ -570,12 +554,8 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     }
   }, [digitalOn, digitalFilter, filteredCds, hybridCds, digitalOf]);
 
-  /** What the grid shows: the albums, and the mixtapes among them, sorted as they are; not in Buy. */
-  const shownCds = useMemo(() => {
-    if (!mixtapesOn || (digitalOn && digitalFilter === 'buy')) return cdsShown;
-    const found = searchText ? (mixtapesFound ?? []) : mixtapes.map(mixtape => mixtape.album as unknown as Album);
-    return found.length === 0 ? cdsShown : sortCds([...cdsShown, ...found], sortBy);
-  }, [mixtapesOn, digitalOn, digitalFilter, cdsShown, searchText, mixtapesFound, mixtapes, sortCds, sortBy]);
+  /** What the grid shows: the albums; the mixtapes have their own view. */
+  const shownCds = cdsShown;
 
   const dismissedCds = useMemo(() => (digitalOn && digitalFilter === 'buy'
     ? hybridCds.filter(cd => !hasCd(cd) && isDismissed(digitalOf(cd).album)) : []), [digitalOn, digitalFilter, hybridCds, digitalOf]);
@@ -1263,6 +1243,16 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
     { value: 'quality', label: 'Group by Quality' }
   ];
 
+  // First in the header of both views: the albums or the mixtapes, the search kept.
+  const chooseView = (next: MusicDexView) => {
+    keepView(next);
+    navigate(pathOfView(next));
+  };
+  const viewSwitch = (
+    <Segmented label="MusicDex" kind="tabs" size="sm" value={view} onChange={chooseView}
+      options={[{ value: 'albums', label: 'Albums' }, { value: 'mixtapes', label: 'Mixtapes' }]} />
+  );
+
   // Helper function to get cover URL
   const getCoverUrl = (coverPath: string | null | undefined) => {
     if (!coverPath) return null;
@@ -1384,12 +1374,20 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
       )}
       </NextBannerSlot>
 
-      {/* Results Header with Controls */}
+      {view === 'mixtapes' ? (
+        <div className="cds-results">
+          <MixtapesGrid searchText={searchText} viewSwitch={viewSwitch}
+            listenNextIds={new Set(listenNextAlbums.map(album => Number(album.id)))}
+            onListenNextChange={refreshListenNextAlbums}
+            onOpen={openMixtapeOf} />
+        </div>
+      ) : (
+      /* Results Header with Controls */
       <div className="cds-results">
         <CollectionHeader
           // On a phone the Buy list says how many there are to buy, and has no sort or grouping of its own to offer.
-          filteredCount={buyOnPhone ? filterCounts.buy : digitalOn || mixtapesOn ? shownCds.length : cdCount.filtered}
-          totalCount={buyOnPhone ? filterCounts.buy : (digitalOn ? hybridTotal : cdCount.total) + (mixtapesOn && !(digitalOn && digitalFilter === 'buy') ? mixtapes.length : 0)}
+          filteredCount={buyOnPhone ? filterCounts.buy : digitalOn ? shownCds.length : cdCount.filtered}
+          totalCount={buyOnPhone ? filterCounts.buy : digitalOn ? hybridTotal : cdCount.total}
           itemLabel={buyOnPhone ? 'to buy' : 'albums'}
           sortBy={sortBy}
           sortOptions={buyOnPhone ? [] : sortOptions}
@@ -1413,12 +1411,9 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
               label: 'Digital', checked: digitalOn, onChange: toggleDigital,
               title: digitalOn ? 'Hide the albums with no CD and what sets each album apart' : 'Show the albums with no CD, how good the files are, and what to buy',
             },
-            {
-              label: 'Mixtapes', checked: mixtapesOn, onChange: toggleMixtapes,
-              title: mixtapesOn ? 'Hide the mixtapes' : 'Show your mixtapes, your playlists in Navidrome, among the albums',
-            },
           ]}
           extraControls={digitalOn && <DigitalChips filter={digitalFilter} onFilter={chooseFilter} counts={filterCounts} />}
+          leading={viewSwitch}
         />
 
         {digitalOn && <DigitalNotices library={digital.library} error={digital.error} editions={digital.editions} />}
@@ -1426,6 +1421,7 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
         {/* Album Grid or Grouped Albums */}
         {renderCdGrid()}
       </div>
+      )}
 
       {/* Forms and Modals */}
       <AddMusicDialog
@@ -1535,8 +1531,10 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
 
 
       {openMixtape != null && (
-        <MixtapeDialog albumId={openMixtape} onClose={() => setOpenMixtape(null)}
+        <MixtapeDialog key={openMixtape.id} albumId={openMixtape.id} fresh={openMixtape.fresh} naming={openMixtape.naming}
+          onClose={() => setOpenMixtape(null)}
           onOpenAlbum={albumId => handleCdClick(albumId)}
+          onOpenMixtape={(id, fresh) => setOpenMixtape({ id, fresh: false, naming: fresh })}
           onChange={() => { refreshListenNextAlbums(); reloadMixtapes(); }} />
       )}
 

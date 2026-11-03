@@ -111,3 +111,14 @@ dernière modification la fait descendre ; on la supprime par le ⋯ quand on ve
 - **↵ garde la liste ouverte** (variante A) : il bascule la ligne surlignée, les mots restent.
 - Un album déplié : la liste défile dans sa hauteur, sa tête collée en haut, comme au prototype.
 - **Réordonner au doigt** par appui long, gardé : une piste seule ou une œuvre entière.
+
+## Livré (03.11.2026)
+
+Comme décidé, à deux écarts près :
+- sur l'iPhone, **Shuffle est dans le ⋯** du lecteur au repos (Add tracks…, Shuffle, puis Rename,
+  Duplicate, Listen Next, Navidrome, Delete) : le lecteur au repos n'a que ▶ au milieu ;
+- la tête de la vue garde, comme les autres sections, son bouton or **+ New mixtape**, en plus de
+  la tuile en tête de grille.
+Le lecteur de l'iPhone n'offre ces gestes qu'à une mixtape **au repos** ; une mixtape en train de
+jouer se montre comme avant (ses pistes, sans glisser pour retirer ni appui long).
+

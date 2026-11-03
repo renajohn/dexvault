@@ -41,6 +41,7 @@ import { connectOutputs } from './services/outputs';
 import { useMedia } from './utils/useNarrow';
 import { useStickySearch } from './utils/useStickySearch';
 import { HeaderSearchSlot } from './utils/headerSearchSlot';
+import { MIXTAPES_PATH, musicDexPath } from './utils/musicDexView';
 
 interface SearchCriteria {
   searchText: string;
@@ -54,6 +55,9 @@ const DigitalRedirect = () => {
   const search = DIGITAL_TAB_SEARCHES[tab];
   return <Navigate to={search ? `/musicdex?digital=1&search=${encodeURIComponent(search)}` : '/musicdex?digital=1&filter=buy'} replace />;
 };
+
+/** The page's section: MusicDex's view of the mixtapes is MusicDex. */
+const sectionOf = (path: string): string => (path === MIXTAPES_PATH ? '/musicdex' : path);
 
 /** The sections of the header's buttons, in their order, Analytics last (under ⚙︎). */
 const SECTIONS = ['/filmdex', '/musicdex', '/bookdex', '/scores', '/wishlist', '/shelves', '/analytics'];
@@ -143,7 +147,7 @@ function AppContent() {
 
   // Initialize search from localStorage based on current product
   const [searchCriteria, setSearchCriteria] = useState<SearchCriteria>(() => {
-    const currentPath = window.location.pathname;
+    const currentPath = sectionOf(window.location.pathname);
     const product = getProductFromPath(currentPath);
     if (product) {
       const savedText = readStored(`dexvault-${product}-search`) || '';
@@ -162,24 +166,26 @@ function AppContent() {
   const [scorePublishers, setScorePublishers] = useState<string[]>([]);
   const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
 
+  // MusicDex's mixtapes (/musicdex/mixtapes) are MusicDex: its search, its header, its sections.
+  const sectionPath = sectionOf(location.pathname);
   // The search's keys and the recent searches of the section shown.
-  const searchSchema = getSearchSchema(location.pathname);
-  const product = getProductFromPath(location.pathname);
+  const searchSchema = getSearchSchema(sectionPath);
+  const product = getProductFromPath(sectionPath);
 
   // Check if we're on the thumbnail view (filmdex path)
-  const isThumbnailView = location.pathname === '/filmdex';
+  const isThumbnailView = sectionPath === '/filmdex';
 
   // Check if we should show the search bar (filmdex, musicdex, bookdex, wishlist)
-  const showSearchBar = location.pathname === '/filmdex' || location.pathname === '/musicdex' || location.pathname === '/bookdex' || location.pathname === '/scores' || location.pathname === '/wishlist';
+  const showSearchBar = sectionPath === '/filmdex' || sectionPath === '/musicdex' || sectionPath === '/bookdex' || sectionPath === '/scores' || sectionPath === '/wishlist';
 
   const phone = useMedia('(max-width: 767px)');
   // The shelves have a search of their own, not in pills: the page puts it in this row (utils/headerSearchSlot).
-  const shelvesSearch = location.pathname === '/shelves';
+  const shelvesSearch = sectionPath === '/shelves';
   const [searchSlot, setSearchSlot] = useState<HTMLDivElement | null>(null);
-  useStickySearch(headerRef, searchRowRef, phone && ((showSearchBar && Boolean(searchSchema)) || shelvesSearch), location.pathname);
+  useStickySearch(headerRef, searchRowRef, phone && ((showSearchBar && Boolean(searchSchema)) || shelvesSearch), sectionPath);
 
   // Check if we should show the navigation pills (all main sections)
-  const showNavigationPills = location.pathname === '/filmdex' || location.pathname === '/musicdex' || location.pathname === '/bookdex' || location.pathname === '/scores' || location.pathname === '/wishlist' || location.pathname === '/shelves' || location.pathname === '/analytics' || location.pathname === '/backup';
+  const showNavigationPills = sectionPath === '/filmdex' || sectionPath === '/musicdex' || sectionPath === '/bookdex' || sectionPath === '/scores' || sectionPath === '/wishlist' || sectionPath === '/shelves' || sectionPath === '/analytics' || sectionPath === '/backup';
   // On a computer the whole header holds at the top of the window in the sections, its paddings
   // tightening as the page scrolls (App.css); where its foot stands is said to the page, as on a phone, for what sticks or is scrolled to to stop under it.
   const stickyHeader = !phone && showNavigationPills;
@@ -201,7 +207,7 @@ function AppContent() {
 
   // Get the page title based on current route
   const getPageTitle = (): string => {
-    switch (location.pathname) {
+    switch (sectionPath) {
       case '/filmdex':
         return 'DexVault';
       case '/musicdex':
@@ -227,10 +233,10 @@ function AppContent() {
   // Fetch collections and box sets for filter dropdown
   const fetchFilterData = async () => {
     try {
-      if (location.pathname === '/musicdex') {
+      if (sectionPath === '/musicdex') {
         // MusicDex's filters are fixed
         return;
-      } else if (location.pathname === '/scores') {
+      } else if (sectionPath === '/scores') {
         // The scores' composers and publishers, each once
         const scores = await bookSectionsService.scores();
         const names = (values: Array<string | null>) => [...new Set(values.filter((v): v is string => !!v && !!v.trim()))]
@@ -239,7 +245,7 @@ function AppContent() {
         const surname = (name: string) => name.split(' ').slice(-1)[0];
         setScoreComposers(names(scores.map(s => s.composer)).sort((a, b) => surname(a).localeCompare(surname(b))));
         setScorePublishers(names(scores.map(s => s.publisher)));
-      } else if (location.pathname === '/bookdex') {
+      } else if (sectionPath === '/bookdex') {
         // Fetch owners for BookDex
         try {
           const ownersData = await bookService.getAutocompleteSuggestions('owner', '') as any[];
@@ -376,13 +382,13 @@ function AppContent() {
     const plain = (type: string, labels: Array<[string, string]>) => labels.map(([value, label]) => ({ label, type, value }));
     const of = (type: string, values: string[]) => values.map(value => ({ label: value, type, value }));
     const decades = [2020, 2010, 2000, 1990, 1980, 1970, 1960].map(year => ({ label: `${year}s`, type: 'music', value: `year:${year}-${year + 9}` }));
-    const sections = location.pathname === '/musicdex' ? [
-      { title: 'Medium', options: plain('music', [['cd:yes', 'CDs only'], ['cd:no', 'Digital only'], ['mixtape:yes', 'Mixtapes only'], ['mixtape:no', 'No mixtapes']]) },
+    const sections = sectionPath === '/musicdex' ? [
+      { title: 'Medium', options: plain('music', [['cd:yes', 'CDs only'], ['cd:no', 'Digital only']]) },
       { title: 'Files', options: plain('music', [['file:lossless', 'Lossless'], ['file:lossy', 'Lossy'], ['ripped:no', 'Not ripped']]) },
       { title: 'Music', options: plain('music', [['classical:yes', 'Classical only'], ['classical:no', 'Everything but classical']]) },
       { title: 'Your stars', options: plain('music', [['stars:5', '★★★★★'], ['stars:>=4', '4 stars or more'], ['rated:no', 'Not rated yet'], ['favourites:yes', 'Favourites']]) },
       { title: 'Decades', options: [...decades, { label: 'Before 1960', type: 'music', value: 'year:<1960' }] },
-    ] : location.pathname === '/bookdex' ? [
+    ] : sectionPath === '/bookdex' ? [
       { title: 'Book Type', options: plain('book', [['type:book', 'Book'], ['type:graphic-novel', 'Graphic Novel'], ['type:score', 'Score']]) },
       { title: 'Formats', options: plain('book', [['format:physical', 'Physical'], ['format:ebook', 'E-book'], ['format:audiobook', 'Audiobook']]) },
       { title: 'Title Status', options: plain('book', [['title_status:owned', 'Owned'], ['title_status:borrowed', 'Borrowed']]) },
@@ -391,7 +397,7 @@ function AppContent() {
         ...owners.map(name => ({ label: name, type: 'book', value: `owner:${/[\s,:]/.test(name) ? `"${name}"` : name}` })),
         ...(owners.length ? [{ label: 'No owner', type: 'book', value: 'owner:none' }] : []),
       ] },
-    ] : location.pathname === '/scores' ? [
+    ] : sectionPath === '/scores' ? [
       { title: 'PDF', options: plain('score', [['pdf:yes', 'With a PDF'], ['pdf:no', 'Without a PDF']]) },
       { title: 'Your Music', options: plain('score', [['heard:yes', 'Played in your music'], ['heard:no', 'Not in your music'], ['contents:no', 'Contents unknown']]) },
       { title: 'Composers', options: [
@@ -439,8 +445,9 @@ function AppContent() {
     navigate('/filmdex');
   };
 
+  // Back to the view of MusicDex left last, the albums or the mixtapes.
   const handleMusicDex = () => {
-    navigate('/musicdex');
+    navigate(musicDexPath());
   };
 
   const handleBookDex = () => {
@@ -548,13 +555,13 @@ function AppContent() {
 
   const handleMovieAdded = (message: string, type: string) => {
     // Don't show success messages when on wish list page
-    if (location.pathname !== '/wishlist' || type !== 'success') {
+    if (sectionPath !== '/wishlist' || type !== 'success') {
       handleShowAlert(message, type);
     }
 
     // Refresh the appropriate list based on current page
     setTimeout(() => {
-      if (location.pathname === '/wishlist' && wishListRef.current && wishListRef.current.refreshMovies) {
+      if (sectionPath === '/wishlist' && wishListRef.current && wishListRef.current.refreshMovies) {
         wishListRef.current.refreshMovies();
       } else if (movieSearchRef.current && movieSearchRef.current.refreshMovies) {
         movieSearchRef.current.refreshMovies();
@@ -637,7 +644,7 @@ function AppContent() {
         {searchCriteria.searchText && (
           <IconButton label="Clear the search" size="sm" onClick={() => setSearchCriteria({ searchText: '' })}><BsX /></IconButton>
         )}
-        {location.pathname !== '/wishlist' && (
+        {sectionPath !== '/wishlist' && (
           <Menu align="end" label="Advanced filters" onOpenChange={open => { if (open) fetchFilterData(); }}
             trigger={(props, open) => (
               <IconButton {...props} label="Advanced filters" size="sm"><MenuChevron open={open} /></IconButton>
@@ -665,7 +672,7 @@ function AppContent() {
       onAnalytics={handleAnalytics}
       showAnalytics={!phoneStrip}
       onOpenChange={phoneStrip ? open => { if (!open) phoneStrip.close(); } : undefined}
-      currentPage={location.pathname === '/musicdex' ? 'musicdex' : location.pathname === '/bookdex' ? 'bookdex' : 'filmdex'}
+      currentPage={sectionPath === '/musicdex' ? 'musicdex' : sectionPath === '/bookdex' ? 'bookdex' : 'filmdex'}
     />
   );
 
@@ -677,8 +684,8 @@ function AppContent() {
         <div className="App-header-content App-header-content--phone">
           <div ref={searchRowRef} className="App-phone-row">
             <PhoneSections
-              value={location.pathname.startsWith('/musicdex') ? 'musicdex' : SECTIONS.includes(location.pathname) ? location.pathname.slice(1) : null}
-              onChange={section => navigate(`/${section}`)}
+              value={sectionPath.startsWith('/musicdex') ? 'musicdex' : SECTIONS.includes(sectionPath) ? sectionPath.slice(1) : null}
+              onChange={section => navigate(section === 'musicdex' ? musicDexPath() : `/${section}`)}
               restIcon={<BsGear />}
               sections={[
                 { value: 'filmdex', icon: <BsFilm />, label: 'FilmDex' },
@@ -706,7 +713,7 @@ function AppContent() {
                 tone="gold"
                 className="app-sections"
                 reselect
-                value={location.pathname.startsWith('/musicdex') ? 'musicdex' : location.pathname.slice(1)}
+                value={sectionPath.startsWith('/musicdex') ? 'musicdex' : sectionPath.slice(1)}
                 onChange={section => ({ filmdex: handleCollection, musicdex: handleMusicDex, bookdex: handleBookDex, scores: () => navigate('/scores'), wishlist: handleWishList, shelves: handleShelves } as Record<string, () => void>)[section]?.()}
                 options={[
                   { value: 'filmdex', icon: <BsFilm />, tooltip: 'FilmDex - My precious movies \u00B7 \u23181' },
@@ -766,6 +773,7 @@ function AppContent() {
             }
           />
           <Route path="/musicdex" element={<MusicDexPage ref={musicDexRef} searchCriteria={searchCriteria} />} />
+          <Route path={MIXTAPES_PATH} element={<MusicDexPage ref={musicDexRef} searchCriteria={searchCriteria} />} />
           {/* The Digital page is MusicDex with Digital on: its tabs are filters there. */}
           <Route path="/musicdex/digital" element={<DigitalRedirect />} />
           <Route path="/musicdex/rip" element={<Navigate to="/musicdex?digital=1" replace />} />

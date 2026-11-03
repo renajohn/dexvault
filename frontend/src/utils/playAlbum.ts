@@ -1,4 +1,4 @@
-import musicService, { type RipTrackFile, type RipTracks } from '../services/musicService';
+import musicService, { type MixtapeDetails, type RipTrackFile, type RipTracks } from '../services/musicService';
 import { player, reportOutputError, type PlayerAlbum, type PlayOptions, type PlayerTrack } from '../services/player';
 import outputs, { type OutputError } from '../services/outputs';
 import { ripFileFor } from './trackDetail';
@@ -75,12 +75,15 @@ export const playerTracksOf = (album: AlbumLike, rip: RipTracks | null | undefin
  * artist and the cover of its CD; from Listen Next, in the order drawn there
  * when it plays shuffled, the one Amperfy's playlist has too.
  */
+/** A mixtape's songs as the player's tracks: each its own artist, the cover of its CD, its place and its work. */
+export const mixtapeTracksOf = (mixtape: MixtapeDetails): PlayerTrack[] => mixtape.songs.map((song, index) => ({
+  songId: song.songId, title: song.title, disc: 1, no: index + 1, durationSec: song.durationSec,
+  artist: song.artist, albumId: song.albumId, cover: musicService.getImageUrl(song.cover), place: index, work: song.work,
+}));
+
 const loadMixtape = async (album: AlbumLike, listenNext: boolean): Promise<{ album: PlayerAlbum; tracks: PlayerTrack[] }> => {
   const mixtape = await musicService.getMixtape(Number(album.id));
-  const tracks: PlayerTrack[] = mixtape.songs.map((song, index) => ({
-    songId: song.songId, title: song.title, disc: 1, no: index + 1, durationSec: song.durationSec,
-    artist: song.artist, albumId: song.albumId, cover: musicService.getImageUrl(song.cover), place: index,
-  }));
+  const tracks = mixtapeTracksOf(mixtape);
   const order = listenNext ? mixtape.listenNextOrder : null;
   return {
     album: { ...playerAlbumOf(album), navidromeId: null, url: mixtape.url, artist: mixtapeArtists(album.artist) },
@@ -92,15 +95,21 @@ const loadMixtape = async (album: AlbumLike, listenNext: boolean): Promise<{ alb
 
 /**
  * The tracks in a new order, drawn at random (Fisher-Yates), numbered again
- * as they will play; a mixtape's song keeps its `place` in the mixtape.
+ * as they will play; a mixtape's song keeps its `place` in it, and the
+ * movements of one work in a row (`work`) stay together, in their order.
  */
 export const shuffledTracks = (tracks: PlayerTrack[], random: () => number = Math.random): PlayerTrack[] => {
-  const order = [...tracks];
-  for (let i = order.length - 1; i > 0; i--) {
+  const units: PlayerTrack[][] = [];
+  tracks.forEach((track, at) => {
+    const before = tracks[at - 1];
+    if (track.work && before?.work === track.work && before.albumId === track.albumId) units[units.length - 1].push(track);
+    else units.push([track]);
+  });
+  for (let i = units.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
-    [order[i], order[j]] = [order[j], order[i]];
+    [units[i], units[j]] = [units[j], units[i]];
   }
-  return order.map((track, index) => ({ ...track, disc: 1, no: index + 1 }));
+  return units.flat().map((track, index) => ({ ...track, disc: 1, no: index + 1 }));
 };
 
 /**

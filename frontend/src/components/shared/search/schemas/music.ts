@@ -6,12 +6,13 @@ import { suggestFrom, yesNo, type SearchGuess, type SearchKey, type SearchSchema
 /**
  * MusicDex's keys, as the backend reads them: backend/src/models/album.ts
  * (_parseSearchQuery for the words on the album and its tracks, year:, stars:,
- * cd:, file:, ripped:, rated:, mixtape:; Album.search for classical:),
+ * cd:, file:, ripped:, rated:; Album.search for classical:),
  * favouriteAlbumService for favourites:, all through
  * backend/src/utils/albumSearchFilters.ts, which understands `-key:` and
  * `!key:`, yes/no and the old words, commas as "or" and the aliases below.
- * The page itself reads cd:, file:, ripped:, favourites: (Digital on) and
- * mixtape: (Mixtapes on) in utils/musicSearchWords.ts.
+ * The page itself reads cd:, file:, ripped:, favourites: (Digital on) in
+ * utils/musicSearchWords.ts. The backend's mixtape: is not offered: the
+ * mixtapes have their own view of MusicDex (/musicdex/mixtapes).
  * The values come from the collection, the digital albums and the wishes too
  * when Digital is on, as the page shows them. `mood:` is understood too but
  * nothing fills it, so it is not offered.
@@ -62,7 +63,6 @@ const keys: SearchKey[] = [
     { value: 'lossless', desc: 'FLAC, or 256 kbps and more' },
     { value: 'lossy', desc: 'Below 256 kbps: a copy to do again' },
   ] },
-  { key: 'mixtape', group: 'CD and files', type: 'bool', desc: 'One of your mixtapes, your playlists in Navidrome', values: yesNo('Mixtapes only', 'Albums only, no mixtapes') },
 ];
 
 interface FoundAlbum {

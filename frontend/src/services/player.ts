@@ -27,6 +27,8 @@ export interface PlayerTrack {
   cover?: string | null;
   /** A song of a mixtape: its place in it, from 0, which a shuffled play keeps while `no` follows the play. */
   place?: number;
+  /** A song of a mixtape: the work it is a movement of with the songs beside it, which a shuffle keeps together. */
+  work?: string | null;
   /** The file as it lies in Navidrome: lossless (FLAC, ALAC…), or its format (MP3, AAC); unknown for a mixtape's song. */
   lossless?: boolean;
   format?: string;

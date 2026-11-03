@@ -8,6 +8,7 @@ import ripStatusService from '../../src/services/ripStatusService';
 import mixtapeSearchService from '../../src/services/mixtapeSearchService';
 import { mixtapeUnits, withWorks } from '../../src/services/mixtapeWorks';
 import { drawUnitPlaces, fitsSongs } from '../../src/services/mixtapeShuffle';
+import { shuffledTracks } from '../../src/services/playable';
 
 const song = (title: string, navidromeAlbumId = 'dvorak', discNumber = 1) => ({ title, navidromeAlbumId, discNumber });
 
@@ -44,6 +45,19 @@ describe('the works of a mixtape', () => {
       expect(fitsSongs(places, songs.length)).toBe(true);
       const at = places.indexOf(1);
       expect(places.slice(at, at + 4)).toEqual([1, 2, 3, 4]);
+    }
+  });
+});
+
+describe('a mixtape shuffled on an appliance', () => {
+  it('keeps a work\'s movements together and in their order', () => {
+    const track = (songId: string, work: string | null = null, albumId = 1) => ({ songId, title: songId, disc: 1, no: 1, durationSec: 60, albumId, work });
+    const tracks = [track('a'), track('m1', 'Symphony', 2), track('m2', 'Symphony', 2), track('m3', 'Symphony', 2), track('b'), track('c')];
+    for (let draw = 0; draw < 30; draw++) {
+      const order = shuffledTracks(tracks).map(one => one.songId);
+      const at = order.indexOf('m1');
+      expect(order.slice(at, at + 3)).toEqual(['m1', 'm2', 'm3']);
+      expect(order).toHaveLength(6);
     }
   });
 });

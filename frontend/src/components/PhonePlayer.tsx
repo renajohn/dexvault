@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   BsBoxArrowUpRight, BsCassetteFill, BsChatQuote, BsChatQuoteFill, BsHeadphones, BsInfoCircle, BsJournalText, BsDisc, BsHeart, BsHeartFill, BsMusicNoteList, BsPauseFill, BsPlayFill,
-  BsSkipBackwardFill, BsSkipForwardFill, BsSpeaker, BsThreeDots, BsX,
+  BsSkipBackwardFill, BsSkipForwardFill, BsSpeaker, BsThreeDots, BsTrash, BsX,
 } from 'react-icons/bs';
 import { infoShownAsAsked, setFullPlayer, tracksShownAsAsked, useFullPlayer, useInfoAsked, useTracksAsked, type ShownAlbum } from '../services/phoneDoor';
 import AlbumInfo from './AlbumInfo';
@@ -29,6 +29,7 @@ import SwipeRow from './SwipeRow';
 import toast from './shared/Toast';
 import './PhonePlayer.css';
 import './OutputWaking.css';
+import type { MixtapeEditing } from './useMixtapeAtRest';
 
 const time = (seconds: number): string => {
   const s = Math.max(0, Math.floor(seconds));
@@ -125,7 +126,116 @@ export interface PhonePlayerProps {
   album?: AlbumActions | null;
   /** At the left of the foot: the disc of what plays, the album shown being another; or, back on what plays, the album left. */
   door?: React.ReactNode;
+  /** A mixtape at rest: a track slid to the left goes out, one held moves (its work whole). */
+  editing?: MixtapeEditing | null;
 }
+
+/** Held this long, a mixtape's track lifts, to be drawn to another place. */
+const LIFT_MS = 450;
+
+/**
+ * A mixtape's tracks held half a second lift, and follow the finger: let go,
+ * the song alone or its work whole (the list's `[data-unit]`, a work's
+ * movements under one) goes before the one it is over. Lifted, the moves go
+ * to it alone: the list does not scroll, no line slides, the full screen is
+ * not drawn down, and the touch that ends it plays nothing.
+ */
+const useLiftToMove = (list: HTMLElement | null, editing: MixtapeEditing | null | undefined) => {
+  // The latest, read as a unit is let go: a new one each render must not undo a hold under way.
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+  const on = Boolean(editing);
+  useEffect(() => {
+    if (!list || !on) return undefined;
+    let start: { x: number; y: number; unit: HTMLElement } | null = null;
+    let lifted: { unit: HTMLElement; from: number; y: number } | null = null;
+    let over: number | null = null;
+    let timer = 0;
+    const units = () => [...list.querySelectorAll<HTMLElement>('[data-unit]')];
+    const clear = () => {
+      window.clearTimeout(timer);
+      units().forEach(one => one.classList.remove('now-playing-unit--drop', 'now-playing-unit--drop-end', 'now-playing-unit--lifted'));
+      if (lifted) lifted.unit.style.transform = '';
+      start = null;
+      lifted = null;
+      over = null;
+    };
+    const swallow = (event: Event) => { event.stopPropagation(); event.preventDefault(); };
+    const down = (target: EventTarget | null, x: number, y: number) => {
+      const unit = (target as Element | null)?.closest<HTMLElement>('[data-unit]');
+      if (!unit || !list.contains(unit)) return;
+      start = { x, y, unit };
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (!start) return;
+        lifted = { unit: start.unit, from: Number(start.unit.dataset.unit), y: start.y };
+        start.unit.classList.add('now-playing-unit--lifted');
+        navigator.vibrate?.(10);
+      }, LIFT_MS);
+    };
+    /** True when the move is the lifted unit's, to be kept from the list, the lines and the full screen. */
+    const move = (x: number, y: number): boolean => {
+      if (!lifted) {
+        // Moved before the time: a scroll or a slide, not a hold.
+        if (start && Math.hypot(x - start.x, y - start.y) > 8) { window.clearTimeout(timer); start = null; }
+        return false;
+      }
+      lifted.unit.style.transform = `translateY(${y - lifted.y}px)`;
+      const all = units();
+      all.forEach(one => one.classList.remove('now-playing-unit--drop', 'now-playing-unit--drop-end'));
+      const before = all.find(one => one !== lifted!.unit && y < one.getBoundingClientRect().top + one.getBoundingClientRect().height / 2);
+      over = before ? Number(before.dataset.unit) : all.length;
+      if (before) before.classList.add('now-playing-unit--drop');
+      else all[all.length - 1]?.classList.add('now-playing-unit--drop-end');
+      const box = list.getBoundingClientRect();
+      if (y > box.bottom - 48) list.scrollTop += 10;
+      if (y < box.top + 48) list.scrollTop -= 10;
+      return true;
+    };
+    /** True when a lifted unit was let go. */
+    const up = (): boolean => {
+      if (!lifted) { window.clearTimeout(timer); start = null; return false; }
+      const { from } = lifted;
+      const to = over;
+      clear();
+      // The click that ends the hold plays nothing.
+      list.addEventListener('click', swallow, { capture: true, once: true });
+      window.setTimeout(() => list.removeEventListener('click', swallow, { capture: true }), 400);
+      if (to != null && to !== from && to !== from + 1) editingRef.current?.move(from, to);
+      return true;
+    };
+    // A finger, by its touches: iOS cancels a pointer held on a button, never a touch. A mouse, by its pointer.
+    const touchStart = (event: TouchEvent) => { if (event.touches.length === 1) down(event.target, event.touches[0].clientX, event.touches[0].clientY); else clear(); };
+    const touchMove = (event: TouchEvent) => {
+      if (!move(event.touches[0].clientX, event.touches[0].clientY)) return;
+      event.stopPropagation();
+      if (event.cancelable) event.preventDefault();
+    };
+    const touchEnd = (event: TouchEvent) => { if (up()) { event.stopPropagation(); if (event.cancelable) event.preventDefault(); } };
+    const pointerDown = (event: PointerEvent) => { if (event.pointerType === 'mouse') down(event.target, event.clientX, event.clientY); };
+    const pointerMove = (event: PointerEvent) => { if (event.pointerType === 'mouse' && move(event.clientX, event.clientY)) swallow(event); };
+    const pointerUp = (event: PointerEvent) => { if (event.pointerType === 'mouse' && up()) swallow(event); };
+    list.addEventListener('touchstart', touchStart, { capture: true, passive: true });
+    list.addEventListener('touchmove', touchMove, { capture: true, passive: false });
+    list.addEventListener('touchend', touchEnd, { capture: true, passive: false });
+    list.addEventListener('touchcancel', clear, true);
+    list.addEventListener('pointerdown', pointerDown, true);
+    list.addEventListener('pointermove', pointerMove, true);
+    list.addEventListener('pointerup', pointerUp, true);
+    list.addEventListener('contextmenu', swallow, true);
+    return () => {
+      clear();
+      list.removeEventListener('touchstart', touchStart, true);
+      list.removeEventListener('touchmove', touchMove, true);
+      list.removeEventListener('touchend', touchEnd, true);
+      list.removeEventListener('touchcancel', clear, true);
+      list.removeEventListener('pointerdown', pointerDown, true);
+      list.removeEventListener('pointermove', pointerMove, true);
+      list.removeEventListener('pointerup', pointerUp, true);
+      list.removeEventListener('contextmenu', swallow, true);
+    };
+  }, [list, on]);
+};
 
 /**
  * The place in the track, under the cover: a line to tap or to draw along,
@@ -254,7 +364,9 @@ const SWIPE_HINT_KEY = 'dexvault-player-tracks-swipe-hint';
  * its ♥ (docs/superpowers/specs/2026-10-27-fav-et-populaire). Under its
  * work's head it says its movement alone (`name`), "I. Prélude".
  */
-const TrackLine: React.FC<{ track: PhoneTrack; name?: string; no: number; now: boolean; playing: boolean; play?: () => void; hint: boolean; onNewMixtape: () => void }> = ({ track, name, no, now, playing, play, hint, onNewMixtape }) => {
+const TrackLine: React.FC<{ track: PhoneTrack; name?: string; no: number; now: boolean; playing: boolean; play?: () => void; hint: boolean; onNewMixtape: () => void;
+  /** A mixtape's song: slid to the left, it goes out of it, in place of the ♥ (which its menu keeps). */
+  takeOut?: () => void; unit?: number }> = ({ track, name, no, now, playing, play, hint, onNewMixtape, takeOut, unit }) => {
   const favourite = useFavourite(track.songId);
   const [menu, setMenu] = useState(false);
   const songId = track.songId;
@@ -275,9 +387,10 @@ const TrackLine: React.FC<{ track: PhoneTrack; name?: string; no: number; now: b
   );
   if (!songId) return <li>{line()}</li>;
   return (
-    <SwipeRow as="li" enabled hint={hint}
+    <SwipeRow as="li" enabled hint={hint} {...(unit != null ? { 'data-unit': unit } : {})}
       deed={{ label: 'Mixtape', icon: <BsCassetteFill />, onSelect: () => setMenu(true), tone: 'plain' }}
-      leftDeed={{ label: favourite ? 'Not favourite' : 'Favourite', icon: favourite ? <BsHeart /> : <BsHeartFill />, onSelect: toggleFavourite, tone: 'gold' }}>
+      leftDeed={takeOut ? { label: 'Take out', icon: <BsTrash />, onSelect: takeOut, tone: 'plain' }
+        : { label: favourite ? 'Not favourite' : 'Favourite', icon: favourite ? <BsHeart /> : <BsHeartFill />, onSelect: toggleFavourite, tone: 'gold' }}>
       <Menu open={menu} onOpenChange={setMenu} label={track.title} trigger={props => line(props as unknown as React.ComponentProps<'button'>)}>
         <MixtapeEntries songIds={[songId]} title={track.title} onNew={onNewMixtape} />
       </Menu>
@@ -370,6 +483,10 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const renderer = outputs.find(one => one.id === props.outputId) ?? null;
   const hasLyrics = Boolean(props.lyricsOf);
   const hasTracks = Boolean(props.tracks && props.tracks.length > 0);
+  // A mixtape at rest: its tracks held move.
+  const editing = props.editing ?? null;
+  const [tracksElement, setTracksElement] = useState<HTMLDivElement | null>(null);
+  useLiftToMove(tracksElement, editing);
   // What Navidrome said of the tracks' hearts as they were read, unless a heart is known better already.
   useEffect(() => { props.tracks?.forEach(track => seedFavourite(track.songId, track.starred, true)); }, [props.tracks]);
   // Its tracks shown: Navidrome's hearts of now. A session started on the Salon an hour ago, a heart given since
@@ -683,7 +800,7 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
     tracks: (props.tracks ?? []).map((track, index) => ({ track, index })).filter(one => disc == null || (one.track.disc ?? 1) === disc),
   }));
   const tracksList = hasTracks && (
-    <div className="now-playing-tracks now-playing-scroll">
+    <div ref={setTracksElement} className={`now-playing-tracks now-playing-scroll${editing ? ' now-playing-tracks--mixtape' : ''}`}>
       {/* Always there, so the tracks do not move as the album starts: what is left. At rest the line under the
           title says its length already: nothing more here. */}
       <div className="now-playing-tracks__head">
@@ -703,7 +820,9 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
                 <TrackLine key={i} track={one} name={works[no]?.movement} no={no + 1} now={i === props.index} playing={playing}
                   play={controls.playTrack ? () => controls.playTrack!(i) : undefined}
                   hint={swipeHint && one.songId === hintSongId}
-                  onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })} />
+                  onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })}
+                  takeOut={editing ? () => editing.takeOut(i) : undefined}
+                  unit={editing && !works[no] ? editing.unitOf[i] : undefined} />
               );
               const lines: React.ReactNode[] = [];
               for (let no = 0; no < group.tracks.length; no++) {
@@ -718,7 +837,8 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
                 const movements = group.tracks.slice(no, end + 1);
                 const from = no;
                 lines.push(
-                  <li key={`work-${group.tracks[no].index}`} className="now-playing-work">
+                  <li key={`work-${group.tracks[no].index}`} className="now-playing-work"
+                    {...(editing ? { 'data-unit': editing.unitOf[group.tracks[no].index] } : {})}>
                     <WorkHead work={work.work} tracks={movements.map(one => one.track)} now={movements.some(one => one.index === props.index)} />
                     <ol>{movements.map((one, k) => line(one, from + k))}</ol>
                   </li>,

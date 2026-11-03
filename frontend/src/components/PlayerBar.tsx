@@ -16,6 +16,7 @@ import PhonePlayer from './PhonePlayer';
 import PlayerFold from './PlayerFold';
 import NowPlayingDisc, { LeftAlbumDisc } from './NowPlayingDisc';
 import { useAlbumActions, useAlbumAtRest } from './useAlbumAtRest';
+import { useMixtapeAtRest } from './useMixtapeAtRest';
 import { useMedia } from '../utils/useNarrow';
 import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
 // Listen Next registers itself with the player, to go on after a reload whatever the page; the bar asks it what comes next.
@@ -23,6 +24,7 @@ import { listenNextQueue, playingKey } from '../services/listenNextQueue';
 import { parseEntryKey } from '../utils/listenNextEntry';
 import musicService from '../services/musicService';
 import { loadPlayable } from '../utils/playAlbum';
+import { isMixtape } from '../utils/mixtape';
 import Spinner from './shared/Spinner';
 import { isLongWake, ListenElsewhere, useWakeWords, WakeSteps } from './OutputWaking';
 import './PlayerBar.css';
@@ -150,7 +152,10 @@ const PlayerBar: React.FC = () => {
   // The album at rest left for what plays by its disc: a disc in the same place goes back to it, unless it plays now.
   const leftAlbum = useLeftAlbum();
   const backTo = phone && leftAlbum && !(album?.id != null && Number(leftAlbum.id) === album.id) ? leftAlbum : null;
-  const atRest = useAlbumAtRest(restAlbum);
+  // A mixtape at rest is its own: its songs, its sheet to add tracks, a finger taking one out or moving it.
+  const mixtapeAtRest = useMixtapeAtRest(restAlbum);
+  const albumAtRest = useAlbumAtRest(restAlbum && !isMixtape(restAlbum) ? restAlbum : null);
+  const atRest = restAlbum && isMixtape(restAlbum) ? mixtapeAtRest : albumAtRest;
   // On a phone, what ⋯ and the discs' heads do for the album playing (Listen Next, mixtapes); a mixtape's songs have their own.
   const nowActions = useAlbumActions(phone && album?.id != null && track?.artist == null ? album.id : null, usePlayer(state => state.tracks));
   // An iPhone playing on an appliance that plays nothing: a small bar to start something there, in MusicDex.
@@ -212,9 +217,10 @@ const PlayerBar: React.FC = () => {
           // Where its ▶ will play: the output chosen (Salon), not this iPhone.
           where={outputName || null} outputId={output.kind === 'renderer' ? output.id : null}
           controls={{ toggle: () => atRest.playFrom(0), next: () => undefined, previous: () => undefined, playTrack: atRest.playable ? atRest.playFrom : undefined }}
-          guideOf={Number(restAlbum.id)} tracks={atRest.shownTracks} index={-1} from=""
-          infoOf={{ albumId: Number(restAlbum.id), known: restAlbum }}
-          rest={{ albumId: restAlbum.id, line: atRest.line, playable: atRest.playable }} album={atRest.actions} starsOf={restAlbum.id}
+          guideOf={mixtapeAtRest ? null : Number(restAlbum.id)} tracks={atRest.shownTracks} index={-1} from=""
+          infoOf={mixtapeAtRest ? null : { albumId: Number(restAlbum.id), known: restAlbum }}
+          rest={{ albumId: restAlbum.id, line: atRest.line, playable: atRest.playable }} album={atRest.actions}
+          starsOf={mixtapeAtRest ? null : restAlbum.id} editing={mixtapeAtRest?.editing ?? null}
           door={out ? <NowPlayingDisc exceptAlbumId={restAlbum.id} onOpen={leaveForPlaying} className="now-playing-door" /> : null}
           out />
       ) : last.current && (() => {

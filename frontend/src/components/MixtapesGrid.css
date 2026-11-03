@@ -1,0 +1,51 @@
+/*
+ * MusicDex's view of the mixtapes (MixtapesGrid.tsx): the albums' grid
+ * (.cd-grid), a tile first to make a new one, of a cover's size.
+ */
+.mixtapes-new {
+  /* At the top of its row, as a cover is, not in the middle of the row's height. */
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dv-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mixtapes-new__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  aspect-ratio: 1;
+  border: 1.5px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.9rem;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.mixtapes-new__tile svg {
+  font-size: 34px;
+}
+
+.mixtapes-new:hover .mixtapes-new__tile,
+.mixtapes-new:focus-visible .mixtapes-new__tile {
+  border-color: var(--dv-gold);
+  color: var(--dv-gold);
+}
+
+.mixtapes-new:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.mixtapes-none {
+  grid-column: 1 / -1;
+  color: var(--dv-text-muted);
+}

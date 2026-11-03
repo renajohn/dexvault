@@ -302,6 +302,9 @@ export interface MixtapeSong {
   durationSec: number | null;
   albumId: number | null;
   cover: string | null;
+  /** The work it plays under with the songs beside it, and its own part of it ("II. Largo"); null for a song alone. */
+  work: string | null;
+  movement: string | null;
 }
 
 export interface MixtapeDetails {
@@ -312,6 +315,48 @@ export interface MixtapeDetails {
   songs: MixtapeSong[];
   /** Played shuffled from Listen Next: its songs' places in the order drawn; null in its own. */
   listenNextOrder?: number[] | null;
+}
+
+/** A song that plays, found for a mixtape's Add tracks…: its album of DexVault, its work and its movement. */
+export interface MixtapeSearchSong {
+  songId: string;
+  title: string;
+  artist: string;
+  albumId: number;
+  album: string;
+  cover: string | null;
+  discNumber: number;
+  track: number;
+  durationSec: number | null;
+  starred: boolean;
+  popular: boolean;
+  work: string | null;
+  movement: string | null;
+}
+
+export interface MixtapeSearchAlbum {
+  albumId: number;
+  title: string;
+  artist: string;
+  cover: string | null;
+  /** Every song of it, in its order. */
+  songs: MixtapeSearchSong[];
+}
+
+export interface MixtapeSearchWork {
+  key: string;
+  name: string;
+  albumId: number;
+  album: string;
+  artists: string[];
+  cover: string | null;
+  songs: MixtapeSearchSong[];
+}
+
+export interface MixtapeSearchResult {
+  albums: MixtapeSearchAlbum[];
+  works: MixtapeSearchWork[];
+  tracks: MixtapeSearchSong[];
 }
 
 /** A change to a mixtape's songs: added at the end without a second copy, every copy removed, one copy removed, moved, or all of them anew. */
@@ -1218,6 +1263,14 @@ class MusicService {
     const response = await fetch(`${baseUrl}/music/mixtapes/${albumId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change),
     });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return response.json();
+  }
+
+  /** What plays and the words find, for a mixtape's Add tracks…: up to three albums whole, six works, forty songs. */
+  async searchForMixtape(query: string, signal?: AbortSignal): Promise<MixtapeSearchResult> {
+    const baseUrl = await this.getBaseUrl();
+    const response = await fetch(`${baseUrl}/music/mixtapes/search?q=${encodeURIComponent(query)}`, { signal });
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     return response.json();
   }

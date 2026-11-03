@@ -135,3 +135,11 @@
   display: flex;
   gap: 6px;
 }
+
+/* A mixtape's ⋯, in MusicDex's view of the mixtapes: at the top right, under the pointer. */
+.music-thumbnail .thumbnail-more {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+}
