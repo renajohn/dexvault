@@ -28,7 +28,7 @@ import NowPlayingBars from './shared/NowPlayingBars';
 import DigitalMarks from './shared/DigitalMarks';
 import { BsArrowCounterclockwise, BsBookmark, BsBookmarkFill, BsCartFill, BsHeart, BsHeartFill, BsSearch } from 'react-icons/bs';
 import type { DigitalTrack } from '../services/musicService';
-import { buyReason, formatLabel, isLossy, isSuggested, isToBuy, playsText, ricardoUrl, type AlbumDigital } from '../utils/digitalLibrary';
+import { buyReason, formatLabel, isLossy, isSuggested, isToBuy, offersWish, playsText, ricardoUrl, type AlbumDigital } from '../utils/digitalLibrary';
 import Button, { IconButton, LinkButton } from './shared/Button';
 import Spinner from './shared/Spinner';
 import { AlbumStarRating } from './RecordStarRating';
@@ -728,11 +728,11 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       {!hasCd && (
         <div className="album-head-line album-head-physical">
           <span className="album-head-muted">{cd.titleStatus === 'wish' ? 'No CD · on your wish list' : 'No CD'}</span>
-          {/* The box below holds the bookmark when there is something to decide. */}
-          {onWish && digital.album && !(isToBuy(digital.album) || cd.titleStatus === 'wish') && (
-            <button type="button" className="album-head-link" onClick={onWish} aria-pressed={cd.titleStatus === 'wish'}>
-              {cd.titleStatus === 'wish' ? <BsBookmarkFill aria-hidden="true" /> : <BsBookmark aria-hidden="true" />}
-              {cd.titleStatus === 'wish' ? 'Wished' : 'Add to wishlist'}
+          {/* Files lossy, not wished, not rated below 3; the box below holds the bookmark when there is something to decide. */}
+          {onWish && !isToBuy(digital.album) && offersWish(digital.album, cd.titleStatus, stars) && (
+            <button type="button" className="album-head-link" onClick={onWish}>
+              <BsBookmark aria-hidden="true" />
+              Add to wishlist
             </button>
           )}
         </div>

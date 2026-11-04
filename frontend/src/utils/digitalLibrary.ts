@@ -165,6 +165,16 @@ export const formatLabel = (album: DigitalAlbum): string => {
 /** Near-lossless counts as lossless: only a copy below 256 kbps is one to do again. */
 export const isLossy = (album: DigitalAlbum | null | undefined): boolean => album?.quality === 'lossy';
 
+/**
+ * A digital album worth a bookmark on its cover: no CD, files lossy, not on the wish list
+ * yet, and not rated below 3 stars (the owner's stars, else Navidrome's).
+ */
+export const offersWish = (album: DigitalAlbum | null | undefined, titleStatus: unknown, stars?: number | null): boolean => {
+  if (titleStatus !== 'digital' || !isLossy(album)) return false;
+  const rating = stars || album!.rating || 0;
+  return rating === 0 || rating >= 3;
+};
+
 /** "12.10": the day of a play, as the page says it. */
 const shortDate = (iso: string | null): string | null => {
   if (!iso) return null;

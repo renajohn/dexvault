@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DigitalAlbum } from '../services/musicService';
-import { buyOrder, buyReason, formatLabel, isDismissed, isLossy, isToBuy, openRicardo, ricardoUrl } from './digitalLibrary';
+import { buyOrder, buyReason, formatLabel, isDismissed, isLossy, isToBuy, offersWish, openRicardo, ricardoUrl } from './digitalLibrary';
 
 const album = (fields: Partial<DigitalAlbum>): DigitalAlbum => ({
   navidromeId: 'nd', name: 'Album', artist: 'Artist', songCount: 10, url: '', formats: ['FLAC'], quality: 'lossless',
@@ -26,6 +26,20 @@ describe('digitalLibrary', () => {
     expect(isLossy(album({ quality: 'lossy' }))).toBe(true);
     expect(isLossy(album({ quality: 'near' }))).toBe(false);
     expect(isLossy(null)).toBe(false);
+  });
+
+  it('offre la wish list aux albums sans CD en lossy, sauf souhaités ou notés sous 3', () => {
+    const lossy = album({ quality: 'lossy', formats: ['MP3'], bitRate: 192 });
+    expect(offersWish(lossy, 'digital')).toBe(true);
+    expect(offersWish(lossy, 'digital', 3)).toBe(true);
+    expect(offersWish(lossy, 'digital', 2.5)).toBe(false);
+    expect(offersWish(album({ ...lossy, rating: 2 }), 'digital')).toBe(false);
+    expect(offersWish(album({ ...lossy, rating: 2 }), 'digital', 4)).toBe(true);
+    expect(offersWish(lossy, 'wish')).toBe(false);
+    expect(offersWish(lossy, 'owned')).toBe(false);
+    expect(offersWish(album({}), 'digital')).toBe(false);
+    expect(offersWish(album({ quality: 'near', formats: ['AAC'], bitRate: 256 }), 'digital')).toBe(false);
+    expect(offersWish(null, 'digital')).toBe(false);
   });
 
   it('dit pourquoi un album est à acheter', () => {

@@ -448,6 +448,39 @@ describe('MusicDetailCard plays of a track', () => {
   });
 });
 
+describe('MusicDetailCard — Add to wishlist', () => {
+  const digital = (fields: Record<string, unknown> = {}) => ({
+    notRipped: false,
+    album: {
+      navidromeId: 'nd-1', name: 'Abbey Road', artist: 'The Beatles', songCount: 3, url: '', formats: ['MP3'], quality: 'lossy',
+      bitRate: 192, hiRes: false, cd: null, oldCopy: false, wishAlbumId: null, albumId: 1, rating: 0, starred: false,
+      favouriteTracks: 0, listening: { favourites: 0, needed: 3, plays: 0, lastPlayed: null, score: 0 }, buy: null, dismissed: false,
+      ...fields,
+    },
+  });
+  const show = (over: Record<string, unknown>, fields: Record<string, unknown> = {}) =>
+    render(<MusicDetailCard cd={cd({ titleStatus: 'digital', ...over }) as any} digital={digital(fields) as any}
+      onWish={vi.fn()} onClose={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />);
+
+  it('offers it for an album only in lossy files, unrated or rated 3 and more', () => {
+    (musicService.getDigitalTracks as any).mockResolvedValue([]);
+    show({});
+    expect(screen.getByRole('button', { name: 'Add to wishlist' })).toBeInTheDocument();
+  });
+
+  it('not for one rated below 3, wished already, or in lossless', () => {
+    (musicService.getDigitalTracks as any).mockResolvedValue([]);
+    const { unmount } = show({ userRating: 2.5 });
+    expect(screen.queryByRole('button', { name: 'Add to wishlist' })).not.toBeInTheDocument();
+    unmount();
+    const wished = show({ titleStatus: 'wish' });
+    expect(screen.queryByRole('button', { name: 'Add to wishlist' })).not.toBeInTheDocument();
+    wished.unmount();
+    show({}, { quality: 'lossless', formats: ['FLAC'], bitRate: null });
+    expect(screen.queryByRole('button', { name: 'Add to wishlist' })).not.toBeInTheDocument();
+  });
+});
+
 describe('MusicDetailCard — a missing side', () => {
   it('offers to find a cover in the empty cover, and the back under the front', () => {
     const { rerender } = render(<MusicDetailCard cd={cd({ cover: null }) as any} onClose={vi.fn()} onDelete={vi.fn()} onCoverChange={vi.fn()} />);
