@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { BsStars } from 'react-icons/bs';
 import Segmented from './shared/Segmented';
 import { readStored, writeStored } from '../utils/safeStorage';
 
@@ -16,11 +15,11 @@ export const useBannerMode = (): [BannerMode, (mode: BannerMode) => void] => {
   return [mode, choose];
 };
 
-/** `Listen Next | ✦ Radio`, in the banner's head in place of its title. */
+/** `Listen Next | Radio`, in the banner's head in place of its title; the banner's icon says which. */
 export const BannerModeSwitch: React.FC<{ value: BannerMode; onChange: (mode: BannerMode) => void }> = ({ value, onChange }) => (
   <Segmented<BannerMode> label="Listen Next or Radio" className="next-banner__modes" value={value} onChange={onChange}
     options={[
       { value: 'listenNext', label: 'Listen Next' },
-      { value: 'radio', icon: <BsStars />, label: 'Radio' },
+      { value: 'radio', label: 'Radio' },
     ]} />
 );

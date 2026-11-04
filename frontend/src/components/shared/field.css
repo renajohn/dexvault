@@ -69,10 +69,10 @@
 }
 
 /* A heading edited in place (the radio's prompt): its words alone, an edge under the pointer, gold with the focus. */
+/* Its words where those of the pills under it begin: their edge and padding, 1 + 10 px. */
 .ui-input--title {
   height: auto;
-  padding: 2px 8px;
-  margin-left: -9px;
+  padding: 2px 10px;
   border-color: transparent;
   background: transparent;
   color: #fff;

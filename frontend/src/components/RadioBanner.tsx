@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Form } from 'react-bootstrap';
-import { BsArrowRepeat, BsMusicNoteList, BsPauseFill, BsPlayFill, BsStars, BsX, BsDisc } from 'react-icons/bs';
+import { PiRadio } from 'react-icons/pi';
+import { BsArrowRepeat, BsMusicNoteList, BsPauseFill, BsPlayFill, BsX, BsDisc } from 'react-icons/bs';
 import { Button, Chip, CoverButton, CoverTag, CoverTagStack, Dialog, Menu, MenuChevron, Notice, Segmented, Spinner, TextField, toast, useDialogClose } from './shared';
 import NowPlayingBars from './shared/NowPlayingBars';
 import { radio, useRadio, bandInPlayer, isRadioAlbum, BAND, type RadioState } from '../services/radio';
@@ -9,6 +10,7 @@ import musicService from '../services/musicService';
 import type { RadioCriteria, RadioPool, RadioSong } from '../services/radioService';
 import { coverReady, thumbProps } from '../utils/thumb';
 import { useSlideText } from '../utils/slideText';
+import { useNarrow } from '../utils/useNarrow';
 import { DndContext, TouchSensor, closestCenter, useSensor, useSensors, type Announcements, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -19,20 +21,23 @@ import './RadioBanner.css';
 const STAR_STEPS = [3, 3.5, 4, 4.5, 5];
 const starsWord = (stars: number) => (stars % 1 ? `${Math.floor(stars)}½` : `${stars}`);
 
-const GENRES: Array<{ value: RadioPool['genre']; label: string }> = [
-  { value: 'both', label: 'Classical and other' },
-  { value: 'classical', label: 'Classical' },
-  { value: 'other', label: 'Not classical' },
+/** `short`: the pill's words on a phone. */
+const GENRES: Array<{ value: RadioPool['genre']; label: string; short: string }> = [
+  { value: 'both', label: 'Classical and other', short: 'All genres' },
+  { value: 'classical', label: 'Classical', short: 'Classical' },
+  { value: 'other', label: 'Not classical', short: 'Not classical' },
 ];
 
 /** The pool in words: its sources, which add up; none, everything that plays. */
-export const poolWords = (pool: RadioPool): string => {
+export const poolWords = (pool: RadioPool, short = false): string => {
   const parts = [
     pool.stars != null && `Albums ${starsWord(pool.stars)}★+`,
     pool.hearts && '♥',
     pool.popular && 'Popular',
   ].filter(Boolean);
-  return parts.length ? parts.join(' ∪ ') : 'Everything that plays';
+  // On a phone, the stars alone say albums once another source stands beside them.
+  if (short && parts.length > 1 && pool.stars != null) parts[0] = `${starsWord(pool.stars)}★+`;
+  return parts.length ? parts.join(' ∪ ') : short ? 'Everything' : 'Everything that plays';
 };
 
 const everything = (pool: RadioPool) => pool.stars == null && !pool.hearts && !pool.popular;
@@ -86,6 +91,7 @@ const PoolMenu: React.FC<{ pool: RadioPool; poolSize: number | null; onClosed: (
   const atOpen = useRef<string>('');
   const lastStars = useRef<number>(pool.stars ?? 4);
   if (pool.stars != null) lastStars.current = pool.stars;
+  const narrow = useNarrow();
   return (
     <Menu label="Where the songs come from" className="radio-pool-menu"
       onOpenChange={open => {
@@ -94,8 +100,8 @@ const PoolMenu: React.FC<{ pool: RadioPool; poolSize: number | null; onClosed: (
       }}
       trigger={(props, open) => (
         <button type="button" {...props} className="menu-pill radio-banner__pool">
-          <span className="menu-pill__muted">From</span> {poolWords(pool)}
-          {poolSize != null && <span className="menu-pill__muted">· {count(poolSize)} tracks</span>}
+          {narrow ? poolWords(pool, true) : <><span className="menu-pill__muted">From</span> {poolWords(pool)}</>}
+          {poolSize != null && !narrow && <span className="menu-pill__muted">· {count(poolSize)} tracks</span>}
           <MenuChevron open={open} />
         </button>
       )}>
@@ -245,6 +251,7 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
   const [asking, setAsking] = useState(false);
   /** "+N" pressed: every mood and style the prompt was heard as, shown. */
   const [unfolded, setUnfolded] = useState(false);
+  const narrow = useNarrow();
   useEffect(() => { setDraft(state.prompt); setUnfolded(false); }, [state.prompt]);
   /** A prompt longer than its field slides to its end and back. */
   const promptField = useRef<HTMLInputElement>(null);
@@ -304,7 +311,7 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
       style={{ '--radio-hue': tintOf(songs) } as React.CSSProperties} data-hue={tintOf(songs)}>
       <div className="next-banner__header">
         <div className="next-banner__title-section radio-banner__head">
-          <BsStars className="next-banner__icon" aria-hidden="true" />
+          <PiRadio className="next-banner__icon radio-banner__icon" aria-hidden="true" />
           {heading}
           <span className="radio-banner__summary" aria-live="polite">{summary}</span>
           <span className="radio-banner__end">
@@ -331,7 +338,7 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
         <PoolMenu pool={pool} poolSize={state.poolSize} onClosed={changed => { if (changed && state.criteria) radio.redraw(); }} />
         <Menu label="Classical or not" trigger={(props, open) => (
           <button type="button" {...props} className="menu-pill">
-            {GENRES.find(one => one.value === pool.genre)?.label}
+            {GENRES.find(one => one.value === pool.genre)?.[narrow ? 'short' : 'label']}
             <MenuChevron open={open} />
           </button>
         )}>

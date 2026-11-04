@@ -16,6 +16,13 @@
   margin-bottom: 6px;
 }
 
+/* The radio's set takes the band's hue, as its edges do: Listen Next's gold at rest. */
+.radio-banner__icon.next-banner__icon {
+  color: hsl(var(--radio-hue) 96% 58%);
+  filter: drop-shadow(0 2px 4px hsl(var(--radio-hue) 96% 56% / 0.4));
+  transition: color 0.8s ease, filter 0.8s ease;
+}
+
 .radio-banner__head {
   flex: 1;
   min-width: 0;
@@ -209,7 +216,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .next-banner.radio-banner { transition: none; }
+  .next-banner.radio-banner,
+  .radio-banner__icon.next-banner__icon { transition: none; }
   .radio-card__image--thinking::after { animation: none; }
 }
 
@@ -230,18 +238,5 @@
   }
   .radio-banner__end .ui-button--quiet .ui-button__label {
     display: none;
-  }
-  .radio-banner .next-banner__icon {
-    display: none;
-  }
-  .radio-banner__chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    margin-right: -16px;
-    padding-right: 16px;
-    scrollbar-width: none;
-  }
-  .radio-banner__chips > * {
-    flex-shrink: 0;
   }
 }
