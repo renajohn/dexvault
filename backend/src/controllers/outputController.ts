@@ -26,6 +26,7 @@ const albumOf = (value: unknown): PlayerAlbum | null => {
     artist: text(album.artist, 300),
     cover: optionalText(album.cover, 500),
     disc: Number(album.disc) || null,
+    ...(album.radio === true ? { radio: true } : {}),
   };
 };
 

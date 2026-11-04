@@ -3,7 +3,7 @@ import { Form } from 'react-bootstrap';
 import { BsArrowRepeat, BsMusicNoteList, BsPauseFill, BsPlayFill, BsStars, BsX, BsDisc } from 'react-icons/bs';
 import { Button, Chip, CoverButton, CoverTag, CoverTagStack, Dialog, Menu, MenuChevron, Notice, Segmented, Spinner, TextField, toast, useDialogClose } from './shared';
 import NowPlayingBars from './shared/NowPlayingBars';
-import { radio, useRadio, BAND, type RadioState } from '../services/radio';
+import { radio, useRadio, bandInPlayer, isRadioAlbum, BAND, type RadioState } from '../services/radio';
 import { usePlayer } from '../services/player';
 import musicService from '../services/musicService';
 import type { RadioCriteria, RadioPool, RadioSong } from '../services/radioService';
@@ -235,8 +235,11 @@ interface RadioBannerProps {
  */
 const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
   const state = useRadio(current => current);
-  const radioInPlayer = usePlayer(view => Boolean(view.album?.radio));
-  const playing = usePlayer(view => Boolean(view.album?.radio) && view.playing);
+  // A radio in the player, by its name: an appliance, or a radio another device started, keep no flag of it.
+  const radioInPlayer = usePlayer(view => isRadioAlbum(view.album));
+  const playing = usePlayer(view => isRadioAlbum(view.album) && view.playing);
+  // The band is what the player plays: its first card is the song playing, which stays first.
+  const bandPlays = usePlayer(view => bandInPlayer(view, state.songs));
   const [draft, setDraft] = useState(state.prompt);
   const [saving, setSaving] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -258,7 +261,9 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
   const announcements: Announcements = {
     onDragStart: ({ active }) => `${titleOf(active.id)} picked up.`,
     onDragOver: ({ active, over }) => (over ? `${titleOf(active.id)} over ${titleOf(over.id)}.` : `${titleOf(active.id)} is no longer over a song.`),
-    onDragEnd: ({ active, over }) => (over ? `${titleOf(active.id)} put where ${titleOf(over.id)} was.` : `${titleOf(active.id)} put back.`),
+    // Over the song playing, which stays first: nothing moves, and it is said so.
+    onDragEnd: ({ active, over }) => (over && !(bandPlays && over.id === songs[0]?.songId)
+      ? `${titleOf(active.id)} put where ${titleOf(over.id)} was.` : `${titleOf(active.id)} put back.`),
     onDragCancel: ({ active }) => `${titleOf(active.id)} put back where it was.`,
   };
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -388,10 +393,10 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}
           accessibility={{ announcements, screenReaderInstructions: { draggable: 'Drag a song to another place in the band.' } }}>
         <div className="next-banner__carousel">
-          <SortableContext items={songs.filter((_, at) => !(radioInPlayer && at === 0)).map(song => song.songId)} strategy={horizontalListSortingStrategy}>
+          <SortableContext items={songs.filter((_, at) => !(bandPlays && at === 0)).map(song => song.songId)} strategy={horizontalListSortingStrategy}>
           <div className={`next-banner__track radio-banner__track${thinking ? ' radio-banner__track--thinking' : ''}`}>
             {songs.length > 0
-              ? songs.map((song, at) => <RadioCard key={song.songId} song={song} now={radioInPlayer && at === 0} playing={playing} thinking={thinking} />)
+              ? songs.map((song, at) => <RadioCard key={song.songId} song={song} now={bandPlays && at === 0} playing={playing} thinking={thinking} />)
               : Array.from({ length: BAND }, (_, at) => (
                 <div key={at} className="next-banner__card radio-card">
                   <div className="next-banner__image next-banner__image--music next-banner__image--pending" />

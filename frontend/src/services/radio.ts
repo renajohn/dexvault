@@ -133,6 +133,16 @@ export const isRadioAlbum = (album: PlayerAlbum | null | undefined): boolean =>
 
 const radioPlaying = (view: PlayerState = player.getState()): boolean => isRadioAlbum(view.album);
 
+/**
+ * The band is the player's: a radio in it (here, on an appliance, or one
+ * another device started, all named "Radio · …"), its tracks from the one
+ * playing being the band's songs. Its first card is then the song playing,
+ * which stays first; otherwise the band is only drawn, all of it to move.
+ */
+export const bandInPlayer = (view: PlayerState, songs: RadioSong[]): boolean =>
+  radioPlaying(view) && songs.length > 0
+  && view.tracks.slice(view.index).map(track => track.songId).join('|') === songs.map(song => song.songId).join('|');
+
 const ids = (songs: RadioSong[]) => songs.map(song => song.songId);
 
 /** The radio this device started, by its album's name, kept through a reload: one another device started, and the bar follows, is not its own. */
@@ -302,8 +312,7 @@ export const radio = {
     const { songs } = state;
     if (from === to || from < 0 || to < 0 || from >= songs.length || to >= songs.length) return;
     const view = player.getState();
-    const inPlayer = radioPlaying(view) && view.tracks.slice(view.index).map(track => track.songId).join('|') === ids(songs).join('|');
-    if (inPlayer) {
+    if (bandInPlayer(view, songs)) {
       if (from === 0 || to === 0) return;
       player.moveTrack(view.index + from, view.index + to);
       return;

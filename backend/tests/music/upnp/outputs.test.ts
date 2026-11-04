@@ -126,7 +126,7 @@ describe('with it', () => {
   });
 
   it('adds tracks to the radio playing there, and refuses what is not', async () => {
-    const radio = { id: null, title: 'Radio · upbeat', artist: 'Radio', cover: null };
+    const radio = { id: null, radio: true, title: 'Radio · upbeat', artist: 'Radio', cover: null };
     const more = tracksOf(9, 2).map(track => ({ ...track, songId: `r${track.songId}` }));
     expect((await request(app).post('/api/outputs/uuid:nobody/append').send({ tracks: more })).status).toBe(404);
     expect((await request(app).post(`/api/outputs/${ONKYO}/append`).send({ tracks: more })).status).toBe(404);
@@ -142,7 +142,7 @@ describe('with it', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ appended: 2 });
     expect((await request(app).get('/api/outputs')).body.find((one: { id: string }) => one.id === ONKYO).session)
-      .toMatchObject({ index: 1, count: 4, position: 20, status: 'playing', album: { id: null, title: radio.title } });
+      .toMatchObject({ index: 1, count: 4, position: 20, status: 'playing', album: { id: null, title: radio.title, radio: true } });
   });
 
   it('puts the tracks after the one playing in another order, any album, the next one given again', async () => {

@@ -49,6 +49,8 @@ export interface PlayerAlbum {
   /** As the page shows it: /api/images/… */
   cover: string | null;
   disc?: number | null;
+  /** The radio: an album of songs drawn as it goes, kept so for the pages that follow it. */
+  radio?: boolean;
 }
 
 export interface Playable {

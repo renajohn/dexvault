@@ -178,6 +178,32 @@ describe('the radio banner', () => {
     expect(screen.getByRole('button', { name: 'Pause the radio' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('marks the song playing, which does not drag, for a radio in the player that keeps no flag of it (an appliance)', async () => {
+    await tuned('upbeat');
+    const band = radio.getState().songs;
+    // As the Salon gives it back: "Radio · …", no radio flag.
+    act(() => {
+      player.playAlbum({ id: null, title: 'Radio · upbeat', artist: 'Radio', cover: null },
+        band.map((one, at) => ({ songId: one.songId, title: one.title, disc: 1, no: at + 1, durationSec: one.durationSec })), 0);
+    });
+    const now = document.querySelector('.radio-card--now');
+    expect(now?.getAttribute('data-song')).toBe('s1');
+    expect(now).not.toHaveClass('next-banner__card--sortable');
+    expect(document.querySelector('.radio-card[data-song="s2"]')).toHaveClass('next-banner__card--sortable');
+  });
+
+  it('lets the whole band move when the radio in the player is another one, paused', async () => {
+    // A radio of another prompt left paused, then a new prompt drawn and not played yet. Paused, the element says so.
+    vi.mocked(window.HTMLMediaElement.prototype.pause).mockImplementation(function (this: HTMLMediaElement) { this.dispatchEvent(new Event('pause')); });
+    player.playAlbum({ id: null, radio: true, title: 'Radio · calm', artist: 'Radio', cover: null },
+      [{ songId: 'c1', title: 'Calm 1', disc: 1, no: 1, durationSec: 200 }], 0);
+    player.toggle(false);
+    await tuned('upbeat');
+    expect(radio.getState().songs[0].songId).toBe('s1');
+    expect(document.querySelector('.radio-card--now')).toBeNull();
+    expect(document.querySelector('.radio-card[data-song="s1"]')).toHaveClass('next-banner__card--sortable');
+  });
+
   it('saves as a mixtape: its name and 30 tracks by default, the missing ones drawn', async () => {
     await tuned('upbeat');
     fireEvent.click(screen.getByRole('button', { name: 'Save as mixtape…' }));
