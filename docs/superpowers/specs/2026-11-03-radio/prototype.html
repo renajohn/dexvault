@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DexVault · Radio (prototype)</title>
+<style>
+  :root {
+    --dv-gold: #fbbf24; --dv-gold-ink: #111; --dv-red: #ef4444;
+    --dv-text: #e5e5e5; --dv-text-muted: #9ca3af; --dv-text-faint: #8a8a8a;
+    --dv-glass: rgba(255,255,255,.06); --dv-glass-hover: rgba(255,255,255,.11);
+    --dv-edge: rgba(255,255,255,.12); --dv-veil: rgba(255,255,255,.08);
+    --dv-edge-image: inset 0 0 0 1px rgba(255,255,255,.16);
+    --menu-bg: rgba(38,38,38,.94);
+    --tint: 38;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: #1d1d1d; color: var(--dv-text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  svg { display: block; }
+  button { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+
+  .proto { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 24px; background: #0c0c0c; border-bottom: 1px solid #333; font-size: 12.5px; color: #aaa; }
+  .proto b { color: #ddd; }
+  .seg-ctl { display: inline-flex; border: 1px solid #444; border-radius: 8px; overflow: hidden; }
+  .seg-ctl button { background: #1c1c1c; border: 0; padding: 5px 11px; cursor: pointer; color: #ddd; }
+  .seg-ctl button + button { border-left: 1px solid #444; }
+  .seg-ctl button.on { background: #444; color: #fff; }
+  .proto .note { flex-basis: 100%; color: #8a8a8a; }
+
+  /* The app's head. */
+  .apphead { display: flex; gap: 14px; align-items: center; padding: 16px 24px; }
+  .sections { display: inline-flex; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(0,0,0,.3); border: 1px solid var(--dv-edge); }
+  .sections span { width: 44px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: #bbb; }
+  .sections span.on { background: var(--dv-gold); color: #111; }
+  .sections svg { width: 20px; height: 20px; }
+  .search { flex: 1; height: 44px; border-radius: 10px; border: 1px solid var(--dv-edge); background: var(--dv-glass); display: flex; align-items: center; gap: 8px; padding: 0 14px; color: #888; }
+
+  /* The banner. */
+  .banner { position: relative; padding: 18px 24px 22px; overflow: hidden;
+    background: linear-gradient(180deg, hsl(var(--tint) 60% 14% / .95), hsl(var(--tint) 45% 9% / .9) 70%, #1d1d1d);
+    border-top: 1px solid hsl(var(--tint) 60% 40% / .35); border-bottom: 1px solid hsl(var(--tint) 60% 40% / .2); transition: background .8s; }
+  .banner.ln { --tint: 38; }
+  .bhead { display: flex; align-items: center; gap: 14px; min-height: 36px; }
+  .bhead .icon { color: var(--dv-gold); width: 22px; height: 22px; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: rgba(0,0,0,.35); border: 1px solid var(--dv-edge); }
+  .seg button { border: 0; background: none; color: #bbb; height: 30px; padding: 0 14px; border-radius: 7px; cursor: pointer; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; }
+  .seg button svg { width: 15px; height: 15px; }
+  .seg button.on { background: rgba(255,255,255,.12); color: var(--dv-gold); }
+  .summary { color: var(--dv-text-muted); font-size: 13px; }
+  .grow { flex: 1; }
+  .ubtn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--dv-edge); background: rgba(0,0,0,.28); cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .ubtn:hover { background: var(--dv-glass-hover); }
+  .ubtn svg { width: 15px; height: 15px; }
+  .ubtn.primary { background: var(--dv-gold); border-color: var(--dv-gold); color: #111; font-weight: 600; }
+  .ubtn.quiet { border-color: transparent; background: none; color: #bbb; }
+  .group { display: inline-flex; }
+  .group .ubtn { border-radius: 0; }
+  .group .ubtn:first-child { border-radius: 9px 0 0 9px; }
+  .group .ubtn:last-child { border-radius: 0 9px 9px 0; border-left: 0; }
+
+  .strip { display: flex; gap: 18px; margin-top: 16px; overflow: hidden; position: relative; }
+  .cv { position: relative; flex: none; width: 180px; transition: transform .45s cubic-bezier(.2,.7,.2,1), opacity .45s, width .45s, margin .45s; }
+  .cv .img { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #333; box-shadow: 0 8px 22px rgba(0,0,0,.45); }
+  .cv .img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cv .x { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; background: rgba(0,0,0,.62); box-shadow: var(--dv-edge-image); opacity: 0; transition: opacity .12s; }
+  .cv:hover .x { opacity: 1; }
+  .cv .x svg { width: 14px; height: 14px; }
+  .cv .tags { position: absolute; left: 8px; bottom: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .tag { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 4px; background: rgba(0,0,0,.72); box-shadow: var(--dv-edge-image); color: #f2f2f2; font-size: 9.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; }
+  .tag.gold { color: var(--dv-gold); }
+  .cv .cap { margin-top: 8px; font-size: 12.5px; line-height: 1.3; }
+  .cv .cap b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cv .cap span { color: var(--dv-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .cv.now .img { box-shadow: 0 0 0 3px var(--dv-gold), 0 8px 22px rgba(0,0,0,.5); }
+  .cv.leaving { transform: translateX(-60px) scale(.92); opacity: 0; width: 0; margin-right: -18px; }
+  .cv.entering { animation: enter .55s cubic-bezier(.2,.7,.2,1); }
+  @keyframes enter { from { transform: translateX(60px); opacity: 0; } }
+  .bars { position: absolute; left: 10px; top: 10px; display: flex; gap: 2px; align-items: flex-end; height: 16px; }
+  .bars i { width: 3px; background: var(--dv-gold); border-radius: 1px; animation: bar .9s infinite ease-in-out; }
+  .bars i:nth-child(2) { animation-delay: .2s; } .bars i:nth-child(3) { animation-delay: .4s; }
+  @keyframes bar { 0%,100% { height: 4px; } 50% { height: 16px; } }
+  .paused .bars i { animation-play-state: paused; }
+  .shimmer .cv:not(.now) .img::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.18) 50%, transparent 70%); background-size: 200% 100%; animation: sh 1.1s infinite; }
+  @keyframes sh { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+
+  /* Radio's words. */
+  .prompt { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .prompt .q { font-size: 26px; font-weight: 600; letter-spacing: -.2px; color: #fff; border: 0; background: none; outline: 0; min-width: 0; flex: 1; padding: 2px 0; border-bottom: 1px dashed transparent; }
+  .prompt .q:hover { border-bottom-color: rgba(255,255,255,.2); }
+  .prompt .q:focus { border-bottom-color: hsl(var(--tint) 90% 60% / .7); }
+  .prompt .spark { color: var(--dv-gold); width: 22px; height: 22px; flex: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--dv-edge); background: rgba(0,0,0,.25); font-size: 12.5px; color: #ddd; cursor: pointer; }
+  .chip:hover { background: var(--dv-glass-hover); }
+  .chip.pool { border-color: hsl(var(--tint) 80% 60% / .45); }
+  .chip svg { width: 11px; height: 11px; }
+  .chip .k { color: var(--dv-text-faint); }
+  .chips .lbl { font-size: 11px; color: var(--dv-text-faint); text-transform: uppercase; letter-spacing: .6px; margin-right: 2px; }
+  .crit { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 12px; font-size: 12px; background: hsl(var(--tint) 70% 50% / .14); border: 1px solid hsl(var(--tint) 80% 60% / .4); color: hsl(var(--tint) 90% 80%); }
+  .crit button { border: 0; background: none; padding: 0; cursor: pointer; color: inherit; opacity: .6; }
+  .crit button:hover { opacity: 1; }
+  .crit svg { width: 10px; height: 10px; }
+  .empty { margin-top: 18px; padding: 26px; border-radius: 12px; border: 1px dashed rgba(255,255,255,.18); color: #bbb; display: flex; gap: 14px; align-items: center; }
+
+  /* A: the waves. */
+  .curve { position: relative; height: 54px; margin-top: 6px; overflow: hidden; }
+  .curve svg { height: 100%; overflow: visible; }
+
+  /* B: the turntable. */
+  .deck { display: flex; gap: 26px; margin-top: 16px; align-items: flex-start; }
+  .deck .big { position: relative; flex: none; width: 230px; }
+  .deck .big .img { position: relative; z-index: 2; aspect-ratio: 1; border-radius: 10px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,.55); }
+  .deck .big .img img { width: 100%; height: 100%; object-fit: cover; }
+  .vinyl { position: absolute; z-index: 1; top: 8px; left: 70px; width: 214px; height: 214px; border-radius: 50%;
+    background: radial-gradient(circle, hsl(var(--tint) 80% 55%) 0 16%, #111 17% 19%, #1a1a1a 20%, #0d0d0d 60%, #1a1a1a 61%, #0b0b0b 100%);
+    box-shadow: 0 8px 24px rgba(0,0,0,.6); transition: left .6s; }
+  .vinyl::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: repeating-radial-gradient(circle, transparent 0 3px, rgba(255,255,255,.03) 3px 4px); }
+  .playing .vinyl { left: 120px; animation: spin 3.2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .deck .nowcap { margin-top: 12px; }
+  .deck .nowcap b { display: block; font-size: 17px; }
+  .deck .nowcap span { color: var(--dv-text-muted); }
+  .deck .rest { flex: 1; min-width: 0; padding-left: 110px; }
+  .deck .rest .strip { margin-top: 0; gap: 12px; }
+  .deck .rest .cv { width: 118px; }
+  .meter { height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); margin-top: 6px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: linear-gradient(90deg, hsl(210 70% 60%), hsl(40 90% 55%), hsl(10 90% 55%)); background-size: 300px 100%; }
+  .upnext { font-size: 11px; letter-spacing: .6px; text-transform: uppercase; color: var(--dv-text-faint); margin: 0 0 8px; }
+
+  /* C: the cloud. */
+  .cloud { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .cv .ebar { position: absolute; right: 8px; bottom: 8px; width: 6px; height: 46px; border-radius: 3px; background: rgba(0,0,0,.55); box-shadow: var(--dv-edge-image); overflow: hidden; }
+  .cv .ebar i { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(0deg, hsl(210 70% 60%), hsl(40 90% 55%), hsl(10 90% 55%)); background-size: 100% 46px; background-position: bottom; }
+
+  /* Below: MusicDex's grid, dimmed. */
+  .below { padding: 18px 24px; opacity: .5; }
+  .below .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 18px; margin-top: 14px; }
+  .below .row div { aspect-ratio: 1; border-radius: 6px; background: #2c2c2c; }
+
+  /* Menus, dialogs, toasts. */
+  .menu { position: fixed; z-index: 100; min-width: 220px; padding: 6px; border-radius: 12px; background: var(--menu-bg); backdrop-filter: blur(16px); border: 1px solid var(--dv-edge); box-shadow: 0 14px 40px rgba(0,0,0,.5); }
+  .menu .sec { padding: 6px 10px 3px; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: #8a8a8a; font-weight: 600; }
+  .menu button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 7px 10px; border: 0; border-radius: 8px; background: none; cursor: pointer; text-align: left; font-size: 13.5px; }
+  .menu button:hover { background: var(--dv-veil); }
+  .menu button .ck { margin-left: auto; color: var(--dv-gold); }
+  .source-menu { min-width: 340px; }
+  .source-menu .stars { display: inline-flex; gap: 2px; margin: 0 2px; }
+  .source-menu .star { padding: 1px 6px; border-radius: 6px; border: 1px solid var(--dv-edge); font-size: 12px; color: #bbb; }
+  .source-menu .star.on { background: var(--dv-gold); border-color: var(--dv-gold); color: #111; font-weight: 600; }
+  .backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.55); display: grid; place-items: center; }
+  .dlg { width: 440px; border-radius: 14px; background: #2d2d2d; border: 1px solid #3a3a3a; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .dlg h3 { margin: 0; padding: 16px 20px; border-bottom: 1px solid #3a3a3a; font-size: 1.05rem; display: flex; gap: 8px; align-items: center; }
+  .dlg .body { padding: 16px 20px; display: grid; gap: 14px; }
+  .dlg label { font-size: 12.5px; color: #aaa; display: grid; gap: 6px; }
+  .dlg input { height: 36px; border-radius: 8px; border: 1px solid var(--dv-edge); background: rgba(0,0,0,.25); color: #fff; padding: 0 10px; font: inherit; }
+  .dlg .foot { padding: 12px 20px 16px; display: flex; justify-content: flex-end; gap: 8px; }
+  .dlg .hint { font-size: 12px; color: #888; }
+  .toasts { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 120; display: grid; gap: 8px; }
+  .toast { padding: 9px 14px; border-radius: 10px; background: var(--menu-bg); border: 1px solid var(--dv-edge); box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+</style>
+</head>
+<body>
+<div class="proto">
+  <b>Prototype · Radio</b>
+  <span>Variant</span>
+  <div class="seg-ctl" id="ctl-variant"><button data-v="A">A · Waves</button><button data-v="B">B · Turntable</button><button data-v="C" class="on">C · Cloud</button></div>
+  <span>Name</span>
+  <div class="seg-ctl" id="ctl-name"><button data-v="Radio" class="on">Radio</button><button data-v="Autoplay">Autoplay</button><button data-v="DJ">DJ</button></div>
+  <div class="note">Real songs of your albums at 3★ and more (1 190), with the fiches the local LLM made (energy, tempo, moods, styles). Choices are made here in JavaScript by the same rules as the trial, the criteria being the LLM's for the prompts tried. Try: ▶ (the strip moves on as tracks play), ✕ on a cover, a recent prompt, type “rock alternatif énergique” then ↵, “du jazz pour cuisiner” (nothing), Save as mixtape…, the pool's pills.</div>
+</div>
+
+<div class="apphead">
+  <div class="sections"><span>🎬</span><span class="on"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/><path d="M10 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0"/></svg></span><span>📖</span><span>🎼</span></div>
+  <div class="search">Search MusicDex: words, or a filter like composer:</div>
+</div>
+<div class="banner" id="banner"></div>
+<div class="below"><div style="display:flex;gap:10px"><span class="ubtn">Albums</span><span class="ubtn">Mixtapes</span></div><div class="row">${''}</div></div>
+<div class="toasts" id="toasts"></div>
+
+<script src="data.js"></script>
+<script>
+const I = {
+  phones: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 0 0-5 5v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a6 6 0 1 1 12 0v5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1V8a5 5 0 0 0-5-5"/></svg>',
+  spark: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M7.657 6.247c.11-.33.576-.33.686 0l.645 1.937a2.89 2.89 0 0 0 1.829 1.828l1.936.645c.33.11.33.576 0 .686l-1.937.645a2.89 2.89 0 0 0-1.828 1.829l-.645 1.936a.361.361 0 0 1-.686 0l-.645-1.937a2.89 2.89 0 0 0-1.828-1.828l-1.937-.645a.361.361 0 0 1 0-.686l1.937-.645a2.89 2.89 0 0 0 1.828-1.828zM3.794 1.148a.217.217 0 0 1 .412 0l.387 1.162c.173.518.579.924 1.097 1.097l1.162.387a.217.217 0 0 1 0 .412l-1.162.387A1.73 1.73 0 0 0 4.593 5.69l-.387 1.162a.217.217 0 0 1-.412 0L3.407 5.69A1.73 1.73 0 0 0 2.31 4.593l-1.162-.387a.217.217 0 0 1 0-.412l1.162-.387A1.73 1.73 0 0 0 3.407 2.31zM10.863.099a.145.145 0 0 1 .274 0l.258.774c.115.346.386.617.732.732l.774.258a.145.145 0 0 1 0 .274l-.774.258a1.16 1.16 0 0 0-.732.732l-.258.774a.145.145 0 0 1-.274 0l-.258-.774a1.16 1.16 0 0 0-.732-.732L9.1 2.137a.145.145 0 0 1 0-.274l.774-.258c.346-.115.617-.386.732-.732z"/></svg>',
+  play: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393"/></svg>',
+  pause: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5m5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5"/></svg>',
+  redo: '<svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/></svg>',
+  save: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h.191l1.862-3.724A.5.5 0 0 1 4 10h8a.5.5 0 0 1 .447.276L14.31 14h.191a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2zM4 7a1 1 0 1 1 0-2 1 1 0 0 1 0 2m8 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2M6 6a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2H7a1 1 0 0 1-1-1"/><path d="m13.191 14-1.5-3H4.309l-1.5 3z"/></svg>',
+  x: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/></svg>',
+  down: '<svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708"/></svg>',
+};
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const cover = id => `covers/${id}.jpg`;
+// Classical by its fiche's style: an album's tags (Abbey Road's "classical") are not to be trusted.
+SONGS.forEach((s, i) => { s.key = i; s.c = s.st.includes('classical'); s.work = s.c && /: | _ /.test(s.t) ? s.t.split(/: | _ /)[0] : null; });
+
+/* The criteria the LLM gave for the prompts tried (2026-11-03), and a few words for the others. */
+const KNOWN = {
+  'quelque chose de upbeat': { energy_min: 6, tempos: ['fast', 'mid'], moods_any: ['upbeat', 'energetic', 'joyful', 'playful', 'uplifting', 'groovy', 'anthemic'], styles_any: ['pop', 'dance', 'funk', 'rock', 'alternative', 'electronic', 'soul', 'r&b', 'latin', 'hip-hop'] },
+  'rock alternatif énergique': { energy_min: 7, tempos: ['fast', 'mid'], moods_any: ['energetic', 'driving', 'intense', 'anthemic', 'upbeat', 'uplifting'], styles_any: ['rock', 'alternative', 'hard-rock'] },
+  'du jazz pour cuisiner': { moods_any: ['groovy', 'calm', 'gentle', 'upbeat', 'playful', 'intimate'], styles_any: ['jazz'] },
+  'mélancolique, un jour de pluie': { energy_max: 6, tempos: ['slow', 'mid'], moods_any: ['melancholic', 'reflective', 'dreamy', 'atmospheric', 'calm', 'gentle', 'nostalgic', 'intimate'] },
+  'du classique lumineux pour le matin': { energy_min: 3, energy_max: 7, moods_any: ['gentle', 'calm', 'dreamy', 'uplifting', 'hopeful', 'joyful', 'reflective'], styles_any: ['classical'] },
+  'pour courir, énergique': { energy_min: 7, tempos: ['fast'], moods_any: ['energetic', 'driving', 'intense', 'anthemic', 'upbeat'] },
+  'chanson française joyeuse': { energy_min: 5, moods_any: ['joyful', 'playful', 'upbeat', 'uplifting'], langs: ['french'] },
+  'calme pour le soir': { energy_max: 4, tempos: ['slow', 'mid'], moods_any: ['calm', 'gentle', 'dreamy', 'tender', 'intimate', 'reflective'] },
+};
+const guess = q => {
+  const w = q.toLowerCase(), c = { moods_any: [], styles_any: [] };
+  if (/upbeat|énerg|courir|run|danse|joyeu|fête/.test(w)) Object.assign(c, { energy_min: 6 }), c.moods_any.push('energetic', 'upbeat', 'driving', 'joyful');
+  if (/calme|doux|soir|dorm|zen|piano/.test(w)) Object.assign(c, { energy_max: 4 }), c.moods_any.push('calm', 'gentle', 'dreamy');
+  if (/triste|mélanc|pluie|nostalg/.test(w)) Object.assign(c, { energy_max: 6 }), c.moods_any.push('melancholic', 'reflective', 'nostalgic');
+  for (const s of ['rock', 'pop', 'folk', 'jazz', 'soul', 'blues', 'latin', 'electronic', 'classical', 'chanson', 'alternative']) if (w.includes(s.slice(0, 5))) c.styles_any.push(s);
+  if (/classique/.test(w)) c.styles_any.push('classical');
+  if (/français|francais|french/.test(w)) c.langs = ['french'];
+  return c;
+};
+const criteriaOf = q => KNOWN[q.trim().toLowerCase()] || guess(q);
+
+const S = {
+  variant: 'C', name: 'Radio', mode: 'radio', prompt: 'quelque chose de upbeat',
+  recent: ['quelque chose de upbeat', 'rock alternatif énergique', 'mélancolique, un jour de pluie', 'du classique lumineux pour le matin', 'du jazz pour cuisiner'],
+  // The pool: the union of what is ticked; nothing ticked, everything that plays.
+  src: { stars: true, min: 4, hearts: true, popular: false }, genre: 'Both', whole: false,
+  queue: [], recent_out: [], playing: false, thinking: false, crit: null,
+};
+
+const inPool = s => {
+  const { stars, min, hearts, popular } = S.src;
+  if (!stars && !hearts && !popular) return true;
+  return (stars && (s.r || 0) >= min) || (hearts && s.h) || (popular && s.p);
+};
+const poolSize = () => SONGS.filter(inPool).length;
+const starsWord = n => (n % 1 ? `${Math.floor(n)}½` : `${n}`);
+const sourceWords = () => {
+  const { stars, min, hearts, popular } = S.src, parts = [];
+  if (stars) parts.push(`Albums ${starsWord(min)}★+`);
+  if (hearts) parts.push('♥');
+  if (popular) parts.push('Popular');
+  return parts.length ? parts.join(' ∪ ') : 'Everything that plays';
+};
+const fits = (s, c) => {
+  if (!inPool(s)) return 0;
+  const e = s.e || 0;
+  if (c.energy_min != null && e < c.energy_min) return 0;
+  if (c.energy_max != null && e > c.energy_max) return 0;
+  if (c.langs?.length && !c.langs.includes(s.l)) return 0;
+  if (c.styles_any?.length && !s.st.some(x => c.styles_any.includes(x))) return 0;
+  if (S.genre === 'Classical' && !s.c) return 0;
+  if (S.genre === 'Other' && s.c) return 0;
+  return 1 + (c.tempos?.includes(s.tp) ? 1 : 0) + s.m.filter(m => c.moods_any?.includes(m)).length;
+};
+const pool = () => SONGS.filter(s => fits(s, S.crit) > 0);
+/** n more: the best fits drawn at random, at most 2 per artist among what is ahead, never two in a row by one artist; a work's movements together, in order. */
+const draw = n => {
+  const ahead = S.queue, out = new Set([...S.recent_out.slice(-Math.ceil(pool().length / 2)), ...ahead.map(s => s.key)]);
+  const cands = pool().filter(s => !out.has(s.key)).map(s => ({ s, r: fits(s, S.crit) + Math.random() * 2.2 })).sort((a, b) => b.r - a.r).map(x => x.s);
+  const picked = [];
+  for (const s of cands) {
+    if (picked.length >= n) break;
+    const all = [...ahead, ...picked];
+    if (all.filter(x => x.ar === s.ar).length >= 2) continue;
+    if (all.length && all[all.length - 1].ar === s.ar) continue;
+    picked.push(s);
+  }
+  // The code puts a work's movements together and in their order: the model does not.
+  const done = [];
+  for (const s of picked) {
+    if (done.includes(s)) continue;
+    if (!s.work) { done.push(s); continue; }
+    const same = picked.filter(x => x.work === s.work && x.a === s.a).sort((a, b) => a.d - b.d || a.n - b.n);
+    if (S.whole) SONGS.filter(x => x.work === s.work && x.a === s.a && !same.includes(x)).forEach(x => same.push(x));
+    same.sort((a, b) => a.d - b.d || a.n - b.n).forEach(x => { if (!done.includes(x)) done.push(x); });
+  }
+  return done;
+};
+const restart = (q = S.prompt) => {
+  S.prompt = q; S.crit = criteriaOf(q); S.queue = []; S.recent_out = [];
+  if (!S.recent.includes(q)) S.recent.unshift(q); S.recent = S.recent.slice(0, 6);
+  S.thinking = true; render();
+  setTimeout(() => { S.thinking = false; S.queue = draw(10); render(); }, 1100);
+};
+const refill = () => { const more = draw(10 - S.queue.length); more.forEach(s => s.fresh = true); S.queue.push(...more); };
+
+/* The band's tint: the mean energy of what is ahead, blue for calm, warm for upbeat. */
+const tint = () => {
+  if (S.mode !== 'radio' || !S.queue.length) return 38;
+  const e = S.queue.reduce((t, s) => t + s.e, 0) / S.queue.length;
+  return Math.round(215 - (Math.max(2.5, Math.min(7.5, e)) - 2.5) / 5 * 200);
+};
+const time = s => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '');
+const length = list => { const s = list.reduce((t, x) => t + (x.s || 0), 0); const h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60); return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} min`; };
+
+const coverHtml = (s, i, opts = {}) => `
+  <div class="cv ${i === 0 && S.playing ? 'now' : ''} ${s.fresh ? 'entering' : ''}" data-i="${i}">
+    <div class="img"><img src="${cover(s.a)}" alt="">
+      ${i === 0 && S.playing ? '<div class="bars"><i></i><i></i><i></i></div>' : ''}
+      <button class="x" data-x="${i}" title="Not this one">${I.x}</button>
+      ${opts.tags ? `<div class="tags">${s.m[0] ? `<span class="tag">${s.m[0]}</span>` : ''}${s.st[0] ? `<span class="tag gold">${s.st[0]}</span>` : ''}</div>` : ''}
+      ${opts.ebar ? `<div class="ebar"><i style="height:${s.e * 10}%"></i></div>` : ''}
+    </div>
+    <div class="cap"><b>${esc(s.work && s.t.includes(': ') ? s.t.split(': ').slice(1).join(': ') : s.t)}</b><span>${esc(s.work ? s.work : s.ar)}</span></div>
+    ${opts.meter ? `<div class="meter"><i style="width:${s.e * 10}%;background-position:-${(10 - s.e) * 0}px 0"></i></div>` : ''}
+  </div>`;
+
+const curveSvg = list => {
+  if (!list.length) return '';
+  const w = 198, pts = list.map((s, i) => [i * w + 90, 50 - s.e * 4.4]);
+  const d = pts.map((p, i) => (i ? `S ${p[0] - 60} ${p[1]} ${p[0]} ${p[1]}` : `M ${p[0]} ${p[1]}`)).join(' ');
+  return `<svg width="${list.length * w}" viewBox="0 0 ${list.length * w} 54"><defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="hsl(${tint()} 90% 60%)" stop-opacity=".45"/><stop offset="1" stop-color="hsl(${tint()} 90% 60%)" stop-opacity="0"/></linearGradient></defs>
+    <path d="${d} L ${pts[pts.length - 1][0]} 54 L ${pts[0][0]} 54 Z" fill="url(#g)"/><path d="${d}" fill="none" stroke="hsl(${tint()} 95% 65%)" stroke-width="2"/>
+    ${pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="${i === 0 && S.playing ? 5 : 3}" fill="${i === 0 && S.playing ? 'var(--dv-gold)' : `hsl(${tint()} 95% 70%)`}"/>`).join('')}</svg>`;
+};
+
+const head = () => `
+  <div class="bhead">
+    <span class="icon">${S.mode === 'radio' ? I.spark : I.phones}</span>
+    <div class="seg" id="mode"><button data-v="ln" class="${S.mode === 'ln' ? 'on' : ''}">Listen Next</button><button data-v="radio" class="${S.mode === 'radio' ? 'on' : ''}">${I.spark} ${S.name}</button></div>
+    <span class="summary">${S.mode === 'ln' ? '32 discs · 426 tracks · 30 h 46' : S.queue.length ? `${S.queue.length} ahead · ${length(S.queue)} · endless` : ''}</span>
+    <span class="grow"></span>
+    ${S.mode === 'radio' ? `
+      <button class="ubtn quiet" id="save">${I.save} Save as mixtape…</button>
+      <div class="group"><button class="ubtn" id="play" title="${S.playing ? 'Pause' : 'Play'}">${S.playing ? I.pause : I.play}</button><button class="ubtn" id="redraw" title="Draw again">${I.redo}</button></div>`
+    : `<span class="summary">Play on Navidrome</span><div class="group"><button class="ubtn">${I.play}</button><button class="ubtn">${I.redo}</button></div>`}
+  </div>`;
+
+const promptHtml = () => `
+  <div class="prompt">
+    <input class="q" id="q" value="${esc(S.prompt)}" spellcheck="false" aria-label="What to play">
+  </div>
+  <div class="chips">
+    <span class="lbl">From</span>
+    <button class="chip pool" data-menu="source">${sourceWords()} <span class="k">· ${poolSize()} tracks</span> ${I.down}</button>
+    <button class="chip pool" data-menu="genre">${{ Both: 'Classical and other', Classical: 'Classical', Other: 'Not classical' }[S.genre]} ${I.down}</button>
+    ${S.genre !== 'Other' ? `<button class="chip pool" id="whole">${S.whole ? '✓ ' : ''}Whole works</button>` : ''}
+    <span class="lbl" style="margin-left:12px">Recent</span>
+    ${S.recent.filter(r => r !== S.prompt).slice(0, 4).map(r => `<button class="chip" data-recent="${esc(r)}">${esc(r)}</button>`).join('')}
+  </div>`;
+
+const critHtml = () => {
+  const c = S.crit || {}, out = [];
+  if (c.energy_min != null || c.energy_max != null) out.push(`energy ${c.energy_min ?? 0}–${c.energy_max ?? 10}`);
+  (c.tempos || []).forEach(t => out.push(t));
+  (c.moods_any || []).slice(0, 5).forEach(m => out.push(m));
+  (c.styles_any || []).slice(0, 4).forEach(s => out.push(s));
+  (c.langs || []).forEach(l => out.push(l));
+  return `<div class="cloud"><span class="lbl" style="font-size:11px;color:#8a8a8a;text-transform:uppercase;letter-spacing:.6px">Heard as</span>${out.map(o => `<span class="crit">${esc(o)}<button data-uncrit="${esc(o)}" title="Not this">${I.x}</button></span>`).join('')}</div>`;
+};
+
+const emptyHtml = () => `<div class="empty"><span style="font-size:26px">📻</span><div><b>Nothing in ${esc(sourceWords())} for “${esc(S.prompt)}”.</b><br>
+  <span style="color:#999">${pool().length} songs fit, all heard lately: they come back after half of them.</span></div><span class="grow"></span>
+  ${sourceWords() !== 'Everything that plays' ? `<button class="ubtn" id="widen">Look in everything that plays</button>` : ''}</div>`;
+
+const radioBody = () => {
+  if (!S.thinking && S.queue.length === 0) return promptHtml() + emptyHtml();
+  const list = S.thinking ? Array.from({ length: 10 }, (_, i) => S.queue[i] || SONGS[(i * 37) % SONGS.length]) : S.queue;
+  if (S.variant === 'A') return promptHtml() + `<div class="strip ${S.thinking ? 'shimmer' : ''}" id="strip">${list.map((s, i) => coverHtml(s, i, { tags: true })).join('')}</div><div class="curve">${S.thinking ? '' : curveSvg(list)}</div>`;
+  if (S.variant === 'B') {
+    const now = list[0];
+    return promptHtml() + `<div class="deck ${S.playing ? 'playing' : ''}"><div class="big"><div class="vinyl"></div><div class="img"><img src="${cover(now.a)}" alt=""></div>
+      <div class="nowcap"><b>${esc(now.t)}</b><span>${esc(now.ar)} · ${esc(now.al)}</span><div class="tags" style="display:flex;gap:4px;margin-top:6px">${now.m.map(m => `<span class="tag">${m}</span>`).join('')}${now.st.map(s => `<span class="tag gold">${s}</span>`).join('')}</div></div></div>
+      <div class="rest"><div class="upnext">Up next</div><div class="strip ${S.thinking ? 'shimmer' : ''}" id="strip">${list.slice(1).map((s, i) => coverHtml(s, i + 1, { meter: true })).join('')}</div></div></div>`;
+  }
+  return promptHtml() + critHtml() + `<div class="strip ${S.thinking ? 'shimmer' : ''}" id="strip">${list.map((s, i) => coverHtml(s, i, { ebar: true, tags: true })).join('')}</div>`;
+};
+
+const lnBody = () => `<div class="strip">${LISTEN_NEXT.map(a => `<div class="cv"><div class="img"><img src="covers/ln${a.id}.jpg" alt=""></div></div>`).join('')}</div>`;
+
+const banner = document.getElementById('banner');
+const render = () => {
+  document.documentElement.style.setProperty('--tint', tint());
+  banner.className = `banner ${S.mode === 'ln' ? 'ln' : ''} ${S.playing ? '' : 'paused'}`;
+  banner.innerHTML = head() + (S.mode === 'radio' ? radioBody() : lnBody());
+  SONGS.forEach(s => delete s.fresh);
+  wire();
+};
+
+let menuEl = null;
+const closeMenu = () => { const was = menuEl; menuEl?.remove(); menuEl = null; was?.onClose?.(); };
+document.addEventListener('mousedown', e => { if (menuEl && !menuEl.contains(e.target)) closeMenu(); });
+const openMenu = (anchor, title, items, on, pick) => {
+  closeMenu();
+  const m = document.createElement('div'); m.className = 'menu';
+  m.innerHTML = `<div class="sec">${title}</div>` + items.map(it => `<button data-v="${esc(it)}">${esc(it)}${it === on ? '<span class="ck">✓</span>' : ''}</button>`).join('');
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect(); m.style.left = r.left + 'px'; m.style.top = r.bottom + 6 + 'px';
+  m.querySelectorAll('button').forEach(b => b.onclick = () => { closeMenu(); pick(b.dataset.v); });
+  menuEl = m;
+};
+/** The pool's menu: each source ticked or not, the albums' stars from 3 to 5 by halves; what is ticked adds up. */
+const sourceMenu = anchor => {
+  closeMenu();
+  const m = document.createElement('div'); m.className = 'menu source-menu';
+  const draw = () => {
+    const { stars, min, hearts, popular } = S.src;
+    const n = (f) => SONGS.filter(f).length;
+    m.innerHTML = `<div class="sec">From, together</div>
+      <button data-k="stars">${stars ? '☑' : '☐'} Albums at <span class="stars">${[3, 3.5, 4, 4.5, 5].map(v => `<span class="star ${v === min ? 'on' : ''}" data-min="${v}">${starsWord(v)}★</span>`).join('')}</span> and more<span class="ck" style="color:#888">${n(s => (s.r || 0) >= min)}</span></button>
+      <button data-k="hearts">${hearts ? '☑' : '☐'} My ♥ tracks<span class="ck" style="color:#888">${n(s => s.h)}</span></button>
+      <button data-k="popular">${popular ? '☑' : '☐'} The albums' popular tracks<span class="ck" style="color:#888">${n(s => s.p)}</span></button>
+      <div class="sec" style="padding-top:8px">${sourceWords()} · ${poolSize()} tracks</div>
+      <div style="padding:2px 10px 6px;font-size:12px;color:#888">Nothing ticked: everything that plays.</div>`;
+    m.querySelectorAll('[data-min]').forEach(x => x.onclick = e => { e.stopPropagation(); S.src.min = +x.dataset.min; S.src.stars = true; draw(); });
+    m.querySelectorAll('[data-k]').forEach(x => x.onclick = () => { S.src[x.dataset.k] = !S.src[x.dataset.k]; draw(); });
+  };
+  draw();
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect(); m.style.left = r.left + 'px'; m.style.top = r.bottom + 6 + 'px';
+  menuEl = m;
+  menuEl.onClose = () => restart();
+};
+const toast = words => { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = words; document.getElementById('toasts').appendChild(t); setTimeout(() => t.remove(), 4500); };
+
+let timer = null;
+const advance = () => {
+  const strip = document.getElementById('strip');
+  const first = S.variant === 'B' ? null : strip?.querySelector('.cv');
+  const go = () => { const out = S.queue.shift(); S.recent_out.push(out.key); refill(); render(); };
+  if (first) { first.classList.add('leaving'); setTimeout(go, 420); } else go();
+};
+
+const wire = () => {
+  banner.querySelectorAll('#mode button').forEach(b => b.onclick = () => { S.mode = b.dataset.v; if (S.mode === 'ln') { S.playing = false; clearInterval(timer); } render(); });
+  const q = banner.querySelector('#q');
+  if (q) q.onkeydown = e => { if (e.key === 'Enter' && q.value.trim()) { q.blur(); restart(q.value.trim()); } };
+  banner.querySelectorAll('[data-recent]').forEach(b => b.onclick = () => restart(b.dataset.recent));
+  banner.querySelectorAll('[data-x]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const i = +b.dataset.x, cv = b.closest('.cv');
+    cv.classList.add('leaving');
+    setTimeout(() => { const [out] = S.queue.splice(i, 1); S.recent_out.push(out.key); refill(); render(); }, 420);
+  });
+  banner.querySelector('#play')?.addEventListener('click', () => {
+    S.playing = !S.playing; clearInterval(timer);
+    if (S.playing) timer = setInterval(advance, 4200);
+    render();
+  });
+  banner.querySelector('#redraw')?.addEventListener('click', () => restart());
+  banner.querySelector('#widen')?.addEventListener('click', () => { S.src = { ...S.src, stars: false, hearts: false, popular: false }; restart(); toast('Everything that plays: in DexVault, 6 412 songs. Here only those of your albums at 3★ and more have fiches.'); });
+  banner.querySelector('#whole')?.addEventListener('click', () => { S.whole = !S.whole; restart(); });
+  banner.querySelectorAll('[data-menu]').forEach(b => b.onclick = () => {
+    if (b.dataset.menu === 'source') sourceMenu(b);
+    else openMenu(b, 'Which', ['Classical and other', 'Classical', 'Not classical'], { Both: 'Classical and other', Classical: 'Classical', Other: 'Not classical' }[S.genre], v => { S.genre = { 'Classical and other': 'Both', Classical: 'Classical', 'Not classical': 'Other' }[v]; restart(); });
+  });
+  banner.querySelectorAll('[data-uncrit]').forEach(b => b.onclick = () => {
+    const w = b.dataset.uncrit, c = { ...S.crit };
+    ['moods_any', 'styles_any', 'tempos', 'langs'].forEach(k => { if (c[k]) c[k] = c[k].filter(x => x !== w); });
+    if (w.startsWith('energy')) { delete c.energy_min; delete c.energy_max; }
+    S.crit = c; S.queue = []; S.queue = draw(10); render();
+  });
+  banner.querySelector('#save')?.addEventListener('click', saveDialog);
+};
+
+const saveDialog = () => {
+  const b = document.createElement('div'); b.className = 'backdrop';
+  b.innerHTML = `<div class="dlg"><h3>${I.save} Save as mixtape</h3><div class="body">
+    <label>Name<input id="nm" value="${esc(S.name)} · ${esc(S.prompt)}"></label>
+    <label>Tracks<div class="seg-ctl" id="cnt">${[10, 20, 30, 45].map(n => `<button data-v="${n}" class="${n === 30 ? 'on' : ''}">${n}</button>`).join('')}</div></label>
+    <div class="hint" id="hint"></div></div>
+    <div class="foot"><button class="ubtn quiet" id="no">Cancel</button><button class="ubtn primary" id="yes">Save in Navidrome</button></div></div>`;
+  document.body.appendChild(b);
+  let n = 30;
+  const hint = () => { const list = [...S.queue, ...draw(Math.max(0, n - S.queue.length))].slice(0, n); b.querySelector('#hint').textContent = `The ${S.queue.length} ahead and ${Math.max(0, n - S.queue.length)} more drawn the same way: ${length(list)}, a fixed mixtape that Amperfy plays whole.`; };
+  hint();
+  b.querySelectorAll('#cnt button').forEach(x => x.onclick = () => { n = +x.dataset.v; b.querySelectorAll('#cnt button').forEach(y => y.classList.toggle('on', y === x)); hint(); });
+  b.querySelector('#no').onclick = () => b.remove();
+  b.querySelector('#yes').onclick = () => { const name = b.querySelector('#nm').value; b.remove(); toast(`<b>${esc(name)}</b> made, ${n} tracks, in Mixtapes`); };
+  b.addEventListener('mousedown', e => { if (e.target === b) b.remove(); });
+};
+
+const seg = (id, key) => document.querySelectorAll(`#${id} button`).forEach(b => b.onclick = () => { S[key] = b.dataset.v; document.querySelectorAll(`#${id} button`).forEach(x => x.classList.toggle('on', x === b)); render(); });
+seg('ctl-variant', 'variant'); seg('ctl-name', 'name');
+document.querySelector('.below .row').innerHTML = Array.from({ length: 12 }, () => '<div></div>').join('');
+S.crit = criteriaOf(S.prompt); S.queue = draw(10); render();
+</script>
+</body>
+</html>
