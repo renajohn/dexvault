@@ -80,10 +80,14 @@
   font-weight: 600;
   letter-spacing: -0.2px;
   line-height: 1.3;
+  --field-edge-hover: var(--dv-edge-hover);
 }
 
-.ui-input--title:hover:not(:disabled):not(:focus) {
-  border-color: var(--dv-edge-hover);
+/* The edge under a pointer alone: a finger dragging the words along would leave it lit (iOS keeps the hover). */
+@media (hover: none) {
+  .ui-input--title {
+    --field-edge-hover: transparent;
+  }
 }
 
 .ui-input--title:focus {
