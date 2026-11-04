@@ -113,11 +113,19 @@ export const trackOf = (song: RadioSong, index = 0): PlayerTrack => ({
 });
 
 /** A track of the player whose song is not known any more (a reload with no band kept): what the track says. */
-const songOfTrack = (track: PlayerTrack): RadioSong => known.get(track.songId) ?? {
-  songId: track.songId, title: track.title, artist: track.artist ?? '', albumId: Number(track.albumId ?? 0), album: '',
-  cover: null, discNumber: 1, track: track.no, durationSec: track.durationSec, work: track.work ?? null, movement: null,
-  energy: 5, tempo: 'mid', moods: [], styles: [], lang: '',
+const songOfTrack = (track: PlayerTrack): RadioSong => {
+  const song = known.get(track.songId);
+  // Known without its cover (a band kept before covers were taken): the player's track has it.
+  if (song) return song.cover || !track.cover ? song : { ...song, cover: track.cover };
+  return songOfTrackAlone(track);
 };
+
+const songOfTrackAlone = (track: PlayerTrack): RadioSong => ({
+  songId: track.songId, title: track.title, artist: track.artist ?? '', albumId: Number(track.albumId ?? 0), album: '',
+  // The cover the player has for it: a radio followed on an appliance, or drawn on another device, still shows its CDs.
+  cover: track.cover ?? null, discNumber: 1, track: track.no, durationSec: track.durationSec, work: track.work ?? null, movement: null,
+  energy: 5, tempo: 'mid', moods: [], styles: [], lang: '',
+});
 
 /** The radio's album, here or as an appliance gives it back (which may not keep its flag): no CD, named "Radio · …". */
 export const isRadioAlbum = (album: PlayerAlbum | null | undefined): boolean =>
@@ -126,6 +134,9 @@ export const isRadioAlbum = (album: PlayerAlbum | null | undefined): boolean =>
 const radioPlaying = (view: PlayerState = player.getState()): boolean => isRadioAlbum(view.album);
 
 const ids = (songs: RadioSong[]) => songs.map(song => song.songId);
+
+/** The radio this device started, by its album's name: one another device started, and the bar follows, is not its own. */
+let ownTitle: string | null = null;
 
 /** A draw in hand: one asked later wins over it. */
 let drawing = 0;
@@ -154,6 +165,7 @@ const drawAgain = async (keepNow = true): Promise<void> => {
     if (playing && radioPlaying() && !player.setUpcoming(draw.songs.map(trackOf), radioAlbum(state.prompt, now[0]))) {
       // An appliance takes only songs added at the end: the new band played there anew, from where the song playing is.
       const view = player.getState();
+      ownTitle = radioAlbum(state.prompt).title;
       player.playAlbum(radioAlbum(state.prompt, now[0]), songs.map(trackOf), 0, view.position);
     }
     set({ songs, status: 'ready', poolSize: draw.poolSize, fitting: draw.fitting, missingFiches: draw.missingFiches });
@@ -205,6 +217,7 @@ export const radio = {
       set({ criteria });
       await drawAgain(!play);
       if (play && ticket + 1 === drawing && state.status === 'ready' && state.songs.length > 0) {
+        ownTitle = radioAlbum(prompt).title;
         player.playAlbum(radioAlbum(prompt, state.songs[0]), state.songs.map(trackOf), 0);
       }
     } catch {
@@ -252,6 +265,7 @@ export const radio = {
     }
     if (state.songs.length === 0) return;
     player.prime();
+    ownTitle = radioAlbum(state.prompt).title;
     player.playAlbum(radioAlbum(state.prompt, state.songs[0]), state.songs.map(trackOf), 0);
   },
 
@@ -297,11 +311,16 @@ const follow = () => {
   }
   last = track ? { songId: track.songId, position: view.position, duration: view.duration || track.durationSec || 0 } : null;
   if (!isRadio) return;
+  // A radio this device did not start (another one's, on an appliance the bar follows): its prompt is the album's name.
+  const playedPrompt = view.album?.title.startsWith('Radio · ') ? view.album.title.slice('Radio · '.length) : null;
+  if (view.playing && playedPrompt && playedPrompt !== state.prompt && !state.prompt) set({ prompt: playedPrompt }, { fromServer: true });
   // A radio of another prompt kept paused (the settings came from another device since): not this one's band.
   if (!view.playing && view.album?.title !== radioAlbum(state.prompt).title) return;
   const band = view.tracks.slice(view.index);
-  if (band.map(one => one.songId).join('|') !== ids(state.songs).join('|')) {
-    set({ songs: band.map(songOfTrack) });
+  // Other songs, or the same kept without the covers the player's tracks have (a band kept before they were taken).
+  const coversMissing = state.songs.some((song, i) => !song.cover && band[i]?.cover);
+  if (band.map(one => one.songId).join('|') !== ids(state.songs).join('|') || coversMissing) {
+    set({ songs: band.map((track, i) => (state.songs[i]?.songId === track.songId && state.songs[i].cover ? state.songs[i] : songOfTrack(track))) });
   }
   if (state.songs.length < BAND) refill();
 };
@@ -334,11 +353,13 @@ export const syncRadioSettings = async (): Promise<void> => {
     if (state.prompt || state.recent.length) saveSoon();
     return;
   }
-  // Playing, not merely kept paused from another day: a radio left in pause takes the new settings.
+  // Playing this device's own prompt, not merely kept paused from another day nor a radio another device started
+  // and the bar follows: that one alone keeps its settings while it plays.
   const view = player.getState();
   dropOtherBand(view);
   if (knownAt && stored.updatedAt <= knownAt) return;
-  if (saveTimer || (radioPlaying(view) && view.playing)) return;
+  const playingOwn = radioPlaying(view) && view.playing && view.album?.title === ownTitle;
+  if (saveTimer || playingOwn) return;
   knownAt = stored.updatedAt;
   const { settings } = stored;
   const otherPrompt = settings.prompt !== state.prompt;
@@ -374,6 +395,7 @@ export const resetRadio = () => {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
   knownAt = null;
+  ownTitle = null;
   refilling = null;
   last = null;
   known.clear();

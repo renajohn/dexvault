@@ -112,7 +112,7 @@ describe("the radio's settings across devices", () => {
     await radio.listen('calme pour le soir');
     await settle();
     const songs = radio.getState().songs;
-    player.playAlbum(radioAlbum('calme pour le soir', songs[0]), songs.map((one, i) => trackOf(one, i)), 0);
+    radio.play();
     stored = { settings: laptop, updatedAt: at() };
     await syncRadioSettings();
     expect(radio.getState().prompt).toBe('calme pour le soir');
@@ -134,6 +134,24 @@ describe("the radio's settings across devices", () => {
     expect(radio.getState().pool).toEqual(laptop.pool);
     // The paused radio of the other prompt is not taken back as this one's band.
     expect(radio.getState().songs).toEqual([]);
+  });
+
+  it('shows the covers of a radio it did not draw, and its prompt, the settings of the device playing it taken', async () => {
+    // Another device's radio: this one knows none of its songs, only the player's tracks, their covers with them.
+    const tracks = [1, 2, 3].map(n => ({ ...trackOf(song(n), n - 1), cover: `/api/images/cd/${n}.jpg` }));
+    player.playAlbum(radioAlbum('rock alternatif énergique'), tracks, 0);
+    expect(radio.getState().prompt).toBe('rock alternatif énergique');
+    expect(radio.getState().songs.map(one => one.cover)).toEqual(['/api/images/cd/1.jpg', '/api/images/cd/2.jpg', '/api/images/cd/3.jpg']);
+    stored = { settings: { ...laptop, prompt: 'rock alternatif énergique' }, updatedAt: at() };
+    await syncRadioSettings();
+    expect(radio.getState().pool).toEqual(laptop.pool);
+  });
+
+  it('takes back the covers of a band kept without them', async () => {
+    window.localStorage.setItem('dv.radio', JSON.stringify({ prompt: 'rock', songs: [{ ...song(1), cover: null }, { ...song(2), cover: null }] }));
+    resetRadio();
+    player.playAlbum(radioAlbum('rock'), [1, 2].map(n => ({ ...trackOf(song(n), n - 1), cover: `/api/images/cd/${n}.jpg` })), 0);
+    expect(radio.getState().songs.map(one => one.cover)).toEqual(['/api/images/cd/1.jpg', '/api/images/cd/2.jpg']);
   });
 
   it("gives the server this device's settings when it has none yet", async () => {
