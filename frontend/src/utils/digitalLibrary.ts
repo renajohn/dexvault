@@ -166,11 +166,11 @@ export const formatLabel = (album: DigitalAlbum): string => {
 export const isLossy = (album: DigitalAlbum | null | undefined): boolean => album?.quality === 'lossy';
 
 /**
- * A digital album worth a bookmark on its cover: no CD, files lossy, not on the wish list
- * yet, and not rated below 3 stars (the owner's stars, else Navidrome's).
+ * A digital album worth a bookmark on its cover: no CD, files lossy or near lossless, not on
+ * the wish list yet, and not rated below 3 stars (the owner's stars, else Navidrome's); unrated is fine.
  */
 export const offersWish = (album: DigitalAlbum | null | undefined, titleStatus: unknown, stars?: number | null): boolean => {
-  if (titleStatus !== 'digital' || !isLossy(album)) return false;
+  if (titleStatus !== 'digital' || !album || album.quality === 'lossless') return false;
   const rating = stars || album!.rating || 0;
   return rating === 0 || rating >= 3;
 };

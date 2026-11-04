@@ -78,7 +78,8 @@ const keys: SearchKey[] = [
   { key: 'cd', group: 'CD and files', type: 'bool', desc: 'You have the CD', values: yesNo('CDs only', 'No CD: files or wishes, with Digital on') },
   { key: 'ripped', group: 'CD and files', type: 'bool', desc: 'Its CD is in Navidrome', values: yesNo('CDs in Navidrome', 'CDs not ripped yet') },
   { key: 'file', group: 'CD and files', type: 'enum', desc: 'How good its files in Navidrome are', example: 'file:lossy', values: [
-    { value: 'lossless', desc: 'FLAC, or 256 kbps and more' },
+    { value: 'lossless', desc: 'FLAC, ALAC: as on the CD' },
+    { value: 'near', desc: 'Near lossless: AAC 256, MP3 320' },
     { value: 'lossy', desc: 'Below 256 kbps: a copy to do again' },
   ] },
 ];

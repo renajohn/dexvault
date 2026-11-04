@@ -664,9 +664,9 @@ const Album = {
       if (noMixtape) whereClauses.push(NOT_MIXTAPE);
     }
 
-    // How good its files are, as the last reading of Navidrome found them: near-lossless counts as lossless.
-    // file:lossless,lossy is either; -file:lossy everything but the lossy ones.
-    const qualities: Record<string, string[]> = { lossless: ['lossless', 'near'], lossy: ['lossy'] };
+    // How good its files are, as the last reading of Navidrome found them: lossless, near (256 kbps and more), lossy.
+    // file:lossless,near is either; -file:lossy everything but the lossy ones.
+    const qualities: Record<string, string[]> = { lossless: ['lossless'], near: ['near'], lossy: ['lossy'] };
     const fileWords = findFilters(cleanedQuery, 'file');
     const fileTaken: string[] = [];
     for (const word of fileWords) {

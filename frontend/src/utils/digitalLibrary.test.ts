@@ -28,7 +28,7 @@ describe('digitalLibrary', () => {
     expect(isLossy(null)).toBe(false);
   });
 
-  it('offre la wish list aux albums sans CD en lossy, sauf souhaités ou notés sous 3', () => {
+  it('offre la wish list aux albums sans CD en lossy ou near lossless, sauf souhaités ou notés sous 3', () => {
     const lossy = album({ quality: 'lossy', formats: ['MP3'], bitRate: 192 });
     expect(offersWish(lossy, 'digital')).toBe(true);
     expect(offersWish(lossy, 'digital', 3)).toBe(true);
@@ -38,7 +38,8 @@ describe('digitalLibrary', () => {
     expect(offersWish(lossy, 'wish')).toBe(false);
     expect(offersWish(lossy, 'owned')).toBe(false);
     expect(offersWish(album({}), 'digital')).toBe(false);
-    expect(offersWish(album({ quality: 'near', formats: ['AAC'], bitRate: 256 }), 'digital')).toBe(false);
+    expect(offersWish(album({ quality: 'near', formats: ['AAC'], bitRate: 256 }), 'digital')).toBe(true);
+    expect(offersWish(album({ quality: 'lossless', formats: ['FLAC'], bitRate: null }), 'digital')).toBe(false);
     expect(offersWish(null, 'digital')).toBe(false);
   });
 

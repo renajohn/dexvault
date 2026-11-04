@@ -98,8 +98,10 @@ describe('the words of the search, as the pills write them and as they were', ()
     });
 
     it('file: with commas and -', async () => {
-      expect(await titles('file:lossless')).toEqual(['Digital', 'Ripped five']);
-      expect(await titles('file:lossless,lossy')).toEqual(['Digital', 'Ripped five', 'Ripped lossy']);
+      expect(await titles('file:lossless')).toEqual(['Ripped five']);
+      expect(await titles('file:near')).toEqual(['Digital']);
+      expect(await titles('file:lossless,near')).toEqual(['Digital', 'Ripped five']);
+      expect(await titles('file:lossless,lossy')).toEqual(['Ripped five', 'Ripped lossy']);
       expect(await titles('-file:lossy')).toEqual(['Digital', 'Not ripped', 'Ripped five', 'Wish']);
     });
 
