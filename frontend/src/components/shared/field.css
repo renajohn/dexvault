@@ -70,14 +70,16 @@
 
 /* A heading edited in place (the radio's prompt): its words alone, an edge under the pointer, gold with the focus. */
 /*
- * Its edge on the column's, where the words that slide along it go out of
- * sight; its words, at rest, where those of the pills under it begin (their
- * edge and padding, 1 + 10 px): an indent, which slides with them.
+ * Its edges on the column's, its own beyond them, where the words that slide
+ * along it go out of sight, on the left as on the right; its words, at rest,
+ * where those of the pills under it begin (their edge and padding, 1 + 10 px):
+ * an indent, which slides with them.
  */
 .ui-input--title {
+  width: calc(100% + 2px);
   height: auto;
-  padding: 2px 10px 2px 0;
-  margin-left: -1px;
+  padding: 2px 0;
+  margin: 0 -1px;
   text-indent: 11px;
   border-color: transparent;
   background: transparent;
