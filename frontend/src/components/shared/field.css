@@ -69,10 +69,16 @@
 }
 
 /* A heading edited in place (the radio's prompt): its words alone, an edge under the pointer, gold with the focus. */
-/* Its words where those of the pills under it begin: their edge and padding, 1 + 10 px. */
+/*
+ * Its edge on the column's, where the words that slide along it go out of
+ * sight; its words, at rest, where those of the pills under it begin (their
+ * edge and padding, 1 + 10 px): an indent, which slides with them.
+ */
 .ui-input--title {
   height: auto;
-  padding: 2px 10px;
+  padding: 2px 10px 2px 0;
+  margin-left: -1px;
+  text-indent: 11px;
   border-color: transparent;
   background: transparent;
   color: #fff;
