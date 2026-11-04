@@ -1,4 +1,5 @@
 import musicService from '../../../../services/musicService';
+import { MOODS, STYLES } from '../../../../services/radioService';
 import { openItem } from '../../../../services/openItem';
 import { isDigitalOn } from '../../../../utils/digitalLibrary';
 import { suggestFrom, yesNo, type SearchGuess, type SearchKey, type SearchSchema } from '../schema';
@@ -7,15 +8,17 @@ import { suggestFrom, yesNo, type SearchGuess, type SearchKey, type SearchSchema
  * MusicDex's keys, as the backend reads them: backend/src/models/album.ts
  * (_parseSearchQuery for the words on the album and its tracks, year:, stars:,
  * cd:, file:, ripped:, rated:; Album.search for classical:),
- * favouriteAlbumService for favourites:, all through
+ * favouriteAlbumService for favourites:, backend/src/utils/ficheFilters.ts
+ * for mood:, style:, energy: and tempo: (read on the songs' fiches, an album
+ * answering when a third of its songs with a fiche do), all through
  * backend/src/utils/albumSearchFilters.ts, which understands `-key:` and
  * `!key:`, yes/no and the old words, commas as "or" and the aliases below.
  * The page itself reads cd:, file:, ripped:, favourites: (Digital on) in
  * utils/musicSearchWords.ts. The backend's mixtape: is not offered: the
  * mixtapes have their own view of MusicDex (/musicdex/mixtapes).
  * The values come from the collection, the digital albums and the wishes too
- * when Digital is on, as the page shows them. `mood:` is understood too but
- * nothing fills it, so it is not offered.
+ * when Digital is on, as the page shows them; the moods and the styles are
+ * the radio's closed lists.
  */
 const fromMusic = (field: string) => suggestFrom(
   (f, typed) => musicService.getAutocompleteSuggestions(f, typed, { withNoCd: isDigitalOn() }),
@@ -42,6 +45,21 @@ const keys: SearchKey[] = [
   { key: 'instrument', group: 'What', type: 'text', desc: 'Someone plays it on one of its tracks: cello, piano…', example: 'instrument:cello', suggest: fromMusic('instrument') },
   { key: 'label', group: 'What', type: 'text', desc: 'Its record label', example: 'label:ECM', suggest: fromMusic('label') },
   { key: 'country', group: 'What', type: 'text', desc: 'The country it was released in, as MusicBrainz writes it', example: 'country:DE', suggest: fromMusic('country'), valuesForWords: false },
+  // How it sounds: the songs' fiches, written by the local LLM for the radio.
+  { key: 'mood', group: 'How it sounds', type: 'enum', desc: 'How a third of its songs feel, at least', example: 'mood:melancholic', values: MOODS.map(value => ({ value })) },
+  { key: 'style', group: 'How it sounds', type: 'enum', desc: 'The style of a third of its songs, at least', example: 'style:rock', values: STYLES.map(value => ({ value })) },
+  { key: 'energy', group: 'How it sounds', type: 'number', desc: 'The energy of a third of its songs, from 0 (a lullaby) to 10', example: 'energy:7-10', shortcuts: [
+    { value: '8-10', desc: 'Full of energy' },
+    { value: '6-10', desc: 'Lively' },
+    { value: '4-6', desc: 'In between' },
+    { value: '0-4', desc: 'Quiet' },
+    { value: '0-2', desc: 'Very quiet' },
+  ] },
+  { key: 'tempo', group: 'How it sounds', type: 'enum', desc: 'The tempo of a third of its songs, at least', example: 'tempo:fast', values: [
+    { value: 'slow', desc: 'Slow' },
+    { value: 'mid', desc: 'Neither slow nor fast' },
+    { value: 'fast', desc: 'Fast' },
+  ] },
   // When
   { key: 'year', group: 'When', type: 'number', desc: 'Its year, exactly, compared or a range', example: 'year:1960-1969', shortcuts: decades },
   // Your stars

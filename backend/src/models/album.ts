@@ -6,6 +6,8 @@ import { combineRatings } from '../services/utils/communityRating';
 import { isClassicalAlbum, type Performer } from '../services/shelfOrder';
 import { findsAll, matchScore, searchWords } from '../utils/searchText';
 import { normaliseAlbumQuery, takeBoolFilter, takeNumberFilter, findFilters, withoutWords } from '../utils/albumSearchFilters';
+import { groupAnswers, takeFicheFilter } from '../utils/ficheFilters';
+import TrackFiche from './trackFiche';
 import type { AlbumRow, AlbumFormatted, AlbumCreateData, AlbumSearchParsed } from '../types';
 
 interface AlbumUpdateResult {
@@ -484,7 +486,7 @@ const Album = {
     let cleanedQuery = normaliseAlbumQuery(query);
 
     const columnMap: Record<string, string> = {
-      'artist': 'artist', 'title': 'title', 'genre': 'genres', 'mood': 'moods',
+      'artist': 'artist', 'title': 'title', 'genre': 'genres',
       'label': 'labels', 'country': 'country', 'track': 'track',
       'composer': 'composer', 'performer': 'performer', 'conductor': 'conductor', 'instrument': 'instrument', 'work': 'work'
     };
@@ -578,7 +580,8 @@ const Album = {
     };
 
     // Process filters with smart value extraction
-    const fields = 'artist|title|genre|mood|track|label|country|composer|performer|conductor|instrument|work';
+    // mood: is read on the songs' fiches (Album.search, utils/ficheFilters), not on the album's moods, which nothing fills.
+    const fields = 'artist|title|genre|track|label|country|composer|performer|conductor|instrument|work';
 
     // Pattern for negated filters: -field:... (!field: is written -field: by now), any case
     const negFilterRe = new RegExp(`(?<=^|\\s)-(${fields}):`, 'gi');
@@ -688,15 +691,23 @@ const Album = {
    * section the owner set by hand.
    */
   search: async (query: string, { withNoCd = false, mixtapes = false }: { withNoCd?: boolean; mixtapes?: boolean } = {}): Promise<AlbumFormatted[]> => {
+    // mood:, style:, energy:, tempo:, read on the fiches of the albums' songs (utils/ficheFilters).
+    const { filter, rest: unheard } = takeFicheFilter(normaliseAlbumQuery(query));
     // classical:yes, classical:no, -classical:yes, classical:true… (albumSearchFilters).
-    const { allowed, rest } = takeBoolFilter(normaliseAlbumQuery(query), 'classical');
-    if (!allowed) return Album.searchAll(query, withNoCd, mixtapes);
-    if (allowed.length === 0) return [];
-    const albums = await Album.searchAll(rest, withNoCd, mixtapes);
-    if (albums.length === 0 || allowed.length === 2) return albums;
-    const want = allowed[0];
-    const classical = await Album.classicalOf(albums);
-    return albums.filter(album => classical.get(album.id) === want);
+    const { allowed, rest } = takeBoolFilter(unheard, 'classical');
+    if (allowed?.length === 0) return [];
+    let albums = await Album.searchAll(allowed ? rest : unheard, withNoCd, mixtapes);
+    if (albums.length && allowed?.length === 1) {
+      const want = allowed[0];
+      const classical = await Album.classicalOf(albums);
+      albums = albums.filter(album => classical.get(album.id) === want);
+    }
+    if (albums.length && filter) {
+      // One reading for every album at hand, never one per album.
+      const fiches = await TrackFiche.ofAlbums(albums.map(album => album.id));
+      albums = albums.filter(album => groupAnswers(filter, fiches.get(album.id) || []));
+    }
+    return albums;
   },
 
   /**

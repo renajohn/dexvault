@@ -21,6 +21,7 @@ vi.mock('../services/musicService', () => ({
   },
 }));
 
+import musicService from '../services/musicService';
 import MixtapeComposer from './MixtapeComposer';
 
 /** The composer over a mixtape the test holds, as the dialog holds it. */
@@ -101,5 +102,12 @@ describe("a mixtape's Add tracks…", () => {
     fireEvent.focus(field);
     fireEvent.click(option('Carnival Overture, op. 92'));
     expect(seen).toHaveBeenLastCalledWith(['x', 'y', 'd5']);
+  });
+
+  it('hands the words of how a song sounds to the server as they are typed: the tracks it finds are ticked like the others', async () => {
+    render(<Holder start={[]} seen={() => undefined} />);
+    await type('mood:melancholic piano');
+    expect(musicService.searchForMixtape).toHaveBeenLastCalledWith('mood:melancholic piano', expect.anything());
+    expect(screen.getByLabelText('Add tracks').getAttribute('placeholder')).toContain('mood:');
   });
 });

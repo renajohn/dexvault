@@ -1,8 +1,11 @@
 import Album from '../models/album';
+import TrackFiche, { recordingKey, type Fiche } from '../models/trackFiche';
 import TrackPopularity from '../models/trackPopularity';
 import ripStatusService, { groupSongs } from './ripStatusService';
 import { popularTracks } from './trackPopularityService';
 import { workGroups } from '../utils/workGroups';
+import { normaliseAlbumQuery } from '../utils/albumSearchFilters';
+import { answeringShare, groupAnswers, songAnswers, takeFicheFilter } from '../utils/ficheFilters';
 import { findsAll, fold, matchScore, searchWords } from '../utils/searchText';
 import type { NavidromeSong } from './navidromeService';
 
@@ -12,7 +15,9 @@ import type { NavidromeSong } from './navidromeService';
  * digital albums, never the wish list nor another mixtape. The words find
  * albums by their title or their artist, works by their name (the movements
  * workGroups puts under one head), and songs by their title, their artist and
- * their album.
+ * their album. The words that ask how a song sounds (mood:, style:,
+ * energy:, tempo:, utils/ficheFilters) keep the songs whose own fiche answers,
+ * and the albums and the works a third of whose songs with a fiche do.
  */
 
 export interface SearchSong {
@@ -147,23 +152,38 @@ const rank = (song: SearchSong): number => (song.starred ? 2 : 0) + (song.popula
 
 const namedBy = (words: string[], text: string): boolean => words.some(word => fold(text).includes(word));
 
+/** The fiches, and the recordings their keys are found by, read once a search asks how its songs sound. */
+const hearing = async (): Promise<{ fiches: Map<string, Fiche>; recordings: Map<string, string> }> => {
+  const [fiches, recordings] = await Promise.all([TrackFiche.all(), TrackFiche.recordingIds()]);
+  return { fiches, recordings };
+};
+
 const mixtapeSearchService = {
   search: async (query: string): Promise<SearchResult> => {
-    const words = searchWords(query);
-    if (!words.length) return { albums: [], works: [], tracks: [] };
+    const { filter, rest } = takeFicheFilter(normaliseAlbumQuery(query || ''));
+    const words = searchWords(rest);
+    if (!words.length && !filter) return { albums: [], works: [], tracks: [] };
     const all = await albums();
+    const heard = filter ? await hearing() : null;
+    const ficheOf = (song: SearchSong): Fiche | undefined => heard?.fiches.get(recordingKey(song, heard.recordings));
+    const sounds = (songs: SearchSong[]): Fiche[] => songs.map(ficheOf).filter((fiche): fiche is Fiche => Boolean(fiche));
+    // How well an album or a work answers the fiche words: 0 without them, which keeps the order of the words.
+    const share = (songs: SearchSong[]): number => (filter ? answeringShare(filter, sounds(songs)) : 0);
+    const answers = (songs: SearchSong[]): boolean => !filter || groupAnswers(filter, sounds(songs));
 
     const foundAlbums = all
-      .filter(album => findsAll(words, [album.title, ...album.everyArtist]) && (namedBy(words, album.title) || findsAll(words, album.everyArtist)))
-      .map(album => ({ album, score: matchScore(words, [[album.title, 1], [album.artists.join(' '), 0.7], [album.everyArtist.join(' '), 0.5]]) }))
-      .sort((a, b) => b.score - a.score)
+      .filter(album => findsAll(words, [album.title, ...album.everyArtist]) && (!words.length || namedBy(words, album.title) || findsAll(words, album.everyArtist)))
+      .filter(album => answers(album.songs))
+      .map(album => ({ album, score: matchScore(words, [[album.title, 1], [album.artists.join(' '), 0.7], [album.everyArtist.join(' '), 0.5]]), share: share(album.songs) }))
+      .sort((a, b) => b.score - a.score || b.share - a.share)
       .slice(0, MAX_ALBUMS)
       .map(({ album }) => album);
 
     const foundWorks = all.flatMap(album => album.works)
-      .filter(work => findsAll(words, [work.name, ...work.artists, work.album]) && (namedBy(words, work.name) || findsAll(words, work.artists)))
-      .map(work => ({ work, score: matchScore(words, [[work.name, 1], [work.artists.join(' '), 0.6], [work.album, 0.3]]) }))
-      .sort((a, b) => b.score - a.score)
+      .filter(work => findsAll(words, [work.name, ...work.artists, work.album]) && (!words.length || namedBy(words, work.name) || findsAll(words, work.artists)))
+      .filter(work => answers(work.songs))
+      .map(work => ({ work, score: matchScore(words, [[work.name, 1], [work.artists.join(' '), 0.6], [work.album, 0.3]]), share: share(work.songs) }))
+      .sort((a, b) => b.score - a.score || b.share - a.share)
       .slice(0, MAX_WORKS)
       .map(({ work }) => work);
 
@@ -171,6 +191,8 @@ const mixtapeSearchService = {
     const inWorks = new Set(foundWorks.flatMap(work => work.songs.map(song => song.songId)));
     const foundTracks = all.flatMap(album => album.songs.map(song => ({ song, album })))
       .filter(({ song, album }) => !inWorks.has(song.songId) && findsAll(words, [song.title, song.artist, ...album.artists, album.title]))
+      // A song answers the fiche words by its own fiche.
+      .filter(({ song }) => !filter || songAnswers(filter, ficheOf(song)))
       .map(({ song, album }) => ({
         song,
         score: matchScore(words, [[song.title, 1], [`${song.artist} ${album.artists.join(' ')}`, 0.6], [album.title, 0.4]]),

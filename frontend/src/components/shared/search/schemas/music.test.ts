@@ -5,12 +5,12 @@ import { musicSchema } from './music';
 const { keys } = musicSchema;
 
 /**
- * The keys the backend reads (backend/src/models/album.ts, favouriteAlbumService), mood: aside: nothing fills it;
- * nor mixtape:, the mixtapes having their own view of MusicDex.
+ * The keys the backend reads (backend/src/models/album.ts, favouriteAlbumService, utils/ficheFilters), mixtape:
+ * aside, the mixtapes having their own view of MusicDex.
  */
 const BACKEND_KEYS = [
   'artist', 'title', 'genre', 'track', 'label', 'country', 'composer', 'performer', 'conductor', 'instrument', 'work',
-  'year', 'stars', 'cd', 'file', 'ripped', 'rated', 'classical', 'favourites',
+  'year', 'stars', 'cd', 'file', 'ripped', 'rated', 'classical', 'favourites', 'mood', 'style', 'energy', 'tempo',
 ];
 
 describe('MusicDex’s search keys', () => {
@@ -30,7 +30,7 @@ describe('MusicDex’s search keys', () => {
 
   it('keep the groups together, in their order', () => {
     const groups = keys.map(k => k.group).filter((g, i, all) => all.indexOf(g) === i);
-    expect(groups).toEqual(['Who', 'What', 'When', 'Your stars', 'CD and files']);
+    expect(groups).toEqual(['Who', 'What', 'How it sounds', 'When', 'Your stars', 'CD and files']);
     const order = keys.map(k => groups.indexOf(k.group));
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });

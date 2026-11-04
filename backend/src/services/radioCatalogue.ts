@@ -1,5 +1,5 @@
-import { getDatabase } from '../database';
 import Album from '../models/album';
+import TrackFiche, { recordingKey } from '../models/trackFiche';
 import mixtapeSearchService, { type IndexedAlbum, type SearchSong } from './mixtapeSearchService';
 
 /**
@@ -25,26 +25,14 @@ export interface Catalogue {
   bySongId: Map<string, RadioEntry>;
 }
 
-/** A track's place on its album: what finds its recording in DexVault. */
-const place = (albumId: number, disc: number, no: number): string => `${albumId}:${disc}:${no}`;
-
-/** The key a song's fiche is kept under: its MusicBrainz recording, else its place on its album. */
-export const recordingKey = (song: Pick<SearchSong, 'albumId' | 'discNumber' | 'track'>, recordings: Map<string, string>): string =>
-  recordings.get(place(song.albumId, song.discNumber, song.track)) ?? `album:${song.albumId}:${song.discNumber}:${song.track}`;
-
-const recordingIds = (): Promise<Map<string, string>> =>
-  new Promise((resolve, reject) =>
-    getDatabase().all(
-      `SELECT album_id, disc_number, track_number, musicbrainz_recording_id FROM tracks WHERE musicbrainz_recording_id IS NOT NULL AND musicbrainz_recording_id != ''`,
-      (err: Error | null, rows: Array<{ album_id: number; disc_number: number; track_number: number; musicbrainz_recording_id: string }>) =>
-        (err ? reject(err) : resolve(new Map(rows.map(row => [place(row.album_id, row.disc_number || 1, row.track_number), row.musicbrainz_recording_id]))))));
+export { recordingKey };
 
 let cached: { albums: IndexedAlbum[]; at: number; catalogue: Catalogue } | null = null;
 const FRESH_MS = 60 * 1000;
 
 const build = async (albums: IndexedAlbum[]): Promise<Catalogue> => {
   const [recordings, classical] = await Promise.all([
-    recordingIds(),
+    TrackFiche.recordingIds(),
     Album.classicalOf(albums.map(album => ({ id: album.albumId, genres: album.genres }))),
   ]);
   const entries: RadioEntry[] = [];
