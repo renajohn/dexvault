@@ -89,6 +89,17 @@ describe('rip status', () => {
     expect(await statusOf(id)).toMatchObject({ state: 'lossless', formats: ['AAC', 'FLAC'] });
   });
 
+  it('ne prend pas « Tonight: Franz Ferdinand » pour l’album Franz Ferdinand, qui porte le nom du groupe', async () => {
+    const word = Math.random().toString(36).slice(2, 8);
+    const band = `Franz Ferdinand ${word}`;
+    const id = await insertAlbum({ title: band, artist: [band] });
+    jest.spyOn(navidromeService, 'getAlbums').mockResolvedValue([album('nd-ff', band, band), album('nd-tonight', `Tonight: ${band}`, band)]);
+    jest.spyOn(navidromeService, 'getSongs').mockResolvedValue([...songs('nd-ff', 'flac', 16), ...songs('nd-tonight', 'mp3')]);
+
+    expect(await statusOf(id)).toMatchObject({ state: 'lossless', matches: [{ navidromeId: 'nd-ff' }] });
+    expect((await statusOf(id)).matches).toHaveLength(1);
+  });
+
   it('trouve une partie d’un titre Discogs traduit, mais pas le même titre d’un autre artiste', async () => {
     const word = Math.random().toString(36).slice(2, 8);
     const id = await insertAlbum({ title: `Cellokonzerte ${word} • Cello Concertos ${word}`, artist: ['Antonio Vivaldi', 'Mstislav Rostropovich'] });

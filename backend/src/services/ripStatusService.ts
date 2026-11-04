@@ -82,21 +82,23 @@ const ARTICLE = /^(the|a|an|le|la|les|l|un|une|der|die|das|il|lo|el|los)\s+/;
  * The names a CD may carry in its tags: Discogs titles join translations,
  * "Cellokonzerte • Cello Concertos", while a rip keeps one of them; an old
  * copy names the composer first, "Mozart: Requiem", where the CD says Requiem.
- * The artist still has to agree.
+ * The artist still has to agree. A part that is only the artist's name is no
+ * title: "Tonight: Franz Ferdinand" is not the album Franz Ferdinand.
  */
-const titleVariants = (title: string): Set<string> => {
+const titleVariants = (title: string, artists: string[] = []): Set<string> => {
   const parts = [title, ...title.split(/\s+[•·=/]\s+/)];
   const afterColon = parts.filter(part => part.includes(':')).map(part => part.slice(part.indexOf(':') + 1));
   const keys = (list: string[]) => list.map(part => cleanTitle(part).replace(ARTICLE, ''));
+  const names = new Set(keys(artists));
   return new Set([
     ...keys([title]),
-    ...[...keys(parts.slice(1)), ...keys(afterColon)].filter(part => part.length >= 4),
+    ...[...keys(parts.slice(1)), ...keys(afterColon)].filter(part => part.length >= 4 && !names.has(part)),
   ].filter(Boolean));
 };
 
-const sameTitle = (a: string, b: string): boolean => {
-  const variants = titleVariants(a);
-  return [...titleVariants(b)].some(variant => variants.has(variant));
+const sameTitle = (a: string, b: string, artists: string[] = []): boolean => {
+  const variants = titleVariants(a, artists);
+  return [...titleVariants(b, artists)].some(variant => variants.has(variant));
 };
 
 /**
@@ -249,7 +251,7 @@ export const matchesOf = (album: AlbumFormatted, candidates: NavidromeAlbum[], l
     if (album.musicbrainzReleaseId && candidate.musicBrainzId === album.musicbrainzReleaseId) {
       return [{ candidate, match: 'musicbrainz' as RipMatch }];
     }
-    if (sameTitle(album.title, candidate.name) && sameArtist(album.artist, candidate.artist)) {
+    if (sameTitle(album.title, candidate.name, [...album.artist, candidate.artist]) && sameArtist(album.artist, candidate.artist)) {
       return [{ candidate, match: 'title' as RipMatch }];
     }
     return lengths && sameTracks(lengths.cd.get(album.id), lengths.navidrome.get(candidate.id))
