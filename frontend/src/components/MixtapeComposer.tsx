@@ -231,7 +231,7 @@ const MixtapeComposer: React.FC<MixtapeComposerProps> = ({ songIds, onSongs, var
   return (
     <div className={`mixtape-find mixtape-find--${variant}`}>
       <TextField ref={inputRef} icon={<BsSearch />} value={words} autoFocus={autoFocus} autoComplete="off" spellCheck={false}
-        placeholder="Add tracks… a title, an artist, an album" aria-label="Add tracks" enterKeyHint="search"
+        placeholder="Add tracks… a title, an artist, an album, mood:calm" aria-label="Add tracks" enterKeyHint="search"
         suffix={searching ? <Spinner size="sm" /> : undefined}
         // Typed in, it has the focus, told or not (a window behind another is told no focus).
         onChange={event => { setWords(event.target.value); setFocused(true); }}

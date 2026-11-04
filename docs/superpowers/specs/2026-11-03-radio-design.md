@@ -42,8 +42,9 @@ Le lot 2 devait donner des mixtapes intelligentes (♥ / populaires × classique
     r&b, blues, jazz, funk, latin, hip-hop, electronic, dance, soundtrack, world, classical.
 - Faites la nuit par le LLM local, derrière les guides d'écoute, une requête à la fois ; d'abord
   celles d'un vivier utilisé ; un album ajouté ou rippé mis en file. Pas refaites d'elles-mêmes.
-- Plus tard : `style:`, `mood:`, `energy:` dans la recherche (MusicDex : un album dont au moins un
-  tiers des pistes répond ; Add tracks… : les pistes).
+- Dans la recherche depuis le 04.11.2026 : `mood:`, `style:`, `energy:`, `tempo:` (MusicDex : un album
+  dont au moins un tiers des pistes qui ont une fiche répond, une au moins ; Add tracks… : les pistes
+  par leur propre fiche ; backend/src/utils/ficheFilters.ts).
 
 ## Le choix
 
