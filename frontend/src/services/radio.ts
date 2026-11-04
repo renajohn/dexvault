@@ -135,8 +135,10 @@ const radioPlaying = (view: PlayerState = player.getState()): boolean => isRadio
 
 const ids = (songs: RadioSong[]) => songs.map(song => song.songId);
 
-/** The radio this device started, by its album's name: one another device started, and the bar follows, is not its own. */
-let ownTitle: string | null = null;
+/** The radio this device started, by its album's name, kept through a reload: one another device started, and the bar follows, is not its own. */
+const OWN_KEY = 'dv.radio.own';
+let ownTitle: string | null = readStored(OWN_KEY);
+const own = (title: string) => { ownTitle = title; writeStored(OWN_KEY, title); };
 
 /** A draw in hand: one asked later wins over it. */
 let drawing = 0;
@@ -154,7 +156,8 @@ const told = (songId: string, how: 'played' | 'skipped') => {
 const drawAgain = async (keepNow = true): Promise<void> => {
   const ticket = ++drawing;
   const criteria = state.criteria ?? {};
-  const playing = keepNow && radioPlaying();
+  // Playing, not kept paused: a band drawn while the radio is paused never starts it (a pause on the Bureau stays a pause).
+  const playing = keepNow && radioPlaying() && player.getState().playing;
   const now = playing ? state.songs.slice(0, 1) : [];
   set({ status: 'drawing' });
   try {
@@ -165,7 +168,7 @@ const drawAgain = async (keepNow = true): Promise<void> => {
     if (playing && radioPlaying() && !player.setUpcoming(draw.songs.map(trackOf), radioAlbum(state.prompt, now[0]))) {
       // An appliance takes only songs added at the end: the new band played there anew, from where the song playing is.
       const view = player.getState();
-      ownTitle = radioAlbum(state.prompt).title;
+      own(radioAlbum(state.prompt).title);
       player.playAlbum(radioAlbum(state.prompt, now[0]), songs.map(trackOf), 0, view.position);
     }
     set({ songs, status: 'ready', poolSize: draw.poolSize, fitting: draw.fitting, missingFiches: draw.missingFiches });
@@ -185,8 +188,10 @@ export const refill = (): Promise<void> => {
       if (ticket !== drawing) return;
       const fresh = draw.songs.filter(song => !state.songs.some(one => one.songId === song.songId));
       learn(fresh);
-      // The player told of them follows into the band at once: those it holds already are not added twice.
-      if (radioPlaying()) player.appendTracks(fresh.map(trackOf));
+      // The player told of them follows into the band at once: those it holds already are not added twice, and a
+      // queue another device filled meanwhile (two following one appliance) is not filled again.
+      const view = player.getState();
+      if (radioPlaying(view) && view.tracks.length - view.index < BAND) player.appendTracks(fresh.map(trackOf));
       const songs = [...state.songs, ...fresh.filter(song => !state.songs.some(one => one.songId === song.songId))];
       set({ songs, poolSize: draw.poolSize, fitting: draw.fitting, missingFiches: draw.missingFiches });
     })
@@ -217,7 +222,7 @@ export const radio = {
       set({ criteria });
       await drawAgain(!play);
       if (play && ticket + 1 === drawing && state.status === 'ready' && state.songs.length > 0) {
-        ownTitle = radioAlbum(prompt).title;
+        own(radioAlbum(prompt).title);
         player.playAlbum(radioAlbum(prompt, state.songs[0]), state.songs.map(trackOf), 0);
       }
     } catch {
@@ -259,13 +264,16 @@ export const radio = {
 
   /** ▶ / ⏸: the band played as one album from its first song, or paused and played on. */
   play: () => {
-    if (radioPlaying()) {
+    const view = player.getState();
+    // Paused, the band drawn again since (a new prompt, ↻): ▶ plays that band, not what was paused.
+    const ahead = view.tracks.slice(view.index).map(one => one.songId).join('|');
+    if (radioPlaying(view) && (view.playing || ahead === ids(state.songs).join('|') || state.songs.length === 0)) {
       player.toggle();
       return;
     }
     if (state.songs.length === 0) return;
     player.prime();
-    ownTitle = radioAlbum(state.prompt).title;
+    own(radioAlbum(state.prompt).title);
     player.playAlbum(radioAlbum(state.prompt, state.songs[0]), state.songs.map(trackOf), 0);
   },
 
@@ -300,16 +308,17 @@ export const radio = {
  * radio left for an album, stopped) is told, played when half heard or more;
  * the band follows the player's tracks and is refilled as they go.
  */
-let last: { songId: string; position: number; duration: number } | null = null;
+let last: { songId: string; position: number; duration: number; own: boolean } | null = null;
 
 const follow = () => {
   const view = player.getState();
   const isRadio = radioPlaying(view);
   const track = isRadio ? view.tracks[view.index] : undefined;
-  if (last && last.songId !== track?.songId) {
+  // Told by the device that started the radio alone: two following one appliance would tell each song twice.
+  if (last && last.songId !== track?.songId && last.own) {
     told(last.songId, last.duration > 0 && last.position >= last.duration / 2 ? 'played' : 'skipped');
   }
-  last = track ? { songId: track.songId, position: view.position, duration: view.duration || track.durationSec || 0 } : null;
+  last = track ? { songId: track.songId, position: view.position, duration: view.duration || track.durationSec || 0, own: view.album?.title === ownTitle } : null;
   if (!isRadio) return;
   // A radio this device did not start (another one's, on an appliance the bar follows): its prompt is the album's name.
   const playedPrompt = view.album?.title.startsWith('Radio · ') ? view.album.title.slice('Radio · '.length) : null;
@@ -322,7 +331,8 @@ const follow = () => {
   if (band.map(one => one.songId).join('|') !== ids(state.songs).join('|') || coversMissing) {
     set({ songs: band.map((track, i) => (state.songs[i]?.songId === track.songId && state.songs[i].cover ? state.songs[i] : songOfTrack(track))) });
   }
-  if (state.songs.length < BAND) refill();
+  // Refilled only while it plays: a radio paused for a meal draws nothing, and starts nothing.
+  if (view.playing && state.songs.length < BAND) refill();
 };
 
 subscribePlayer(follow);
@@ -395,7 +405,7 @@ export const resetRadio = () => {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
   knownAt = null;
-  ownTitle = null;
+  ownTitle = readStored(OWN_KEY);
   refilling = null;
   last = null;
   known.clear();
