@@ -68,38 +68,32 @@
   font-size: 12.5px;
 }
 
-/* A heading edited in place (the radio's prompt): its words alone, an edge under the pointer, gold with the focus. */
 /*
- * Its edges on the column's, its own beyond them, where the words that slide
- * along it go out of sight, on the left as on the right; its words, at rest,
- * where those of the pills under it begin (their edge and padding, 1 + 10 px):
- * an indent, which slides with them.
+ * A heading edited in place (the radio's prompt): its words alone, never a
+ * frame, typed in with a gold caret. Its words on the column's edges, where
+ * those above and under it begin, and where they go out of sight as they slide
+ * along: its own edge, transparent, lies beyond them.
  */
 .ui-input--title {
   width: calc(100% + 2px);
   height: auto;
   padding: 2px 0;
   margin: 0 -1px;
-  text-indent: 11px;
   border-color: transparent;
   background: transparent;
   color: #fff;
+  caret-color: var(--dv-gold);
   font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.2px;
   line-height: 1.3;
-  --field-edge-hover: var(--dv-edge-hover);
+  --field-edge-hover: transparent;
 }
 
-/* The edge under a pointer alone: a finger dragging the words along would leave it lit (iOS keeps the hover). */
-@media (hover: none) {
-  .ui-input--title {
-    --field-edge-hover: transparent;
-  }
-}
-
-.ui-input--title:focus {
-  background: rgba(0, 0, 0, 0.25);
+.ui-input--title:focus,
+.ui-input--title:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
 }
 
 @media (max-width: 600px) {
