@@ -12,11 +12,14 @@ import { findFilters, withoutWords } from './albumSearchFilters';
  * and none of those with one; a song with no fiche answers none, so it is
  * found by the words' negation alone. An album, or a work, answers when at
  * least a third of its songs that have a fiche answer, one at least: a word
- * with a sign leaves out the albums that word would find.
+ * with a sign leaves out the albums that word would find. A mood asks less,
+ * a quarter of them or three songs: each song has two or three moods of
+ * twenty-six, so one mood seldom reaches a third of an album (mood:melancholic
+ * found three albums of the whole collection, all fado, on 04.11.2026).
  */
 
-/** Whether one fiche answers one word of the search. */
-type Test = (fiche: Fiche) => boolean;
+/** Whether one fiche answers one word of the search; `loose`, a word an album answers by fewer of its songs (a mood). */
+type Test = ((fiche: Fiche) => boolean) & { loose?: boolean };
 
 export interface FicheFilter {
   /** The words without a sign: a song answers them all at once. */
@@ -72,6 +75,7 @@ export const takeFicheFilter = (query: string): { filter: FicheFilter | null; re
       const tests = word.values.map(KEYS[key]);
       if (!tests.length || tests.includes(null)) continue;
       const any: Test = fiche => (tests as Test[]).some(test => test(fiche));
+      if (key === 'mood') any.loose = true;
       (word.neg ? filter.none : filter.all).push(any);
       taken.push(word.text);
     }
@@ -84,20 +88,23 @@ export const takeFicheFilter = (query: string): { filter: FicheFilter | null; re
 export const songAnswers = (filter: FicheFilter, fiche: Fiche | undefined): boolean =>
   fiche ? filter.all.every(test => test(fiche)) && !filter.none.some(test => test(fiche)) : filter.all.length === 0;
 
-/** Whether at least a third of these fiches, one at least, answer the test. */
-const third = (fiches: Fiche[], test: Test): boolean => {
+/** Whether enough of these fiches, one at least, answer the test: a third; for a mood, a quarter or three songs. */
+const enough = (fiches: Fiche[], test: Test, loose = test.loose === true): boolean => {
   const answering = fiches.filter(test).length;
-  return answering > 0 && answering * 3 >= fiches.length;
+  if (answering === 0) return false;
+  return answering * 3 >= fiches.length || (loose && (answering >= 3 || answering * 4 >= fiches.length));
 };
 
 /**
  * Whether an album, or a work, answers, by the fiches of its songs that have
- * one: a third of them answering every word without a sign at once, and for
- * each word with one, not a third of them answering it.
+ * one: enough of them answering every word without a sign at once, and for
+ * each word with one, not enough of them answering it.
  */
 export const groupAnswers = (filter: FicheFilter, fiches: Fiche[]): boolean =>
-  (filter.all.length === 0 || third(fiches, fiche => filter.all.every(test => test(fiche))))
-  && !filter.none.some(test => third(fiches, test));
+  (filter.all.length === 0 || enough(fiches, fiche => filter.all.every(test => test(fiche)),
+    // Loose only when every word asked is a mood: mood:calm style:jazz still wants a third of jazz.
+    filter.all.every(test => test.loose === true)))
+  && !filter.none.some(test => enough(fiches, test));
 
 /** The share of these fiches answering every word without a sign: what puts first the album that answers best. */
 export const answeringShare = (filter: FicheFilter, fiches: Fiche[]): number =>

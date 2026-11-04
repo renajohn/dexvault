@@ -92,17 +92,34 @@ describe('the words of how a song sounds', () => {
   });
 
   it('find an album when a third of its songs with a fiche answer, one at least', () => {
+    const r = fiche(8, ['driving'], ['rock']);
+    const f = fiche(3, ['gentle'], ['folk']);
+    expect(groupAnswers(read('style:rock'), [r, f, f])).toBe(true);
+    expect(groupAnswers(read('style:rock'), [r, f, f, f])).toBe(false);
+    expect(groupAnswers(read('style:rock'), [])).toBe(false);
+    // Without a fiche the negation finds it; with one, the third left out.
+    expect(groupAnswers(read('-style:rock'), [])).toBe(true);
+    expect(groupAnswers(read('-style:rock'), [r, f, f, f])).toBe(true);
+    expect(groupAnswers(read('-style:rock'), [r, f, f])).toBe(false);
+    // The words without a sign are answered by the same songs at once.
+    expect(groupAnswers(read('style:rock energy:0-4'), [r, f])).toBe(false);
+  });
+
+  it('find an album by a mood when a quarter of its songs, or three, have it', () => {
     const m = fiche(3, ['melancholic']);
     const j = fiche(7, ['joyful']);
-    expect(groupAnswers(read('mood:melancholic'), [m, j, j])).toBe(true);
-    expect(groupAnswers(read('mood:melancholic'), [m, j, j, j])).toBe(false);
-    expect(groupAnswers(read('mood:melancholic'), [])).toBe(false);
-    // Without a fiche the negation finds it; with one, the third left out.
-    expect(groupAnswers(read('-mood:melancholic'), [])).toBe(true);
-    expect(groupAnswers(read('-mood:melancholic'), [m, j, j, j])).toBe(true);
-    expect(groupAnswers(read('-mood:melancholic'), [m, j, j])).toBe(false);
-    // The words without a sign are answered by the same songs at once.
-    expect(groupAnswers(read('mood:melancholic energy:7-10'), [m, j])).toBe(false);
+    const of = (melancholic: number, others: number) => [...Array(melancholic).fill(m), ...Array(others).fill(j)];
+    expect(groupAnswers(read('mood:melancholic'), of(1, 3))).toBe(true);
+    expect(groupAnswers(read('mood:melancholic'), of(1, 4))).toBe(false);
+    // Three songs are enough on a long album: 3 of 20.
+    expect(groupAnswers(read('mood:melancholic'), of(3, 17))).toBe(true);
+    expect(groupAnswers(read('mood:melancholic'), of(2, 18))).toBe(false);
+    // Mixed with a style, the style's third holds.
+    expect(groupAnswers(read('mood:melancholic style:folk'), of(1, 3))).toBe(false);
+    expect(groupAnswers(read('mood:melancholic,joyful style:folk'), of(1, 3))).toBe(true);
+    // A mood left out leaves out the albums that mood finds.
+    expect(groupAnswers(read('-mood:melancholic'), of(3, 17))).toBe(false);
+    expect(groupAnswers(read('-mood:melancholic'), of(2, 18))).toBe(true);
   });
 });
 
@@ -114,7 +131,8 @@ describe('MusicDex searched by how its songs sound', () => {
     const joy = fiche(7, ['joyful', 'upbeat'], ['pop'], 'fast');
     const rock = (energy: number) => fiche(energy, ['dark', 'driving'], ['rock'], 'fast');
     await albumWith('Sad', [m, calm, calm]);
-    await albumWith('Barely', [m, joy, joy, joy]);
+    // One melancholic of five: under a mood's quarter.
+    await albumWith('Barely', [m, joy, joy, joy, joy]);
     loud = await albumWith('Loud', [rock(8), rock(9)], { stars: 5 });
     await albumWith('Bare', [null, null]);
     // Five tracks, one with a fiche: the third is of that one.
