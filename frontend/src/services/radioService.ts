@@ -102,9 +102,12 @@ const radioService = {
   /** The prompt heard as criteria, by the local LLM. */
   criteria: (prompt: string): Promise<RadioCriteria> => send('/criteria', 'POST', { prompt }),
 
-  /** `count` songs more (1–50), none of `ahead` drawn again. */
-  next: (criteria: RadioCriteria, pool: RadioPool, count: number, ahead: string[]): Promise<RadioDraw> =>
-    send('/next', 'POST', { criteria, pool, count: Math.max(1, Math.min(50, count)), ahead }),
+  /**
+   * `count` songs (1–50), none of `ahead` drawn again; those of `keep` that
+   * still fit come first, in their order, and only the rest is drawn.
+   */
+  next: (criteria: RadioCriteria, pool: RadioPool, count: number, ahead: string[], keep: string[] = []): Promise<RadioDraw> =>
+    send('/next', 'POST', { criteria, pool, count: Math.max(1, Math.min(50, count)), ahead, ...(keep.length ? { keep } : {}) }),
 
   /** A song left the radio: heard half or more, or skipped. */
   left: (songId: string, how: RadioLeft): Promise<{ ok: true }> => send('/left', 'POST', { songId, how }),

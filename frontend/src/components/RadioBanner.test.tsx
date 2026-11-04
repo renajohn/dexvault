@@ -140,8 +140,10 @@ describe('the radio banner', () => {
     expect(screen.getByRole('menuitemcheckbox', { name: 'Albums at 4½★ and more' })).toHaveAttribute('aria-checked', 'true');
     expect(pill.textContent).toContain('Albums 4½★+ ∪ ♥ ∪ Popular');
     server.next.mockClear();
+    const band = covers();
     await act(async () => { fireEvent.click(pill); });
-    expect(server.next).toHaveBeenCalledWith(expect.anything(), { stars: 4.5, hearts: true, popular: true, genre: 'both', wholeWorks: false }, 10, []);
+    // The band offered to stay, as far as it is still in the pool.
+    expect(server.next).toHaveBeenCalledWith(expect.anything(), { stars: 4.5, hearts: true, popular: true, genre: 'both', wholeWorks: false }, 10, [], band);
   });
 
   it('says everything that plays when no source is ticked', () => {
@@ -154,10 +156,10 @@ describe('the radio banner', () => {
     expect(heardAs(radio.getState().criteria).map(one => one.label)).toEqual(['energy 6–10', 'fast', 'upbeat', 'joyful', 'rock']);
     server.next.mockClear();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Not “joyful”' })); });
-    expect(server.next).toHaveBeenCalledWith({ energyMin: 6, tempos: ['fast'], moods: ['upbeat'], styles: ['rock'] }, expect.anything(), 10, []);
+    expect(server.next).toHaveBeenCalledWith({ energyMin: 6, tempos: ['fast'], moods: ['upbeat'], styles: ['rock'] }, expect.anything(), 10, [], expect.any(Array));
     expect(screen.queryByRole('button', { name: 'Not “joyful”' })).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Not “energy 6–10”' })); });
-    expect(server.next).toHaveBeenLastCalledWith({ energyMin: null, energyMax: null, tempos: ['fast'], moods: ['upbeat'], styles: ['rock'] }, expect.anything(), 10, []);
+    expect(server.next).toHaveBeenLastCalledWith({ energyMin: null, energyMax: null, tempos: ['fast'], moods: ['upbeat'], styles: ['rock'] }, expect.anything(), 10, [], expect.any(Array));
   });
 
   it('✕ on a cover: told skipped, and another one comes', async () => {
@@ -197,7 +199,7 @@ describe('the radio banner', () => {
     expect(screen.getByText('Nothing in Albums 4★+ for “du jazz pour cuisiner”.')).toBeTruthy();
     expect(screen.getByText(/12 songs fit, all heard lately/)).toBeTruthy();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Look in everything that plays' })); });
-    expect(server.next).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ stars: null, hearts: false, popular: false }), 10, []);
+    expect(server.next).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ stars: null, hearts: false, popular: false }), 10, [], []);
     await waitFor(() => expect(covers()).toHaveLength(10));
     expect(screen.getByRole('button', { name: /From/ }).textContent).toContain('Everything that plays');
   });
@@ -246,7 +248,7 @@ describe('the radio banner', () => {
     expect(heard()).toEqual(['energy 7–10', 'fast', 'upbeat', 'energetic', 'driving', 'joyful', 'uplifting', 'anthemic', 'intense', 'playful', 'rock', 'pop']);
     server.next.mockClear();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Not “pop”' })); });
-    expect(server.next).toHaveBeenCalledWith(expect.objectContaining({ styles: ['rock'] }), expect.anything(), expect.any(Number), expect.anything());
+    expect(server.next).toHaveBeenCalledWith(expect.objectContaining({ styles: ['rock'] }), expect.anything(), expect.any(Number), expect.anything(), expect.anything());
     expect(heard()).not.toContain('pop');
   });
 });

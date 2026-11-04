@@ -8,6 +8,7 @@ import { usePlayer } from '../services/player';
 import musicService from '../services/musicService';
 import type { RadioCriteria, RadioPool, RadioSong } from '../services/radioService';
 import { coverReady, thumbProps } from '../utils/thumb';
+import { useSlideText } from '../utils/slideText';
 import './RadioBanner.css';
 
 /** The albums' stars a pool can start from, by halves. */
@@ -230,6 +231,9 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
   /** "+N" pressed: every mood and style the prompt was heard as, shown. */
   const [unfolded, setUnfolded] = useState(false);
   useEffect(() => { setDraft(state.prompt); setUnfolded(false); }, [state.prompt]);
+  /** A prompt longer than its field slides to its end and back. */
+  const promptField = useRef<HTMLInputElement>(null);
+  useSlideText(promptField, draft);
 
   const thinking = state.status === 'hearing' || state.status === 'drawing';
   const { songs, pool } = state;
@@ -278,14 +282,14 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
                 onClick={() => radio.play()} aria-label={playing ? 'Pause the radio' : 'Play the radio'}
                 title={playing ? 'Pause the radio' : 'Play the radio in DexVault'} icon={playing ? <BsPauseFill /> : <BsPlayFill />} />
               <Button className="radio-banner__button" disabled={thinking || (!state.criteria && !state.prompt)}
-                onClick={() => radio.redraw()} aria-label="Draw again" title="Draw again" icon={<BsArrowRepeat />} />
+                onClick={() => radio.redraw(undefined, { fresh: true })} aria-label="Draw again" title="Draw again" icon={<BsArrowRepeat />} />
             </span>
           </span>
         </div>
       </div>
 
       <form className="radio-banner__prompt" onSubmit={submit}>
-        <TextField size="title" value={draft} onChange={event => setDraft(event.target.value)} spellCheck={false}
+        <TextField ref={promptField} size="title" value={draft} onChange={event => setDraft(event.target.value)} spellCheck={false}
           aria-label="What to play" placeholder="What would you like to hear?"
           onKeyDown={event => { if (event.key === 'Escape') setDraft(state.prompt); }} />
       </form>

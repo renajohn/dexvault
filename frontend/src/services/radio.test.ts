@@ -82,7 +82,8 @@ describe('the radio', () => {
     for (const words of ['un', 'deux', 'trois', 'quatre', 'cinq', 'six']) await radio.listen(words);
     await radio.listen('quelque chose de upbeat');
     expect(server.criteria).toHaveBeenLastCalledWith('quelque chose de upbeat');
-    expect(server.next).toHaveBeenLastCalledWith({ moods: ['upbeat'], energyMin: 6 }, expect.objectContaining({ stars: 4 }), BAND, []);
+    // The band of the prompt before offered to stay, as far as it fits these words.
+    expect(server.next).toHaveBeenLastCalledWith({ moods: ['upbeat'], energyMin: 6 }, expect.objectContaining({ stars: 4 }), BAND, [], expect.any(Array));
     expect(radio.getState().songs).toHaveLength(BAND);
     expect(radio.getState().recent).toEqual(['quelque chose de upbeat', 'six', 'cinq', 'quatre', 'trois', 'deux']);
     // Kept in the browser: a reload finds the prompt, the band and the recent ones.
@@ -192,9 +193,28 @@ describe('the radio', () => {
     await radio.listen('upbeat');
     radio.play();
     await radio.redraw({ moods: [], energyMin: 6 });
-    expect(server.next).toHaveBeenLastCalledWith({ moods: [], energyMin: 6 }, expect.anything(), BAND - 1, ['s1']);
+    expect(server.next).toHaveBeenLastCalledWith({ moods: [], energyMin: 6 }, expect.anything(), BAND - 1, ['s1'],
+      ['s2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10']);
     expect(radio.getState().songs[0].songId).toBe('s1');
     expect(player.getState().tracks.map(track => track.songId)).toEqual(['s1', ...radio.getState().songs.slice(1).map(one => one.songId)]);
+  });
+
+  it('keeps the songs that still fit when the criteria change, ↻ alone drawing ten others', async () => {
+    await radio.listen('upbeat');
+    const band = radio.getState().songs.map(one => one.songId);
+    // The server keeps those of the band that still fit, in their order, and draws in place of the others.
+    server.next.mockImplementationOnce(async (_criteria, _pool, count: number, _ahead, keep: string[] = []) => ({
+      songs: [...keep.filter((_, at) => at % 2 === 0).map(id => radio.getState().songs.find(one => one.songId === id)!),
+        ...Array.from({ length: count - Math.ceil(keep.length / 2) }, () => song(++counter))],
+      poolSize: 1190, fitting: 240, missingFiches: 0,
+    }));
+    await radio.redraw({ moods: ['upbeat'] });
+    expect(server.next).toHaveBeenLastCalledWith({ moods: ['upbeat'] }, expect.anything(), BAND, [], band);
+    const songs = radio.getState().songs.map(one => one.songId);
+    expect(songs.slice(0, 5)).toEqual(['s1', 's3', 's5', 's7', 's9']);
+    expect(songs).toHaveLength(BAND);
+    await radio.redraw(undefined, { fresh: true });
+    expect(server.next).toHaveBeenLastCalledWith({ moods: ['upbeat'] }, expect.anything(), BAND, [], []);
   });
 
   it('saves the band and as many more drawn as asked as a mixtape', async () => {
@@ -222,7 +242,7 @@ describe('the radio', () => {
     await radio.listen('du jazz pour cuisiner');
     expect(radio.getState()).toMatchObject({ status: 'ready', songs: [], fitting: 0 });
     await radio.widen();
-    expect(server.next).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ stars: null, hearts: false, popular: false }), BAND, []);
+    expect(server.next).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ stars: null, hearts: false, popular: false }), BAND, [], []);
     expect(radio.getState().songs).toHaveLength(BAND);
   });
 

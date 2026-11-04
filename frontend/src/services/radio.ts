@@ -149,19 +149,22 @@ const told = (songId: string, how: 'played' | 'skipped') => {
 };
 
 /**
- * A new band for the criteria: while the radio plays (and `keepNow`), the song
- * playing stays and those after it are drawn again, the player's following,
- * its album named after the prompt as it now is.
+ * A band for the criteria: while the radio plays (and `keepNow`), the song
+ * playing stays; the songs of the band that still fit the criteria and the
+ * pool stay too, in their places, and only those that no longer do are drawn
+ * again (all of them when `fresh`, ↻), the player's following, its album
+ * named after the prompt as it now is.
  */
-const drawAgain = async (keepNow = true): Promise<void> => {
+const drawAgain = async (keepNow = true, fresh = false): Promise<void> => {
   const ticket = ++drawing;
   const criteria = state.criteria ?? {};
   // Playing, not kept paused: a band drawn while the radio is paused never starts it (a pause on the Bureau stays a pause).
   const playing = keepNow && radioPlaying() && player.getState().playing;
   const now = playing ? state.songs.slice(0, 1) : [];
+  const keep = fresh ? [] : ids(state.songs.slice(now.length));
   set({ status: 'drawing' });
   try {
-    const draw = await radioService.next(criteria, state.pool, BAND - now.length, ids(now));
+    const draw = await radioService.next(criteria, state.pool, BAND - now.length, ids(now), keep);
     if (ticket !== drawing) return;
     learn(draw.songs);
     const songs = [...now, ...draw.songs];
@@ -230,11 +233,14 @@ export const radio = {
     }
   },
 
-  /** ↻, or the criteria changed (a "Heard as" taken away): another band for them. */
-  redraw: (criteria?: RadioCriteria): Promise<void> => {
+  /**
+   * The criteria or the pool changed (a "Heard as" taken away): the songs that
+   * still fit stay, the others are drawn again; ↻ (`fresh`), ten others.
+   */
+  redraw: (criteria?: RadioCriteria, { fresh = false }: { fresh?: boolean } = {}): Promise<void> => {
     if (criteria) set({ criteria });
     if (!state.criteria) return state.prompt ? radio.listen(state.prompt) : Promise.resolve();
-    return drawAgain();
+    return drawAgain(true, fresh);
   },
 
   setPool: (changes: Partial<RadioPool>) => set({ pool: { ...state.pool, ...changes } }),

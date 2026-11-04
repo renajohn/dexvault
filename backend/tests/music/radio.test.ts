@@ -315,6 +315,35 @@ describe('the next songs', () => {
     expect(body.songs[0]).toMatchObject({ movement: 'I. Adagio – Allegro molto', tempo: 'slow' });
   });
 
+  it('keeps the songs of the band that still fit, in their order, and draws only in place of the others', async () => {
+    await giveFiches({
+      m1: fiche(8, ['driving'], ['rock'], 'fast'), m2: fiche(8, ['intense'], ['rock'], 'fast'), m3: fiche(9, ['driving'], ['rock'], 'fast'),
+      a1: fiche(6, ['driving'], ['soul']), a2: fiche(2, ['melancholic'], ['pop'], 'slow'), r1: fiche(7, ['driving'], ['rock']),
+    });
+    const post = jest.spyOn(axios, 'post').mockResolvedValue(answer('[1, 2, 3]'));
+    // The band was m3, a2, a1: a2 no longer fits (energy, mood), m3 and a1 stay where they were, one is drawn after them.
+    const { body } = await request(app).post('/api/radio/next')
+      .send({ criteria: { energyMin: 5, moods: ['driving'] }, pool: POOL, count: 3, ahead: [], keep: ['m3', 'a2', 'a1'] }).expect(200);
+    const drawn = body.songs.map((one: { songId: string }) => one.songId);
+    expect(drawn.slice(0, 2)).toEqual(['m3', 'a1']);
+    expect(drawn).toHaveLength(3);
+    expect(['m3', 'a1', 'a2']).not.toContain(drawn[2]);
+    // All of them still fit: nothing is drawn, the model not even asked.
+    post.mockClear();
+    const again = await request(app).post('/api/radio/next')
+      .send({ criteria: { energyMin: 5, moods: ['driving'] }, pool: POOL, count: 2, ahead: ['m3'], keep: ['m3', 'a1', 'r1'] }).expect(200);
+    expect(again.body.songs.map((one: { songId: string }) => one.songId)).toEqual(['a1', 'r1']);
+    expect(post).not.toHaveBeenCalled();
+    // A tempo asked only ranks: a fast song stays when slow ones are asked for.
+    const slower = await request(app).post('/api/radio/next')
+      .send({ criteria: { energyMin: 5, tempos: ['slow'] }, pool: POOL, count: 1, ahead: [], keep: ['m3'] }).expect(200);
+    expect(slower.body.songs.map((one: { songId: string }) => one.songId)).toEqual(['m3']);
+    // Out of the pool now (Adele's album has 3 stars): it goes.
+    const fewer = await request(app).post('/api/radio/next')
+      .send({ criteria: { energyMin: 5 }, pool: { ...POOL, stars: 4 }, count: 1, ahead: [], keep: ['a1', 'm2'] }).expect(200);
+    expect(fewer.body.songs.map((one: { songId: string }) => one.songId)).toEqual(['m2']);
+  });
+
   it('is empty when nothing fits', async () => {
     await giveFiches({ m1: fiche(8, ['driving'], ['rock']) });
     const { body } = await request(app).post('/api/radio/next')
@@ -338,6 +367,8 @@ describe('the endpoints\' validation', () => {
     await next({ criteria: { energyMin: 'loud' } }).expect(400);
     await next({ ahead: 'm1' }).expect(400);
     await next({ ahead: ['../etc'] }).expect(400);
+    await next({ keep: 'm1' }).expect(400);
+    await next({ keep: ['../etc'] }).expect(400);
     await request(app).post('/api/radio/left').send({ songId: 'm1', how: 'loved' }).expect(400);
     await request(app).post('/api/radio/left').send({ how: 'played' }).expect(400);
     await request(app).post('/api/radio/fiches').send({ pool: 'all' }).expect(400);

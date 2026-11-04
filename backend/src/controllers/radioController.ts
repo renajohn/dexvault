@@ -75,7 +75,7 @@ const radioController = {
     }
   },
 
-  /** The next songs; the prompt, when the page sends it too, helps the model choose. */
+  /** The next songs, those of `keep` that still fit first; the prompt, when the page sends it too, helps the model choose. */
   next: async (req: Request, res: Response): Promise<void> => {
     const body = req.body || {};
     const criteria = criteriaOf(body.criteria);
@@ -89,9 +89,14 @@ const radioController = {
       res.status(400).json({ error: 'ahead is a list of song ids' });
       return;
     }
+    const keep = body.keep ?? [];
+    if (!Array.isArray(keep) || keep.length > MAX_AHEAD || !keep.every(id => typeof id === 'string' && SONG_ID.test(id))) {
+      res.status(400).json({ error: 'keep is a list of song ids' });
+      return;
+    }
     const prompt = body.prompt === undefined ? '' : promptOf(body.prompt) ?? '';
     try {
-      res.json(await radioService.next({ criteria, pool, count, ahead, prompt }));
+      res.json(await radioService.next({ criteria, pool, count, ahead, keep, prompt }));
     } catch (error) {
       failed(res, 'no songs', error);
     }

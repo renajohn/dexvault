@@ -116,6 +116,15 @@ export const fitScore = (fiche: Pick<FicheRecord, 'energy' | 'tempo' | 'moods' |
 };
 
 /**
+ * Whether a song of the band still answers the criteria, to stay there: not
+ * ruled out, and with one of the moods asked, when there are: a new prompt
+ * keeps none of another mood. The tempo only ranks the draw, as there.
+ */
+export const stillFits = (fiche: Pick<FicheRecord, 'energy' | 'tempo' | 'moods' | 'styles' | 'lang'>, criteria: RadioCriteria): boolean =>
+  fitScore(fiche, criteria) > 0
+  && (!criteria.moods?.length || fiche.moods.some(mood => criteria.moods!.includes(mood)));
+
+/**
  * The songs that may not come back yet: a song comes back once half the
  * pool has left since it did, or after 30 days, whichever first; a song
  * skipped, twice as late.
@@ -283,19 +292,31 @@ const radioService = {
     throw new Error('The local LLM did not answer with criteria');
   },
 
-  next: async ({ criteria, pool, count, ahead, prompt = '' }: {
-    criteria: RadioCriteria; pool: RadioPool; count: number; ahead: string[]; prompt?: string;
+  next: async ({ criteria, pool, count, ahead, keep = [], prompt = '' }: {
+    criteria: RadioCriteria; pool: RadioPool; count: number; ahead: string[];
+    /** The band as the page shows it: those that still fit stay, in their order, and only the rest is drawn. */
+    keep?: string[];
+    prompt?: string;
   }): Promise<RadioNext> => {
     const [{ entries, bySongId }, fiches] = await Promise.all([catalogue(), TrackFiche.all()]);
     const inThePool = entries.filter(entry => inPool(entry, pool));
     // A pool listened to gets its fiches written first.
     trackFicheService.queueFirst(inThePool, fiches);
 
+    // Still in the pool and still fitting: a band changes only as much as the criteria do. Already in the band,
+    // they are not resting, and a work's movements kept stay together as they were.
+    const aheadIds = new Set(ahead);
+    const kept = [...new Set(keep)]
+      .map(id => bySongId.get(id))
+      .filter((entry): entry is RadioEntry => Boolean(entry) && !aheadIds.has(entry!.song.songId) && inPool(entry!, pool)
+        && fiches.has(entry!.key) && stillFits(fiches.get(entry!.key)!, criteria))
+      .slice(0, count);
+
     const history = await RadioHistory.since(new Date(Date.now() - 2 * REST_DAYS * DAY_MS));
     const resting = restingSongs(history, inThePool.length);
-    const excluded = new Set(ahead);
-    // A recording ahead or resting is so on every album it is on.
-    const keysOut = new Set([...ahead, ...resting].map(id => bySongId.get(id)?.key).filter(Boolean));
+    const excluded = new Set([...ahead, ...kept.map(entry => entry.song.songId)]);
+    // A recording ahead, kept or resting is so on every album it is on.
+    const keysOut = new Set([...excluded, ...resting].map(id => bySongId.get(id)?.key).filter(Boolean));
     const fitting = inThePool
       .filter(entry => !excluded.has(entry.song.songId) && !keysOut.has(entry.key) && fiches.has(entry.key))
       .map(entry => ({ entry, fiche: fiches.get(entry.key)!, score: fitScore(fiches.get(entry.key)!, criteria) }))
@@ -305,12 +326,13 @@ const radioService = {
       ?? entry.workSongs.map(song => bySongId.get(song.songId)).map(one => one && fiches.get(one.key)).find(Boolean)
       ?? { key: entry.key, energy: 0, tempo: 'mid', moods: [], styles: [], lang: 'unknown', model: null, madeAt: '' };
     const result = (songs: RadioEntry[]): RadioNext => ({
-      songs: songs.map(entry => songOf(entry, ficheOf(entry))),
+      songs: [...kept, ...songs].map(entry => songOf(entry, ficheOf(entry))),
       poolSize: inThePool.length,
-      fitting: fitting.length,
+      fitting: fitting.length + kept.length,
       missingFiches: inThePool.filter(entry => !fiches.has(entry.key)).length,
     });
-    if (fitting.length === 0) return result([]);
+    const wanted = count - kept.length;
+    if (fitting.length === 0 || wanted <= 0) return result([]);
 
     // The best fits first, the ties drawn at random; at most three by one artist, a work once when it comes whole.
     const candidates: typeof fitting = [];
@@ -337,7 +359,7 @@ const radioService = {
       const started = Date.now();
       const asked = inTurn(async () => {
         if (cancelled.now) return null;
-        return chatLocal(choicePrompt(prompt || describeCriteria(criteria), Math.min(order.length, count + 3), order, heard), { maxTokens: 400, temperature: 0.3, timeoutSec: 40 });
+        return chatLocal(choicePrompt(prompt || describeCriteria(criteria), Math.min(order.length, wanted + 3), order, heard), { maxTokens: 400, temperature: 0.3, timeoutSec: 40 });
       }, { urgent: true });
       const text = await Promise.race([asked, new Promise<null>(resolve => setTimeout(() => resolve(null), CHOICE_WAIT_MS).unref())]);
       if (text === null) { cancelled.now = true; throw new Error('the model was busy too long'); }
@@ -350,8 +372,8 @@ const radioService = {
     }
     // What the rules leave out is made up from the best fits.
     const songs = arrange([...chosen, ...candidates.map(one => one.entry)], {
-      ahead: ahead.map(id => bySongId.get(id)).filter((one): one is RadioEntry => Boolean(one)),
-      count, wholeWorks: pool.wholeWorks, catalogueOf: id => bySongId.get(id), excluded,
+      ahead: [...ahead.map(id => bySongId.get(id)).filter((one): one is RadioEntry => Boolean(one)), ...kept],
+      count: wanted, wholeWorks: pool.wholeWorks, catalogueOf: id => bySongId.get(id), excluded,
     });
     return result(songs);
   },
