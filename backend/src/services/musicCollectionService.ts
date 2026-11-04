@@ -3,6 +3,7 @@ import AlbumCollection from '../models/albumCollection';
 import PlaylistHistory from '../models/playlistHistory';
 import logger from '../logger';
 import { getDatabase } from '../database';
+import { soundTrackSql } from '../utils/medium';
 
 interface CollectionAlbum {
   id: number;
@@ -100,7 +101,7 @@ const musicCollectionService = {
       const albums = new Map((await Collection.getAlbums(collectionId) as unknown as CollectionAlbum[]).map(album => [album.id, album]));
       const discCounts = new Map((await all<{ album_id: number; discs: number }>(
         `SELECT t.album_id, COUNT(DISTINCT t.disc_number) AS discs FROM tracks t
-         JOIN album_collections ac ON ac.album_id = t.album_id WHERE ac.collection_id = ? GROUP BY t.album_id`, [collectionId]))
+         JOIN album_collections ac ON ac.album_id = t.album_id WHERE ac.collection_id = ? AND ${soundTrackSql('t.medium')} GROUP BY t.album_id`, [collectionId]))
         .map(row => [row.album_id, row.discs]));
       return (await entriesOf(collectionId)).flatMap(entry => {
         const album = albums.get(entry.albumId);

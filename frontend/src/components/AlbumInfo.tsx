@@ -19,6 +19,7 @@ import { Loading } from './shared/Spinner';
 import { confirm } from './shared/ConfirmDialog';
 import toast from './shared/Toast';
 import './AlbumInfo.css';
+import { soundDiscs } from '../utils/medium';
 
 /** The album as DexVault has it, for its info: what its card read (`musicService.getAlbumById`). */
 interface AlbumDetails extends ShownAlbum {
@@ -165,7 +166,7 @@ const AlbumInfo: React.FC<AlbumInfoProps> = ({ albumId, known = null }) => {
   const hasCd = album.titleStatus !== 'digital' && album.titleStatus !== 'wish';
   const wished = album.titleStatus === 'wish';
   const artist = Array.isArray(album.artist) ? album.artist.join(', ') : album.artist || '';
-  const trackCount = (album.discs || []).reduce((count, disc) => count + disc.tracks.length, 0);
+  const trackCount = soundDiscs(album.discs).reduce((count, disc) => count + disc.tracks.length, 0);
   const summary = rip?.found ? ripSummary(rip, extraFilesOf(album, rip)) : null;
   const released = [album.releaseYear, album.country, (album.labels || []).join(', ')].filter(Boolean).join(' · ');
   const firstRelease = album.releaseGroupFirstReleaseDate ? String(album.releaseGroupFirstReleaseDate) : '';

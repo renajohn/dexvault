@@ -17,6 +17,7 @@ interface TrackDbRecord {
   work: string | null;
   composers: string;
   performers: string;
+  medium: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +64,7 @@ const Track = {
           work TEXT,
           composers TEXT,
           performers TEXT,
+          medium TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE CASCADE
@@ -74,7 +76,8 @@ const Track = {
         } else {
           // Credits per track, for the classical albums MusicBrainz details
           // movement by movement. Errors only say the column already exists.
-          for (const column of ['artist', 'work', 'composers', 'performers']) {
+          // And the format of each track's disc, a DVD of a CD + DVD being no audio to rip.
+          for (const column of ['artist', 'work', 'composers', 'performers', 'medium']) {
             await new Promise<void>(done => db.run(`ALTER TABLE tracks ADD COLUMN ${column} TEXT`, () => done()));
           }
           // Create indexes for better performance
@@ -128,6 +131,7 @@ const Track = {
         work: trackData.work || null,
         composers: JSON.stringify(trackData.composers || []),
         performers: JSON.stringify(trackData.performers || []),
+        medium: trackData.medium || null,
         created_at: now,
         updated_at: now
       };
@@ -136,16 +140,16 @@ const Track = {
         INSERT INTO tracks (
           album_id, disc_number, track_number, title, duration_sec,
           isrc, musicbrainz_recording_id, musicbrainz_track_id, toc,
-          artist, work, composers, performers,
+          artist, work, composers, performers, medium,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const params = [
         track.album_id, track.disc_number, track.track_number,
         track.title, track.duration_sec, track.isrc,
         track.musicbrainz_recording_id, track.musicbrainz_track_id,
-        track.toc, track.artist, track.work, track.composers, track.performers,
+        track.toc, track.artist, track.work, track.composers, track.performers, track.medium,
         track.created_at, track.updated_at
       ];
 
@@ -363,6 +367,7 @@ const Track = {
       work: row.work,
       composers: parseList<string>(row.composers),
       performers: parseList<TrackPerformer>(row.performers),
+      medium: row.medium ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };

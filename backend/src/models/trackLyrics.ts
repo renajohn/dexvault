@@ -1,4 +1,5 @@
 import { getDatabase } from '../database';
+import { soundTrackSql } from '../utils/medium';
 
 /**
  * What a lookup found for a track: its words, a note that it has none, or
@@ -186,6 +187,7 @@ const TrackLyrics = {
          LEFT JOIN track_lyrics l
            ON l.album_id = t.album_id AND l.disc_number = t.disc_number AND l.track_number = t.track_number
         WHERE (a.title_status IN ('owned', 'digital') OR a.title_status IS NULL)
+          AND ${soundTrackSql('t.medium')}
           AND (l.album_id IS NULL OR (l.chosen = 0 AND (l.title != t.title OR (l.status = 'missing' AND l.checked_at < ?))))
           ${skip.length > 0 ? `AND t.album_id NOT IN (${skip.map(() => '?').join(',')})` : ''}
         ORDER BY t.album_id, t.disc_number, t.track_number

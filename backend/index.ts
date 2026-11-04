@@ -40,6 +40,7 @@ import listenNextPlaylistService from './src/services/listenNextPlaylistService'
 import mixtapeService from './src/services/mixtapeService';
 import shelvingController from './src/controllers/shelvingController';
 import shelvingService from './src/services/shelvingService';
+import discFormatService from './src/services/discFormatService';
 import warningsService from './src/services/warningsService';
 import movieFilmagesService from './src/services/movieFilmagesService';
 import movieCreditsService from './src/services/movieCreditsService';
@@ -651,6 +652,7 @@ const serverReady = startServer().then(() => {
     mixtapeService.startAutoSync();
     lyricsService.startAutoFetch();
     shelvingService.startSortNameSync();
+    discFormatService.startAutoFill();
     trackPopularityService.startAutoRefresh();
     movieCreditsService.fillCharacters()
       .then(r => { if (r.movies) logger.info(`Actors' parts: ${r.filled} filled in ${r.movies} movies`); })

@@ -127,6 +127,8 @@ interface AlbumTrack {
 
 interface DiscData {
   number: number;
+  /** MusicBrainz's format of the disc, "CD" or "DVD-Video"; a disc sent without one keeps the one it had. */
+  format?: string | null;
   tracks: TrackData[];
 }
 
@@ -224,7 +226,7 @@ class MusicService {
     }
   }
 
-  async getAlbumById(id: number): Promise<AlbumFormatted & { discs: Array<{ number: number; tracks: AlbumTrack[] }> }> {
+  async getAlbumById(id: number): Promise<AlbumFormatted & { discs: Array<{ number: number; format: string | null; tracks: AlbumTrack[] }> }> {
     try {
       const album = await Album.findById(id);
       if (!album) {
@@ -249,6 +251,7 @@ class MusicService {
       // Convert to array format
       const discsArray = Object.keys(discs).map(discNumber => ({
         number: parseInt(discNumber),
+        format: discs[parseInt(discNumber)][0].medium,
         tracks: discs[parseInt(discNumber)].map(track => ({
           no: track.trackNumber,
           title: track.title,
@@ -318,6 +321,7 @@ class MusicService {
               await Track.create({
                 albumId: album.id,
                 discNumber: disc.number,
+                medium: disc.format ?? null,
                 trackNumber: track.trackNumber ?? track.no ?? 0,
                 title: track.title,
                 durationSec: track.durationSec,
@@ -373,6 +377,7 @@ class MusicService {
         existingTracks.forEach(track => {
           existingByPosition.set(`${track.discNumber}:${track.trackNumber}`, track);
         });
+        const mediumOf = new Map(existingTracks.map(track => [track.discNumber, track.medium]));
 
         console.log(`Deleting existing tracks for album ID: ${id}`);
         await Track.deleteByCdId(id);
@@ -389,6 +394,7 @@ class MusicService {
               await Track.create({
                 albumId: id,
                 discNumber: disc.number,
+                medium: disc.format !== undefined ? disc.format : mediumOf.get(disc.number) ?? null,
                 trackNumber,
                 title: track.title,
                 durationSec: given('durationSec') ? track.durationSec : previous?.durationSec,

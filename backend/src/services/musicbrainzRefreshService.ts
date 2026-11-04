@@ -95,6 +95,7 @@ const toTracks = (release: RawRelease): TrackCreateData[] => {
 
     return {
       discNumber: discIndex + 1,
+      medium: medium.format || null,
       trackNumber: track.position ?? (parseInt(track.number, 10) || index + 1),
       title: track.title,
       durationSec: track.length ? Math.round(track.length / 1000) : null,

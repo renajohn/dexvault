@@ -38,6 +38,7 @@ import MixtapeMenu from './MixtapeMenu';
 import { useMixtapes } from '../utils/mixtapeStore';
 import { BsCassetteFill, BsXLg } from 'react-icons/bs';
 import { discsInWords, heldOf } from '../utils/listenNextEntry';
+import { soundDiscs, videoDiscs } from '../utils/medium';
 
 /** How often, and how many times, an album's tracks are asked after while their words are looked up. */
 const LYRICS_POLL_MS = 3000;
@@ -66,6 +67,8 @@ interface CdTrack {
 
 interface CdDisc {
   number: number;
+  /** "CD", "DVD-Video": MusicBrainz's format of the disc. */
+  format?: string | null;
   tracks: CdTrack[];
   /** Files of the rip on no track of the CD: bonus tracks bought apart, say. */
   extra?: boolean;
@@ -615,7 +618,10 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
 
   const albumArtists = Array.isArray(cd.artist) ? cd.artist : [cd.artist];
   // The tracks DexVault knows; for an album it knows none of (a wish, say), those of its rip in Navidrome.
-  const discs: CdDisc[] = (cd.discs || []).some((disc: CdDisc) => disc.tracks.length > 0) ? cd.discs! : discsOfRip(rip);
+  // The DVD of a CD + DVD is no audio: shown apart, under them, and counted nowhere.
+  const tracksKnown = (cd.discs || []).some((disc: CdDisc) => disc.tracks.length > 0);
+  const discs: CdDisc[] = tracksKnown ? soundDiscs(cd.discs as CdDisc[]) : discsOfRip(rip);
+  const films: CdDisc[] = tracksKnown ? videoDiscs(cd.discs as CdDisc[]) : [];
   // After them, the rip's files on no track of the CD (bonus tracks bought apart), under a head of their own.
   const shownDiscs: CdDisc[] = [...discs, ...discsOfFiles(extraFilesOf(cd, rip)).map(disc => ({ ...disc, extra: true }))];
   const discsCredits = shownDiscs.map((disc: CdDisc) => discCredits(disc.tracks, albumArtists));
@@ -959,7 +965,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   );
 
   /** The tracks need no title: a line above them says where they start. */
-  const tracks = shownDiscs.length > 0 && (
+  const tracks = (shownDiscs.length > 0 || films.length > 0) && (
     <div className="album-tracks">
       {shownDiscs.map((disc: CdDisc, discIndex: number) => {
         const credits = discsCredits[discIndex];
@@ -1136,6 +1142,22 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
           </div>
         );
       })}
+      {films.map(disc => (
+        <div key={`film-${disc.number}`} className="disc-tracks disc-tracks--film mb-3">
+          <div className="disc-head">
+            <h6 className="disc-title">Disc {disc.number} <span className="disc-title-note">· {disc.format}, not in Navidrome</span></h6>
+          </div>
+          <div className="track-list">
+            {disc.tracks.map((track, index) => (
+              <div key={index} className="track-item">
+                <span className="track-number"><span className="track-number-text">{track.no}.</span></span>
+                <span className="track-title">{track.title}</span>
+                {track.durationSec && <span className="track-duration">{formatDuration(track.durationSec)}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 

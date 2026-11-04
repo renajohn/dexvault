@@ -10,6 +10,7 @@ import { discsInWords, heldOf } from '../utils/listenNextEntry';
 import Menu from './shared/Menu';
 import { toast } from './shared/Toast';
 import { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
+import { soundDiscs } from '../utils/medium';
 
 /** Told by Listen Next's ⋯ entries here: the page's banner reads its list again. */
 export const LISTEN_NEXT_CHANGED_EVENT = 'dexvault:listen-next-changed';
@@ -192,7 +193,8 @@ export const useAlbumAtRest = (album: ShownAlbum | null): AlbumAtRest | null => 
   // Read, and nothing to play: on CD only, not ripped yet.
   const noRip = rip !== undefined && playerTracks.length === 0;
 
-  const discs = album.discs || [];
+  // The CD's discs, not the DVD of a CD + DVD.
+  const discs = soundDiscs(album.discs);
   const trackCount = discs.reduce((count, disc) => count + disc.tracks.length, 0) || playerTracks.length;
   const seconds = discs.reduce((total, disc) => total + disc.tracks.reduce((sum, track) => sum + (track.durationSec || 0), 0), 0)
     || playerTracks.reduce((sum, track) => sum + (track.durationSec || 0), 0);

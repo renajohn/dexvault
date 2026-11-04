@@ -368,6 +368,7 @@ export interface TrackRow {
   work: string | null;
   composers: string | null;
   performers: string | null;
+  medium: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -394,6 +395,8 @@ export interface TrackFormatted {
   work: string | null;
   composers: string[];
   performers: TrackPerformer[];
+  /** Its disc's format in MusicBrainz, "CD" or "DVD-Video"; null unknown. */
+  medium: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -413,6 +416,7 @@ export interface TrackCreateData {
   work?: string | null;
   composers?: string[];
   performers?: TrackPerformer[];
+  medium?: string | null;
 }
 
 // ============================================================

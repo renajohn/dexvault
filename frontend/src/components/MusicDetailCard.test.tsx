@@ -524,6 +524,22 @@ describe('MusicDetailCard Listen Next', () => {
     await waitFor(() => expect(musicService.toggleListenNext).toHaveBeenLastCalledWith(1, 'all'));
     (musicService.getListenNextAlbums as any).mockResolvedValue([]);
   });
+
+  it('shows the DVD of a CD + DVD apart, counted nowhere and with no Listen Next of its own', async () => {
+    const cdAndDvd = [
+      { number: 1, format: 'CD', tracks: [1, 2].map(no => ({ no, title: `Song ${no}`, durationSec: 200 })) },
+      { number: 2, format: 'DVD-Video', tracks: [1, 2, 3].map(no => ({ no, title: `Film ${no}`, durationSec: 300 })) },
+    ];
+    render(<MusicDetailCard cd={cd({ titleStatus: 'owned', fileQuality: 'lossless', discs: cdAndDvd }) as any} onClose={() => {}} onDelete={() => {}} />);
+
+    expect(await screen.findByText('Disc 2')).toBeInTheDocument();
+    expect(screen.getByText(/DVD-Video, not in Navidrome/)).toBeInTheDocument();
+    expect(screen.getByText('Film 3')).toBeInTheDocument();
+    expect(screen.getByText(/2 tracks/)).toBeInTheDocument();
+    expect(screen.queryByText(/2 discs/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Disc 2/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Choose the discs for Listen Next' })).not.toBeInTheDocument();
+  });
 });
 
 describe('MusicDetailCard on the outputs', () => {

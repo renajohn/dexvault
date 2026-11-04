@@ -10,6 +10,7 @@ import Mixtape from '../models/mixtape';
 import { drawAgain, inListenNextOrder, setShuffled as shuffleMixtape } from './mixtapeShuffle';
 import logger from '../logger';
 import type { AlbumFormatted } from '../types';
+import { soundTrackSql } from '../utils/medium';
 
 /** A departure is shown on the page for a day; after that, the album has simply gone. */
 const SHOWN_FOR_SEC = 24 * 60 * 60;
@@ -167,7 +168,7 @@ const listenNextPlayService = {
       const rows = await all<{ album_id: number; disc_number: number; tracks: number; duration: number | null; missing: number }>(
         `SELECT album_id, disc_number, COUNT(*) AS tracks,
            SUM(COALESCE(duration_sec, 0)) AS duration, SUM(duration_sec IS NULL) AS missing
-         FROM tracks WHERE album_id IN (${ids.map(() => '?').join(',')}) GROUP BY album_id, disc_number`, ids);
+         FROM tracks WHERE album_id IN (${ids.map(() => '?').join(',')}) AND ${soundTrackSql()} GROUP BY album_id, disc_number`, ids);
       for (const { id, disc } of wanted) {
         const discs = rows.filter(row => row.album_id === id && (!disc || row.disc_number === disc));
         if (discs.length === 0) continue;

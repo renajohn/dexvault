@@ -49,6 +49,11 @@ const insertAlbum = (fields: { releaseId?: string | null; producer?: string[] } 
 afterEach(() => jest.restoreAllMocks());
 
 describe('toTracks', () => {
+  it('garde le format de chaque disque, le DVD d’un CD + DVD compris', () => {
+    const data = { ...release(1), media: [...release(1).media, { format: 'DVD-Video', tracks: [movement(1, 'Film')] }] };
+    expect(musicbrainzRefreshService.toTracks(data).map(track => [track.discNumber, track.medium])).toEqual([[1, 'CD'], [2, 'DVD-Video']]);
+  });
+
   it('crédite chaque mouvement : œuvre, compositeur et interprètes, sans l’arrangeur', () => {
     const [track] = musicbrainzRefreshService.toTracks(release(1));
 

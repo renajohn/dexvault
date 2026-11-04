@@ -595,6 +595,18 @@ describe('rapprochement des copies plus large', () => {
     expect(await statusOf(id)).toMatchObject({ state: 'lossless', matches: [{ match: 'tracks' }] });
   });
 
+  it('reconnaît aux durées le CD d’un CD + DVD : le DVD n’a pas de fichiers', async () => {
+    const id = await insertAlbum({ title: `HAARP ${tag()}`, artist: ['Muse'] });
+    await insertTracks(id, [601, 553, 1210, 734]);
+    await new Promise<void>((resolve, reject) => getDatabase().run(
+      `INSERT INTO tracks (album_id, disc_number, track_number, title, duration_sec, medium) VALUES (?, 2, 1, 'Intro (video)', 90, 'DVD-Video')`,
+      [id], (err: Error | null) => (err ? reject(err) : resolve())));
+    jest.spyOn(navidromeService, 'getAlbums').mockResolvedValue([album('flac-haarp', `Live at Wembley ${tag()}`, 'Someone else')]);
+    jest.spyOn(navidromeService, 'getSongs').mockResolvedValue(timed('flac-haarp', [602, 552, 1211, 734]));
+
+    expect(await statusOf(id)).toMatchObject({ state: 'lossless', matches: [{ match: 'tracks' }] });
+  });
+
   it('ne confond pas deux enregistrements du même titre, ni des pistes de durées voisines', async () => {
     const word = tag();
     const id = await insertAlbum({ title: `Carmina Burana ${word}`, artist: ['Orff', 'Chicago Symphony Chorus', 'James Levine'] });

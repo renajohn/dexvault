@@ -4,6 +4,7 @@ import outputs, { type OutputError } from '../services/outputs';
 import { ripFileFor } from './trackDetail';
 import { formatName, isLossless } from './albumHead';
 import { isMixtape, mixtapeArtists } from './mixtape';
+import { soundDiscs } from './medium';
 
 interface AlbumLike {
   id: number | string;
@@ -11,7 +12,7 @@ interface AlbumLike {
   title: string;
   artist?: string | string[];
   cover?: string | null;
-  discs?: Array<{ number: number; tracks: Array<{ no?: number | string; title: string; durationSec?: number; popular?: boolean }> }>;
+  discs?: Array<{ number: number; format?: string | null; tracks: Array<{ no?: number | string; title: string; durationSec?: number; popular?: boolean }> }>;
 }
 
 /** The album as the player names it: on the bar, on the Mac's controls; its rip ties it to Navidrome's. */
@@ -38,7 +39,7 @@ const byPlace = (files: RipTrackFile[]): RipTrackFile[] =>
  */
 export const extraFilesOf = (album: AlbumLike, rip: RipTracks | null | undefined): RipTrackFile[] => {
   if (!rip?.found) return [];
-  const discs = album.discs || [];
+  const discs = soundDiscs(album.discs);
   if (!discs.some(disc => disc.tracks.length > 0)) return [];
   const onCd = new Set(discs.flatMap(disc => disc.tracks.map(track => `${disc.number}-${Number(track.no)}`)));
   return byPlace(rip.tracks).filter(file => !onCd.has(`${file.discNumber}-${file.track}`));
@@ -52,12 +53,12 @@ export const extraFilesOf = (album: AlbumLike, rip: RipTracks | null | undefined
  */
 export const playerTracksOf = (album: AlbumLike, rip: RipTracks | null | undefined): PlayerTrack[] => {
   if (!rip?.found) return [];
-  const known = (album.discs || []).some(disc => disc.tracks.length > 0);
+  const known = soundDiscs(album.discs).some(disc => disc.tracks.length > 0);
   if (!known) {
     return byPlace(rip.tracks)
       .map(file => ({ songId: file.id!, title: file.title, disc: file.discNumber, no: file.track, durationSec: file.durationSec ?? null, starred: file.starred, ...fileFormat(file) }));
   }
-  const onCd = (album.discs || []).flatMap(disc => disc.tracks.flatMap(track => {
+  const onCd = soundDiscs(album.discs).flatMap(disc => disc.tracks.flatMap(track => {
     const file = ripFileFor(rip.tracks, disc.number, Number(track.no));
     return file?.id
       ? [{ songId: file.id, title: track.title, disc: disc.number, no: Number(track.no), durationSec: file.durationSec ?? track.durationSec ?? null, starred: file.starred, ...(track.popular ? { popular: true } : {}), ...fileFormat(file) }]

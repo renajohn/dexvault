@@ -10,7 +10,7 @@ export interface ShownAlbum {
   releaseYear?: string | number;
   titleStatus?: string;
   fileQuality?: string;
-  discs?: Array<{ number: number; tracks: Array<{ no?: number | string; title: string; durationSec?: number }> }>;
+  discs?: Array<{ number: number; format?: string | null; tracks: Array<{ no?: number | string; title: string; durationSec?: number }> }>;
 }
 
 /**

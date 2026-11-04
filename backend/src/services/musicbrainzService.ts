@@ -152,6 +152,8 @@ interface FormattedTrack {
 
 interface FormattedDisc {
   number: number;
+  /** "CD", "DVD-Video": MusicBrainz's format of the disc. */
+  format: string | null;
   tracks: FormattedTrack[];
 }
 
@@ -609,6 +611,19 @@ const musicbrainzService = {
     ));
   },
 
+  /** The format of each disc of a release, in order: "CD", "DVD-Video"; null when MusicBrainz gives none. */
+  getReleaseMediaFormats: async function(releaseId: string): Promise<Array<string | null>> {
+    const response: AxiosResponse<MBRawRelease> = await withRetry(
+      'MusicBrainz release media lookup',
+      () => axios.get(`${this.baseUrl}/release/${releaseId}`, {
+        params: { inc: 'media', fmt: 'json' },
+        headers: { 'User-Agent': this.userAgent },
+        timeout: 15000
+      })
+    );
+    return (response.data.media || []).map(medium => medium.format || null);
+  },
+
   /**
    * A release with everything needed to credit each track: its artists, the
    * work it performs and that work's composer, and who plays on the recording.
@@ -848,6 +863,7 @@ const musicbrainzService = {
 
         discs.push({
           number: discIndex + 1,
+          format: media.format || null,
           tracks: tracks
         });
       });

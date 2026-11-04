@@ -11,6 +11,7 @@ import { getDatabase } from '../database';
 import listenHistoryService from './listenHistoryService';
 import imageService from './imageService';
 import logger from '../logger';
+import { isVideoMedium } from '../utils/medium';
 
 /**
  * Where each CD of the collection stands in Navidrome:
@@ -120,18 +121,21 @@ const sameTracks = (cd: number[] | undefined, copy: number[] | undefined): boole
   Boolean(cd && copy && cd.length >= MIN_TRACKS && cd.length === copy.length
     && cd.every((length, index) => Math.abs(length - copy[index]) <= TOLERANCE_SEC));
 
-/** Each CD's track lengths, none when one of them is unknown; and each CD's tracks, "disc-track". */
+/**
+ * Each CD's track lengths, none when one of them is unknown; and each CD's
+ * tracks, "disc-track". The DVD of a CD + DVD is left out: no file holds it.
+ */
 const cdTracks = (): Promise<{ lengths: Map<number, number[]>; places: Map<number, Set<string>> }> =>
   new Promise((resolve, reject) =>
     getDatabase().all(
-      'SELECT album_id, disc_number, track_number, duration_sec FROM tracks ORDER BY album_id, disc_number, track_number',
+      'SELECT album_id, disc_number, track_number, duration_sec, medium FROM tracks ORDER BY album_id, disc_number, track_number',
       [],
-      (err: Error | null, rows: Array<{ album_id: number; disc_number: number; track_number: number; duration_sec: number | null }>) => {
+      (err: Error | null, rows: Array<{ album_id: number; disc_number: number; track_number: number; duration_sec: number | null; medium: string | null }>) => {
         if (err) { reject(err); return; }
         const lengths = new Map<number, number[]>();
         const places = new Map<number, Set<string>>();
         const incomplete = new Set<number>();
-        for (const row of rows) {
+        for (const row of rows.filter(row => !isVideoMedium(row.medium))) {
           if (row.duration_sec == null) incomplete.add(row.album_id);
           lengths.set(row.album_id, [...(lengths.get(row.album_id) || []), row.duration_sec ?? 0]);
           if (!places.has(row.album_id)) places.set(row.album_id, new Set());

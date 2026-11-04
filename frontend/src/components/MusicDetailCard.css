@@ -962,6 +962,11 @@
   font-size: 0.8rem;
 }
 
+/* The DVD of a CD + DVD: its titles, quieter, nothing to play or open. */
+.disc-tracks--film .track-title {
+  color: #9aa4b2;
+}
+
 /* The discs held, after "In Listen Next": quieter than the words. */
 .music-detail-next-discs {
   font-weight: 400;
