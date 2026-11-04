@@ -291,6 +291,10 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
     // Played once drawn, in place of what plays: the player primed within the key.
     if (draft.trim()) radio.listen(draft, { play: true });
   };
+  /** Words left in the field count as typed in: on an iPhone the keyboard is closed far more often than ↵ pressed. */
+  const settle = () => {
+    if (draft.trim() && draft.trim() !== state.prompt) radio.listen(draft, { play: true });
+  };
 
   const widen = () => {
     radio.widen().then(() => toast('Looking in everything that plays.'));
@@ -333,7 +337,7 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
       <form className="radio-banner__prompt" onSubmit={submit}>
         <TextField ref={promptField} size="title" value={draft} onChange={event => setDraft(event.target.value)} spellCheck={false}
           aria-label="What to play" placeholder="What would you like to hear?"
-          onKeyDown={event => { if (event.key === 'Escape') setDraft(state.prompt); }} />
+          onBlur={settle} onKeyDown={event => { if (event.key === 'Escape') setDraft(state.prompt); }} />
       </form>
 
       <div className="radio-banner__chips">

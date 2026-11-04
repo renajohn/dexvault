@@ -117,6 +117,20 @@ describe('the radio banner', () => {
     expect(screen.getByRole('button', { name: 'mélancolique, un jour de pluie' })).toBeTruthy();
   });
 
+  it('plays the prompt typed once the field is left, as an iPhone closes its keyboard', async () => {
+    render(<Banner />);
+    const field = screen.getByRole('textbox', { name: 'What to play' });
+    fireEvent.change(field, { target: { value: 'rock alternatif énergique' } });
+    await act(async () => { fireEvent.blur(field); });
+    expect(server.criteria).toHaveBeenCalledWith('rock alternatif énergique');
+    await waitFor(() => expect(player.getState().album?.title).toBe('Radio · rock alternatif énergique'));
+    // Left again unchanged, or emptied: nothing heard anew.
+    await act(async () => { fireEvent.focus(field); fireEvent.blur(field); });
+    fireEvent.change(field, { target: { value: '  ' } });
+    await act(async () => { fireEvent.blur(field); });
+    expect(server.criteria).toHaveBeenCalledTimes(1);
+  });
+
   it('shows each song with its first mood, its first style and its energy', async () => {
     await tuned();
     const card = document.querySelector('.radio-card[data-song="s1"]') as HTMLElement;
