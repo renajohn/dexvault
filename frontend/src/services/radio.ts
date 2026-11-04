@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import radioService, { type RadioCriteria, type RadioPool, type RadioSong } from './radioService';
+import radioService, { type RadioCriteria, type RadioPool, type RadioSettings, type RadioSong } from './radioService';
 import { player, subscribePlayer, type PlayerAlbum, type PlayerState, type PlayerTrack } from './player';
 import musicService from './musicService';
 import { readStored, writeStored } from '../utils/safeStorage';
@@ -72,9 +72,30 @@ const keep = () => writeStored(KEY, JSON.stringify({
   prompt: state.prompt, recent: state.recent, criteria: state.criteria, pool: state.pool, songs: state.songs,
 }));
 
-const set = (changes: Partial<RadioState>) => {
+/** What is shared with the other devices: the band stays with this one. */
+const SHARED: Array<keyof RadioState> = ['prompt', 'recent', 'criteria', 'pool'];
+const sharedOf = (from: RadioState): RadioSettings => ({ prompt: from.prompt, recent: from.recent, pool: from.pool, criteria: from.criteria });
+const SAVE_AFTER_MS = 600;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+/** The server's settings this device last read or wrote: newer ones come from another device. */
+let knownAt: string | null = null;
+
+/** The shared settings, sent once the changes stop for a moment: the last saved, from whichever device, wins. */
+const saveSoon = () => {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    Promise.resolve()
+      .then(() => radioService.saveSettings(sharedOf(state)))
+      .then(saved => { if (saved?.updatedAt) knownAt = saved.updatedAt; })
+      .catch(() => undefined);
+  }, SAVE_AFTER_MS);
+};
+
+const set = (changes: Partial<RadioState>, { fromServer = false } = {}) => {
   state = { ...state, ...changes };
   if ('prompt' in changes || 'recent' in changes || 'criteria' in changes || 'pool' in changes || 'songs' in changes) keep();
+  if (!fromServer && SHARED.some(key => key in changes)) saveSoon();
   listeners.forEach(listener => listener());
 };
 
@@ -276,6 +297,8 @@ const follow = () => {
   }
   last = track ? { songId: track.songId, position: view.position, duration: view.duration || track.durationSec || 0 } : null;
   if (!isRadio) return;
+  // A radio of another prompt kept paused (the settings came from another device since): not this one's band.
+  if (!view.playing && view.album?.title !== radioAlbum(state.prompt).title) return;
   const band = view.tracks.slice(view.index);
   if (band.map(one => one.songId).join('|') !== ids(state.songs).join('|')) {
     set({ songs: band.map(songOfTrack) });
@@ -284,6 +307,57 @@ const follow = () => {
 };
 
 subscribePlayer(follow);
+
+/**
+ * The settings another device saved, taken here: the prompt, the recent
+ * ones, the pool and the criteria the laptop set are those the phone finds.
+ * A device playing the radio keeps its own while it plays (not while it is
+ * only kept paused); a band drawn for another prompt goes, for ▶ or ↵ to
+ * draw one for this one.
+ */
+/** The band kept here when it is that of a radio of another prompt kept paused: it goes, for ▶ to draw this prompt's. */
+const dropOtherBand = (view: PlayerState) => {
+  if (!radioPlaying(view) || view.playing || view.album?.title === radioAlbum(state.prompt).title) return;
+  const paused = view.tracks.slice(view.index).map(one => one.songId).join('|');
+  if (state.songs.length && ids(state.songs).join('|') === paused) set({ songs: [], status: 'idle' }, { fromServer: true });
+};
+
+export const syncRadioSettings = async (): Promise<void> => {
+  let stored;
+  try {
+    stored = await radioService.settings();
+  } catch {
+    return;
+  }
+  if (!stored?.settings || !stored.updatedAt) {
+    // None on the server yet: what this device had is the first saved.
+    if (state.prompt || state.recent.length) saveSoon();
+    return;
+  }
+  // Playing, not merely kept paused from another day: a radio left in pause takes the new settings.
+  const view = player.getState();
+  dropOtherBand(view);
+  if (knownAt && stored.updatedAt <= knownAt) return;
+  if (saveTimer || (radioPlaying(view) && view.playing)) return;
+  knownAt = stored.updatedAt;
+  const { settings } = stored;
+  const otherPrompt = settings.prompt !== state.prompt;
+  set({
+    prompt: settings.prompt,
+    recent: settings.recent.slice(0, RECENT),
+    pool: { ...DEFAULT_POOL, ...settings.pool },
+    criteria: settings.criteria,
+    ...(otherPrompt ? { songs: [], status: 'idle' as RadioStatus, poolSize: null, fitting: null, missingFiches: 0 } : {}),
+  }, { fromServer: true });
+  dropOtherBand(player.getState());
+};
+
+// Read as the page opens, and again as it comes back to the front: the other device may have changed them meanwhile.
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  syncRadioSettings();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncRadioSettings(); });
+  window.addEventListener('focus', () => { syncRadioSettings(); });
+}
 
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
@@ -297,6 +371,9 @@ export function useRadio<T>(select: (current: RadioState) => T): T {
 /** For tests: the radio as a first visit finds it, what the browser kept read again. */
 export const resetRadio = () => {
   drawing++;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  knownAt = null;
   refilling = null;
   last = null;
   known.clear();

@@ -7,6 +7,8 @@ const server = vi.hoisted(() => ({
   left: vi.fn(),
   fiches: vi.fn(),
   askFiches: vi.fn(),
+  settings: vi.fn(),
+  saveSettings: vi.fn(),
   createMixtape: vi.fn(),
 }));
 

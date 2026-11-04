@@ -74,9 +74,22 @@ export interface RadioFiches {
 
 export type RadioLeft = 'played' | 'skipped';
 
+/** What the owner set the radio to, kept on the server for every device; the band stays with the device. */
+export interface RadioSettings {
+  prompt: string;
+  recent: string[];
+  pool: RadioPool;
+  criteria: RadioCriteria | null;
+}
+
+export interface StoredRadioSettings {
+  settings: RadioSettings | null;
+  updatedAt: string | null;
+}
+
 const BASE = '/api/radio';
 
-const send = async <T>(path: string, method: 'GET' | 'POST', body?: unknown): Promise<T> => {
+const send = async <T>(path: string, method: 'GET' | 'POST' | 'PUT', body?: unknown): Promise<T> => {
   const response = await fetch(`${BASE}${path}`, {
     method,
     ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
@@ -97,6 +110,11 @@ const radioService = {
   left: (songId: string, how: RadioLeft): Promise<{ ok: true }> => send('/left', 'POST', { songId, how }),
 
   fiches: (): Promise<RadioFiches> => send('/fiches', 'GET'),
+
+  /** The settings as last saved by a device, none before. */
+  settings: (): Promise<StoredRadioSettings> => send('/settings', 'GET'),
+
+  saveSettings: (settings: RadioSettings): Promise<StoredRadioSettings> => send('/settings', 'PUT', settings),
 
   /** The pool's songs with no fiche first in the writer's queue. */
   askFiches: (pool: RadioPool): Promise<RadioFiches> => send('/fiches', 'POST', { pool }),

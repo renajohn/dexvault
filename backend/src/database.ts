@@ -763,6 +763,7 @@ const initDatabase = async (): Promise<sqlite3.Database> => {
           const TrackPopularity = (await import('./models/trackPopularity')).default;
           const TrackFiche = (await import('./models/trackFiche')).default;
           const RadioHistory = (await import('./models/radioHistory')).default;
+          const RadioSettings = (await import('./models/radioSettings')).default;
 
           // Create all tables with their final schema
           await Movie.createTable();
@@ -792,6 +793,7 @@ const initDatabase = async (): Promise<sqlite3.Database> => {
           await TrackPopularity.createTable();
           await TrackFiche.createTable();
           await RadioHistory.createTable();
+          await RadioSettings.createTable();
 
           // Run auto-migrations for schema updates
           await runAutoMigrations();

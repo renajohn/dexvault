@@ -395,6 +395,8 @@ app.patch('/api/music/mixtapes/:albumId', mixtapeController.update);
 app.delete('/api/music/mixtapes/:albumId', mixtapeController.remove);
 
 // Radio: a prompt played endlessly from the songs' fiches
+app.get('/api/radio/settings', radioController.settings);
+app.put('/api/radio/settings', radioController.saveSettings);
 app.post('/api/radio/criteria', radioController.criteria);
 app.post('/api/radio/next', radioController.next);
 app.post('/api/radio/left', radioController.left);
