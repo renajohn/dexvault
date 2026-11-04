@@ -271,10 +271,29 @@ describe('the radio banner', () => {
     const heard = () => [...document.querySelectorAll('.radio-banner__heard .ui-chip__label')].map(chip => chip.textContent);
     expect(heard()).toEqual(['energy 7–10', 'fast', 'upbeat', 'energetic', 'driving', 'joyful', 'uplifting', 'anthemic', '+4']);
     fireEvent.click(screen.getByRole('button', { name: '4 more: intense, playful, rock, pop' }));
-    expect(heard()).toEqual(['energy 7–10', 'fast', 'upbeat', 'energetic', 'driving', 'joyful', 'uplifting', 'anthemic', 'intense', 'playful', 'rock', 'pop']);
+    expect(heard()).toEqual(['energy 7–10', 'fast', 'upbeat', 'energetic', 'driving', 'joyful', 'uplifting', 'anthemic', 'intense', 'playful', 'rock', 'pop', 'Less']);
+    fireEvent.click(screen.getByRole('button', { name: 'Less' }));
+    expect(heard()).toEqual(['energy 7–10', 'fast', 'upbeat', 'energetic', 'driving', 'joyful', 'uplifting', 'anthemic', '+4']);
+    fireEvent.click(screen.getByRole('button', { name: '4 more: intense, playful, rock, pop' }));
     server.next.mockClear();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Not “pop”' })); });
     expect(server.next).toHaveBeenCalledWith(expect.objectContaining({ styles: ['rock'] }), expect.anything(), expect.any(Number), expect.anything(), expect.anything());
     expect(heard()).not.toContain('pop');
+  });
+
+  it('folds the moods and styles after three on a phone, and Less folds them again', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width: 575px'), addEventListener() {}, removeEventListener() {} }));
+    try {
+      server.criteria.mockResolvedValue({ energyMin: 7, tempos: ['fast'], moods: ['upbeat', 'energetic', 'driving', 'joyful'], styles: ['rock'] });
+      await tuned('quelque chose de upbeat pour courir');
+      const heard = () => [...document.querySelectorAll('.radio-banner__heard .ui-chip__label')].map(chip => chip.textContent);
+      expect(heard()).toEqual(['energy 7–10', 'fast', 'upbeat', 'energetic', 'driving', '+2']);
+      fireEvent.click(screen.getByRole('button', { name: '2 more: joyful, rock' }));
+      expect(heard()).toEqual(['energy 7–10', 'fast', 'upbeat', 'energetic', 'driving', 'joyful', 'rock', 'Less']);
+      fireEvent.click(screen.getByRole('button', { name: 'Less' }));
+      expect(heard()).toEqual(['energy 7–10', 'fast', 'upbeat', 'energetic', 'driving', '+2']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

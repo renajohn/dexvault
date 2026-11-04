@@ -66,8 +66,9 @@ export const tintOf = (songs: RadioSong[]): number => {
 
 export interface HeardAs { key: string; label: string; without: RadioCriteria; /** The energy and the tempos, always shown. */ main: boolean }
 
-/** How many moods, styles and languages show before "+N" unfolds the rest. */
+/** How many moods, styles and languages show before "+N" unfolds the rest (on a phone, about two lines). */
 export const HEARD_SHOWN = 6;
+export const HEARD_SHOWN_NARROW = 3;
 
 /** What a prompt was heard as, one chip each, with the criteria left once it is taken away. */
 export const heardAs = (criteria: RadioCriteria | null): HeardAs[] => {
@@ -281,7 +282,8 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
   const recent = state.recent.filter(one => one !== state.prompt);
   const criteria = heardAs(state.criteria);
   const words = criteria.filter(one => !one.main);
-  const folded = unfolded ? 0 : Math.max(0, words.length - HEARD_SHOWN);
+  const foldsAt = narrow ? HEARD_SHOWN_NARROW : HEARD_SHOWN;
+  const folded = unfolded ? 0 : Math.max(0, words.length - foldsAt);
   const shown = [...criteria.filter(one => one.main), ...words.slice(0, words.length - folded)];
 
   const submit = (event: React.FormEvent) => {
@@ -375,6 +377,9 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
           {folded > 0 && (
             <Chip onClick={() => setUnfolded(true)} title={words.slice(-folded).map(one => one.label).join(', ')}
               aria-label={`${folded} more: ${words.slice(-folded).map(one => one.label).join(', ')}`}>+{folded}</Chip>
+          )}
+          {unfolded && words.length > foldsAt && (
+            <Chip onClick={() => setUnfolded(false)} title={`Show ${foldsAt} of them only`}>Less</Chip>
           )}
         </div>
       )}
