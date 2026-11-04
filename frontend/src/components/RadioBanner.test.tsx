@@ -244,6 +244,38 @@ describe('the radio banner', () => {
     expect(screen.getByRole('button', { name: /From/ }).textContent).toContain('Everything that plays');
   });
 
+  it('shows the neighbouring styles drawn from, quieter, each taken away like the others', async () => {
+    server.criteria.mockResolvedValue({ moods: ['calm'], styles: ['jazz'] });
+    server.next.mockImplementation(async (_criteria: RadioCriteria, _pool: RadioPool, count: number) => ({
+      songs: Array.from({ length: count }, () => song(++counter)), poolSize: 300, fitting: 40, missingFiches: 0,
+      neighbours: [{ style: 'singer-songwriter', weight: 0.37, path: ['jazz', 'singer-songwriter'] },
+        { style: 'folk', weight: 0.27, path: ['jazz', 'singer-songwriter', 'folk'] }],
+    }));
+    await tuned('jazz tranquille');
+    expect(heardAs(radio.getState().criteria, radio.getState().neighbours).map(one => one.label)).toEqual(['calm', 'jazz', 'singer-songwriter', 'folk']);
+    const folk = screen.getByRole('button', { name: 'Not “folk”' }).closest('.ui-chip')!;
+    expect(folk).toHaveClass('ui-chip--muted');
+    expect(within(folk as HTMLElement).getByTitle('Near: jazz → singer-songwriter → folk')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Not “jazz”' }).closest('.ui-chip')).not.toHaveClass('ui-chip--muted');
+    server.next.mockClear();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Not “folk”' })); });
+    expect(server.next).toHaveBeenCalledWith({ moods: ['calm'], styles: ['jazz'], notStyles: ['folk'] }, expect.anything(), 10, [], expect.any(Array));
+  });
+
+  it('says so when too few songs fit for a band, even with the styles near it', async () => {
+    server.criteria.mockResolvedValue({ energyMax: 3, styles: ['jazz'] });
+    server.next.mockResolvedValue({ songs: [song(1)], poolSize: 300, fitting: 1, missingFiches: 0,
+      neighbours: [{ style: 'singer-songwriter', weight: 0.37, path: ['jazz', 'singer-songwriter'] }] });
+    await tuned('jazz tranquille');
+    expect(covers()).toEqual(['s1']);
+    expect(screen.getByText('Only 1 song fits in Albums 4★+, the styles near it included: too few for a band.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Look in everything that plays' })).toBeTruthy();
+    // A band drawn whole: no word of it.
+    drawing();
+    await act(() => radio.redraw(undefined, { fresh: true }));
+    expect(screen.queryByText(/too few for a band/)).toBeNull();
+  });
+
   it('takes a warm hue for upbeat songs and a blue one for calm songs', async () => {
     expect(tintOf([])).toBe(38);
     expect(tintOf([song(1, 9), song(2, 8)])).toBe(15);

@@ -14,6 +14,8 @@ export interface RadioEntry {
   stars: number | null;
   classical: boolean;
   year: number | null;
+  /** Its album's genres, from MusicBrainz: what the fiche's writer is told of its style. */
+  genres: string[];
   /** Its album and the place of the work's first movement there, null for a piece alone. */
   workKey: string | null;
   /** The work's movements in their order, itself among them; empty for a piece alone. */
@@ -42,7 +44,7 @@ const build = async (albums: IndexedAlbum[]): Promise<Catalogue> => {
     for (const song of album.songs) {
       const work = workOf.get(song.songId);
       entries.push({
-        song, key: recordingKey(song, recordings), stars: album.stars, classical: classical.get(album.albumId) ?? false, year: album.year,
+        song, key: recordingKey(song, recordings), stars: album.stars, classical: classical.get(album.albumId) ?? false, year: album.year, genres: album.genres,
         workKey: work?.key ?? null, workSongs: work?.songs ?? [],
       });
     }

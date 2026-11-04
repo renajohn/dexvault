@@ -1,6 +1,7 @@
 import TrackFiche, { type FicheRecord, MOODS, STYLES, TEMPOS, type Tempo } from '../models/trackFiche';
 import RadioHistory, { type LeftHow, type RadioLeaving } from '../models/radioHistory';
-import { catalogue, inPool, type RadioEntry, type RadioPool } from './radioCatalogue';
+import { catalogue, inPool, type Catalogue, type RadioEntry, type RadioPool } from './radioCatalogue';
+import { buildStyleGraph, type StyleGraph } from './styleGraph';
 import trackFicheService, { chatLocal, closed, jsonIn, numberOf } from './trackFicheService';
 import { inTurn } from '../utils/localLlmQueue';
 import { fold } from '../utils/searchText';
@@ -19,8 +20,19 @@ export interface RadioCriteria {
   energyMax?: number | null;
   tempos?: Tempo[];
   moods?: string[];
+  /** The styles asked for: their songs first, the neighbouring styles' only when they are too few. */
   styles?: string[];
   langs?: string[];
+  /** Neighbouring styles taken away from "Heard as": never drawn for being near. */
+  notStyles?: string[];
+}
+
+/** A style drawn from for being near one asked: how near, and through which styles. */
+export interface RadioNeighbour {
+  style: string;
+  weight: number;
+  /** From the style asked to this one, both in. */
+  path: string[];
 }
 
 export interface RadioSong {
@@ -47,6 +59,8 @@ export interface RadioNext {
   poolSize: number;
   fitting: number;
   missingFiches: number;
+  /** The neighbouring styles drawn from, the nearest first. */
+  neighbours: RadioNeighbour[];
 }
 
 const CANDIDATES = 40;
@@ -55,6 +69,17 @@ const AHEAD_PER_ARTIST = 2;
 const HEARD_SHOWN = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const REST_DAYS = 30;
+/** The artists a band wants before neighbouring styles fill in: at most two by one artist ahead, artists make its length. */
+const ARTISTS_WANTED = 6;
+/** No style this far from the one asked is near it. */
+const NEIGHBOUR_FLOOR = 0.03;
+/**
+ * A song's style weight in hundredths against moods and the tempo by ones:
+ * a song of the asked style always comes before a neighbour's, a nearer
+ * neighbour's before a farther one's but for a few moods, and the moods rank
+ * the songs of one style.
+ */
+const STYLE_RANK = 100;
 /** How long a listener waits for the model's choice before the best fits stand in. */
 const CHOICE_WAIT_MS = 45 * 1000;
 
@@ -76,15 +101,18 @@ export const criteriaOf = (value: unknown): RadioCriteria | null => {
   const energyMin = energy(pick('energyMin', 'energy_min'));
   const energyMax = energy(pick('energyMax', 'energy_max'));
   if (energyMin === undefined || energyMax === undefined) return null;
-  const lists = ['tempos', 'moods', 'moods_any', 'styles', 'styles_any', 'langs'].map(name => given[name]);
+  const lists = ['tempos', 'moods', 'moods_any', 'styles', 'styles_any', 'langs', 'notStyles'].map(name => given[name]);
   if (lists.some(list => list !== undefined && list !== null && !Array.isArray(list))) return null;
   const langs = (pick('langs') as unknown[] | undefined) || [];
+  const notStyles = closed(pick('notStyles'), STYLES, STYLES.length);
   return {
     energyMin, energyMax,
     tempos: closed(pick('tempos'), TEMPOS, 3) as Tempo[],
     moods: closed(pick('moods', 'moods_any'), MOODS, MOODS.length),
+    // Criteria saved when the model listed neighbours too: all of them asked.
     styles: closed(pick('styles', 'styles_any'), STYLES, STYLES.length),
     langs: [...new Set(langs.map(lang => String(lang).trim().toLowerCase()).filter(Boolean))],
+    ...(notStyles.length ? { notStyles } : {}),
   };
 };
 
@@ -100,29 +128,87 @@ export const poolOf = (value: unknown): RadioPool | null => {
   return { stars, hearts: Boolean(given.hearts), popular: Boolean(given.popular), genre, wholeWorks: Boolean(given.wholeWorks) };
 };
 
+type FicheFit = Pick<FicheRecord, 'energy' | 'tempo' | 'moods' | 'styles' | 'lang'>;
+
+/** The styles a draw takes, by weight: those asked at 1, and the neighbours drawn from. */
+export type StyleWeights = Map<string, number>;
+
+const askedOnly = (criteria: RadioCriteria): StyleWeights => new Map((criteria.styles ?? []).map(style => [style, 1]));
+
+/** How near a song's styles come to those taken: the nearest of them, 0 for none. */
+const styleWeightOf = (styles: string[], weights: StyleWeights): number =>
+  styles.reduce((best, style) => Math.max(best, weights.get(style) ?? 0), 0);
+
 /**
- * How well a fiche answers the criteria, 0 for not at all: energy, styles
- * and languages rule a song out; the tempo and each mood in common make it
- * a better fit.
+ * How well a fiche answers the criteria, 0 for not at all: energy and
+ * languages rule a song out, and its styles when none is among those taken
+ * (the styles asked, and the neighbours drawn from); the nearer its style,
+ * then the tempo and each mood in common, the better a fit.
  */
-export const fitScore = (fiche: Pick<FicheRecord, 'energy' | 'tempo' | 'moods' | 'styles' | 'lang'>, criteria: RadioCriteria): number => {
+export const fitScore = (fiche: FicheFit, criteria: RadioCriteria, weights: StyleWeights = askedOnly(criteria)): number => {
   if (criteria.energyMin != null && fiche.energy < criteria.energyMin) return 0;
   if (criteria.energyMax != null && fiche.energy > criteria.energyMax) return 0;
   if (criteria.langs?.length && !criteria.langs.includes(fiche.lang)) return 0;
-  if (criteria.styles?.length && !fiche.styles.some(style => criteria.styles!.includes(style))) return 0;
-  return 1
+  const style = criteria.styles?.length ? styleWeightOf(fiche.styles, weights) : 0;
+  if (criteria.styles?.length && style === 0) return 0;
+  return style * STYLE_RANK + 1
     + (criteria.tempos?.length && criteria.tempos.includes(fiche.tempo) ? 1 : 0)
     + fiche.moods.filter(mood => criteria.moods?.includes(mood)).length;
 };
 
 /**
  * Whether a song of the band still answers the criteria, to stay there: not
- * ruled out, and with one of the moods asked, when there are: a new prompt
- * keeps none of another mood. The tempo only ranks the draw, as there.
+ * ruled out, its styles weighed as the draw's, and with one of the moods
+ * asked, when there are: a new prompt keeps none of another mood. The tempo
+ * only ranks the draw, as there.
  */
-export const stillFits = (fiche: Pick<FicheRecord, 'energy' | 'tempo' | 'moods' | 'styles' | 'lang'>, criteria: RadioCriteria): boolean =>
-  fitScore(fiche, criteria) > 0
+export const stillFits = (fiche: FicheFit, criteria: RadioCriteria, weights: StyleWeights = askedOnly(criteria)): boolean =>
+  fitScore(fiche, criteria, weights) > 0
   && (!criteria.moods?.length || fiche.moods.some(mood => criteria.moods!.includes(mood)));
+
+/**
+ * The styles a draw takes: those asked; and when their songs are by fewer
+ * than six artists, the neighbouring styles one by one, the nearest first,
+ * until there are enough or none is near enough. A neighbour is kept when it
+ * brings a song the others did not; one taken away from "Heard as" never is.
+ */
+export const reachOf = (criteria: RadioCriteria, graph: StyleGraph, songs: Array<{ artist: string; styles: string[] }>): { weights: StyleWeights; neighbours: RadioNeighbour[] } => {
+  const asked = criteria.styles ?? [];
+  const weights = askedOnly(criteria);
+  const neighbours: RadioNeighbour[] = [];
+  if (!asked.length) return { weights, neighbours };
+  const out = new Set(criteria.notStyles ?? []);
+  const near = graph.styles
+    .filter(style => !weights.has(style) && !out.has(style))
+    .map(style => {
+      const from = asked.reduce((best, one) => (graph.weight(one, style) > graph.weight(best, style) ? one : best), asked[0]);
+      return { style, weight: graph.weight(from, style), path: graph.path(from, style) };
+    })
+    .filter(one => one.weight >= NEIGHBOUR_FLOOR)
+    .sort((a, b) => b.weight - a.weight);
+  const taken = (song: { styles: string[] }) => song.styles.some(style => weights.has(style));
+  const artists = new Set(songs.filter(taken).map(song => song.artist));
+  for (const neighbour of near) {
+    if (artists.size >= ARTISTS_WANTED) break;
+    const brought = songs.filter(song => !taken(song) && song.styles.includes(neighbour.style));
+    if (!brought.length) continue;
+    weights.set(neighbour.style, neighbour.weight);
+    neighbours.push(neighbour);
+    brought.forEach(song => artists.add(song.artist));
+  }
+  return { weights, neighbours };
+};
+
+let graphCached: { catalogue: Catalogue; fiches: number; graph: StyleGraph } | null = null;
+
+/** The styles' graph from every song's fiche, built again with the catalogue or as fiches are written. */
+export const styleGraphOf = (songs: Catalogue, fiches: Map<string, FicheRecord>): StyleGraph => {
+  if (graphCached && graphCached.catalogue === songs && graphCached.fiches === fiches.size) return graphCached.graph;
+  const graph = buildStyleGraph(songs.entries.filter(entry => fiches.has(entry.key))
+    .map(entry => ({ key: entry.key, artist: artistKey(entry.song.artist), styles: fiches.get(entry.key)!.styles })));
+  graphCached = { catalogue: songs, fiches: fiches.size, graph };
+  return graph;
+};
 
 /**
  * The songs that may not come back yet: a song comes back once half the
@@ -253,8 +339,13 @@ export const describeCriteria = (criteria: RadioCriteria): string => [
 export const criteriaPrompt = (prompt: string): string =>
   `A listener asks a playlist for: "${prompt}". Turn it into criteria over each song's fiche: energy 0-10; tempo slow|mid|fast; `
   + `moods from [${MOODS.join(', ')}]; styles from [${STYLES.join(', ')}]; lang (english, french, instrumental…). `
-  + 'Answer one JSON object {energy_min, energy_max, tempos:[], moods_any:[], styles_any:[], langs:[]}; '
-  + 'an empty list or null for no constraint. Be loose on what the prompt does not say.';
+  + 'Answer one JSON object {energy_min, energy_max, tempos:[], moods_any:[], styles:[], langs:[]}; '
+  + 'an empty list or null for no constraint. '
+  + 'styles: only the styles the listener names or plainly means, the most precise one ("rock alternatif" is ["alternative"], not "rock"), '
+  + 'none when the prompt names no style; never the neighbouring styles, the playlist finds those itself. '
+  + 'langs only when the listener asks for a language ("français" in the prompt\'s own words is the language it is written in, not a request, '
+  + 'unless it qualifies the music: "rock français" is french). '
+  + 'Be loose on what the prompt does not say.';
 
 const choicePrompt = (prompt: string, count: number, candidates: Array<{ entry: RadioEntry; fiche: FicheRecord }>, heard: string[]): string => [
   `Make a playlist of ${count} for: "${prompt}". Choose from these candidates only, by number; varied, and following on well from what was just heard. `
@@ -298,10 +389,23 @@ const radioService = {
     keep?: string[];
     prompt?: string;
   }): Promise<RadioNext> => {
-    const [{ entries, bySongId }, fiches] = await Promise.all([catalogue(), TrackFiche.all()]);
+    const [known, fiches] = await Promise.all([catalogue(), TrackFiche.all()]);
+    const { entries, bySongId } = known;
     const inThePool = entries.filter(entry => inPool(entry, pool));
     // A pool listened to gets its fiches written first.
     trackFicheService.queueFirst(inThePool, fiches);
+
+    const history = await RadioHistory.since(new Date(Date.now() - 2 * REST_DAYS * DAY_MS));
+    const resting = restingSongs(history, inThePool.length);
+    const keyOf = (id: string) => bySongId.get(id)?.key;
+    const restingKeys = new Set([...resting].map(keyOf).filter(Boolean));
+    // The styles taken from the songs that may play, those of the band among them: neighbours only when the
+    // asked style's are by too few artists.
+    const inBand = new Set([...ahead, ...keep]);
+    const { weights, neighbours } = reachOf(criteria, styleGraphOf(known, fiches), inThePool
+      .filter(entry => fiches.has(entry.key) && (inBand.has(entry.song.songId) || !restingKeys.has(entry.key))
+        && fitScore(fiches.get(entry.key)!, { ...criteria, styles: [] }) > 0)
+      .map(entry => ({ artist: artistKey(entry.song.artist), styles: fiches.get(entry.key)!.styles })));
 
     // Still in the pool and still fitting: a band changes only as much as the criteria do. Already in the band,
     // they are not resting, and a work's movements kept stay together as they were.
@@ -309,27 +413,26 @@ const radioService = {
     const kept = [...new Set(keep)]
       .map(id => bySongId.get(id))
       .filter((entry): entry is RadioEntry => Boolean(entry) && !aheadIds.has(entry!.song.songId) && inPool(entry!, pool)
-        && fiches.has(entry!.key) && stillFits(fiches.get(entry!.key)!, criteria))
+        && fiches.has(entry!.key) && stillFits(fiches.get(entry!.key)!, criteria, weights))
       .slice(0, count);
 
-    const history = await RadioHistory.since(new Date(Date.now() - 2 * REST_DAYS * DAY_MS));
-    const resting = restingSongs(history, inThePool.length);
     const excluded = new Set([...ahead, ...kept.map(entry => entry.song.songId)]);
     // A recording ahead, kept or resting is so on every album it is on.
-    const keysOut = new Set([...excluded, ...resting].map(id => bySongId.get(id)?.key).filter(Boolean));
+    const keysOut = new Set([...[...excluded].map(keyOf).filter(Boolean), ...restingKeys]);
     const fitting = inThePool
       .filter(entry => !excluded.has(entry.song.songId) && !keysOut.has(entry.key) && fiches.has(entry.key))
-      .map(entry => ({ entry, fiche: fiches.get(entry.key)!, score: fitScore(fiches.get(entry.key)!, criteria) }))
+      .map(entry => ({ entry, fiche: fiches.get(entry.key)!, score: fitScore(fiches.get(entry.key)!, criteria, weights) }))
       .filter(one => one.score > 0);
     // A movement brought by its whole work may have no fiche yet: it wears one of its work's.
     const ficheOf = (entry: RadioEntry): FicheRecord => fiches.get(entry.key)
       ?? entry.workSongs.map(song => bySongId.get(song.songId)).map(one => one && fiches.get(one.key)).find(Boolean)
-      ?? { key: entry.key, energy: 0, tempo: 'mid', moods: [], styles: [], lang: 'unknown', model: null, madeAt: '' };
+      ?? { key: entry.key, energy: 0, tempo: 'mid', moods: [], styles: [], lang: 'unknown', model: null, madeAt: '', version: 1 };
     const result = (songs: RadioEntry[]): RadioNext => ({
       songs: [...kept, ...songs].map(entry => songOf(entry, ficheOf(entry))),
       poolSize: inThePool.length,
       fitting: fitting.length + kept.length,
       missingFiches: inThePool.filter(entry => !fiches.has(entry.key)).length,
+      neighbours,
     });
     const wanted = count - kept.length;
     if (fitting.length === 0 || wanted <= 0) return result([]);

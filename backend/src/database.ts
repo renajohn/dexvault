@@ -680,6 +680,15 @@ const runAutoMigrations = async (): Promise<void> => {
           (err && !err.message.includes('duplicate column') ? reject(err) : resolve())));
         console.log('  ✓ Added score_bookmarks and score_files.page_count');
       }
+    },
+    {
+      name: '036_track_fiche_version',
+      up: async () => {
+        // The way a fiche was asked for: those of an older way are written again, kept until then.
+        await new Promise<void>((resolve, reject) => currentDb.run('ALTER TABLE track_fiches ADD COLUMN version INTEGER NOT NULL DEFAULT 1', (err: Error | null) =>
+          (err && !err.message.includes('duplicate column') ? reject(err) : resolve())));
+        console.log('  ✓ Added track_fiches.version');
+      }
     }
   ];
 

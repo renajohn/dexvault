@@ -1,0 +1,729 @@
+about: 'Hard cases of the track fiches evalset: songs the radio drew wrongly on 04.11.2026 (Pink Floyd as alternative, Souchon as rock, Queen as alternative…), labelled by hand.'
+songs:
+- artist: Pink Floyd
+  title: Sheep
+  album: Animals
+  year: 2011
+  genres:
+  - ambient
+  - art rock
+  - classic rock
+  - classical
+  - electronic
+  - hard rock
+  - jazz
+  - progressive
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - space rock
+  - trance
+  expected:
+    styles:
+    - progressive
+    - rock
+    also:
+    - hard-rock
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: Pink Floyd
+  title: One Slip
+  album: A Momentary Lapse of Reason
+  year: 1997
+  genres:
+  - ambient
+  - art rock
+  - classical
+  - electronic
+  - jazz
+  - pop
+  - pop rock
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - trance
+  expected:
+    styles:
+    - rock
+    - pop
+    also:
+    - progressive
+    energy: 6
+    lang:
+    - english
+    - instrumental
+- artist: Pink Floyd
+  title: Sorrow
+  album: A Momentary Lapse of Reason
+  year: 1997
+  genres:
+  - ambient
+  - art rock
+  - classical
+  - electronic
+  - jazz
+  - pop
+  - pop rock
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - trance
+  expected:
+    styles:
+    - progressive
+    - rock
+    also: []
+    energy: 5
+    lang:
+    - english
+    - instrumental
+- artist: Pink Floyd
+  title: Take It Back
+  album: The Division Bell
+  year: 1994
+  genres:
+  - ambient
+  - arena rock
+  - art rock
+  - electronic
+  - jazz
+  - pop
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - space rock
+  - trance
+  expected:
+    styles:
+    - rock
+    - pop
+    also:
+    - progressive
+    energy: 6
+    lang:
+    - english
+    - instrumental
+- artist: Pink Floyd
+  title: Get Your Filthy Hands off My Desert
+  album: The Final Cut
+  year: 1988
+  genres:
+  - ambient
+  - art rock
+  - blues
+  - classic rock
+  - classical
+  - electronic
+  - house
+  - jazz
+  - pop
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - symphonic rock
+  expected:
+    styles:
+    - progressive
+    - rock
+    also:
+    - soundtrack
+    energy: 2
+    lang:
+    - instrumental
+    - english
+- artist: Pink Floyd
+  title: Another Brick in the Wall, Part 3
+  album: The Wall
+  year: null
+  genres:
+  - alternative rock
+  - ambient
+  - art rock
+  - blues
+  - classic rock
+  - classical
+  - electronic
+  - hard rock
+  - house
+  - jazz
+  - pop
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - rock opera
+  - space rock
+  - symphonic rock
+  - trance
+  expected:
+    styles:
+    - progressive
+    - rock
+    also:
+    - hard-rock
+    energy: 6
+    lang:
+    - english
+    - instrumental
+- artist: Pink Floyd
+  title: Yet Another Movie / Round and Around
+  album: A Momentary Lapse of Reason
+  year: 1997
+  genres:
+  - ambient
+  - art rock
+  - classical
+  - electronic
+  - jazz
+  - pop
+  - pop rock
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - trance
+  expected:
+    styles:
+    - progressive
+    - rock
+    also: []
+    energy: 4
+    lang:
+    - english
+    - instrumental
+- artist: Pink Floyd
+  title: Pigs (Three Different Ones)
+  album: Animals
+  year: 2011
+  genres:
+  - ambient
+  - art rock
+  - classic rock
+  - classical
+  - electronic
+  - hard rock
+  - jazz
+  - progressive
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - space rock
+  - trance
+  expected:
+    styles:
+    - progressive
+    - rock
+    also:
+    - hard-rock
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: Pink Floyd
+  title: Run Like Hell
+  album: The Wall
+  year: null
+  genres:
+  - alternative rock
+  - ambient
+  - art rock
+  - blues
+  - classic rock
+  - classical
+  - electronic
+  - hard rock
+  - house
+  - jazz
+  - pop
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - rock opera
+  - space rock
+  - symphonic rock
+  - trance
+  expected:
+    styles:
+    - progressive
+    - rock
+    also:
+    - hard-rock
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: Queen
+  title: Headlong
+  album: 'Greatest Hits I, II & III: The Platinum Collection'
+  year: 2000
+  genres:
+  - art rock
+  - disco
+  - glam rock
+  - hard rock
+  - pop
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - rock
+    - hard-rock
+    also: []
+    energy: 8
+    lang:
+    - english
+    - instrumental
+- artist: Queen
+  title: You Don’t Fool Me
+  album: 'Greatest Hits I, II & III: The Platinum Collection'
+  year: 2000
+  genres:
+  - art rock
+  - disco
+  - glam rock
+  - hard rock
+  - pop
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - pop
+    - rock
+    also:
+    - dance
+    - funk
+    energy: 6
+    lang:
+    - english
+    - instrumental
+- artist: Massive Attack
+  title: Light My Fire (live)
+  album: Protection
+  year: 1994
+  genres:
+  - alternative dance
+  - downtempo
+  - dub
+  - electronic
+  - electronica
+  - trip hop
+  expected:
+    styles:
+    - electronic
+    - hip-hop
+    also:
+    - rock
+    - funk
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: Alain Souchon
+  title: Foule sentimentale
+  album: C’est déjà ça
+  year: 1993
+  genres:
+  - pop
+  expected:
+    styles:
+    - chanson
+    - pop
+    also: []
+    energy: 4
+    lang:
+    - french
+- artist: Queen
+  title: Who Wants to Live Forever
+  album: A Kind of Magic
+  year: null
+  genres:
+  - glam rock
+  - hard rock
+  - pop
+  - pop rock
+  - rock
+  - synth-pop
+  expected:
+    styles:
+    - rock
+    also:
+    - pop
+    - soundtrack
+    - progressive
+    energy: 5
+    lang:
+    - english
+    - instrumental
+- artist: Creedence Clearwater Revival
+  title: Travelin’ Band
+  album: Cosmo’s Factory
+  year: 1987
+  genres:
+  - blues rock
+  - classic rock
+  - country rock
+  - psychedelic rock
+  - rock
+  - rock and roll
+  - rockabilly
+  - roots rock
+  - southern rock
+  - swamp rock
+  expected:
+    styles:
+    - rock
+    also:
+    - blues
+    energy: 9
+    lang:
+    - english
+    - instrumental
+- artist: Santana featuring Rob Thomas
+  title: Smooth
+  album: Supernatural
+  year: 1999
+  genres:
+  - blues rock
+  - latin rock
+  expected:
+    styles:
+    - latin
+    - rock
+    - pop
+    also: []
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: David Bowie
+  title: Criminal World
+  album: Let’s Dance
+  year: 1999
+  genres:
+  - art rock
+  - blue-eyed soul
+  - blues
+  - dance
+  - dance-pop
+  - dance-rock
+  - electronic
+  - new wave
+  - pop
+  - pop rock
+  - rock
+  - synth funk
+  expected:
+    styles:
+    - pop
+    - rock
+    also: []
+    energy: 5
+    lang:
+    - english
+    - instrumental
+- artist: Peter Gabriel
+  title: We Do What We’re Told (Milgram’s 37)
+  album: So
+  year: 1986
+  genres:
+  - art pop
+  - art rock
+  - classic rock
+  - electronic
+  - new wave
+  - pop
+  - pop rock
+  - progressive rock
+  - rock
+  - synth-pop
+  expected:
+    styles:
+    - progressive
+    - electronic
+    also:
+    - rock
+    energy: 3
+    lang:
+    - english
+    - instrumental
+- artist: Zazie
+  title: Larsen
+  album: Zen
+  year: 1996
+  genres:
+  - art pop
+  - pop
+  - pop rock
+  expected:
+    styles:
+    - pop
+    - rock
+    also:
+    - chanson
+    energy: 7
+    lang:
+    - french
+- artist: ‐M‐
+  title: La Corde sensible
+  album: Qui de nous deux
+  year: 2003
+  genres:
+  - chanson française
+  - pop
+  - rock
+  expected:
+    styles:
+    - pop
+    - rock
+    also:
+    - chanson
+    - funk
+    energy: 5
+    lang:
+    - french
+- artist: Muse
+  title: Invincible
+  album: Black Holes and Revelations
+  year: 2006
+  genres:
+  - alternative rock
+  - pop rock
+  - progressive rock
+  - rock
+  - space rock revival
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    - progressive
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: Muse
+  title: Feeling Good
+  album: Origin of Symmetry
+  year: 2003
+  genres:
+  - alternative rock
+  - art rock
+  - progressive rock
+  - rock
+  - space rock revival
+  expected:
+    styles:
+    - alternative
+    - soul
+    also:
+    - rock
+    - jazz
+    energy: 6
+    lang:
+    - english
+    - instrumental
+- artist: Mano Negra
+  title: King Kong Five
+  album: Best Of
+  year: 1998
+  genres:
+  - alternative rock
+  - latin
+  - pop
+  - pop rap
+  - punk
+  - reggae
+  - rock
+  - salsa
+  - ska
+  expected:
+    styles:
+    - rock
+    - alternative
+    - latin
+    - world
+    also: []
+    energy: 9
+    lang:
+    - english
+    - instrumental
+- artist: Bruce Springsteen
+  title: Dancing in the Dark
+  album: Greatest Hits
+  year: 1995
+  genres:
+  - classic rock
+  - folk rock
+  - heartland rock
+  - pop
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - rock
+    - pop
+    also: []
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: Imagine Dragons
+  title: Trouble
+  album: Smoke + Mirrors
+  year: 2015
+  genres:
+  - alternative rock
+  - ambient
+  - dance
+  - electronic
+  - indie pop
+  - indietronica
+  - jazz
+  - pop
+  - pop rock
+  - rock
+  - trance
+  expected:
+    styles:
+    - alternative
+    - pop
+    also:
+    - rock
+    - folk
+    energy: 6
+    lang:
+    - english
+    - instrumental
+- artist: Genesis
+  title: Anything She Does
+  album: Invisible Touch
+  year: null
+  genres:
+  - Electronic
+  - Rock
+  - Pop
+  - Soft Rock
+  - Synth-pop
+  - Ballad
+  expected:
+    styles:
+    - pop
+    - rock
+    also: []
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: Dire Straits
+  title: Industrial Disease
+  album: Love Over Gold
+  year: 1983
+  genres:
+  - classic rock
+  - pop rock
+  - progressive rock
+  - rock
+  expected:
+    styles:
+    - rock
+    also: []
+    energy: 6
+    lang:
+    - english
+    - instrumental
+- artist: The Doors
+  title: Light My Fire
+  album: 'The Doors: Music From The Original Motion Picture'
+  year: 1991
+  genres:
+  - blues rock
+  - classic rock
+  - psychedelic rock
+  - rock
+  expected:
+    styles:
+    - rock
+    also:
+    - progressive
+    - blues
+    energy: 6
+    lang:
+    - english
+    - instrumental
+- artist: Gnarls Barkley
+  title: Transformer
+  album: St. Elsewhere
+  year: 2006
+  genres: []
+  expected:
+    styles:
+    - soul
+    - hip-hop
+    also:
+    - funk
+    - electronic
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: Muse
+  title: Butterflies & Hurricanes
+  album: Absolution
+  year: 2003
+  genres:
+  - alternative rock
+  - art rock
+  - post-britpop
+  - progressive rock
+  - rock
+  - space rock revival
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    - progressive
+    energy: 8
+    lang:
+    - english
+    - instrumental
+- artist: Queen
+  title: Innuendo
+  album: 'Greatest Hits I, II & III: The Platinum Collection'
+  year: 2000
+  genres:
+  - art rock
+  - disco
+  - glam rock
+  - hard rock
+  - pop
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - rock
+    - progressive
+    also:
+    - hard-rock
+    energy: 7
+    lang:
+    - english
+    - instrumental
+- artist: Louise Attaque
+  title: Comme on a dit
+  album: Comme on a dit
+  year: 2000
+  genres:
+  - alternative rock
+  - folk rock
+  - rock
+  expected:
+    styles:
+    - rock
+    - folk
+    also:
+    - alternative
+    - chanson
+    energy: 8
+    lang:
+    - french

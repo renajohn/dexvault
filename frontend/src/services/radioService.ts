@@ -31,8 +31,18 @@ export interface RadioCriteria {
   energyMax?: number | null;
   tempos?: Tempo[];
   moods?: string[];
+  /** The styles asked for: their songs first, the neighbouring styles' only when they are too few. */
   styles?: string[];
   langs?: string[];
+  /** Neighbouring styles taken away: never drawn for being near. */
+  notStyles?: string[];
+}
+
+/** A style drawn from for being near one asked: how near (0 to 1), and through which styles, the one asked first. */
+export interface RadioNeighbour {
+  style: string;
+  weight: number;
+  path: string[];
 }
 
 export interface RadioSong {
@@ -63,6 +73,8 @@ export interface RadioDraw {
   fitting: number;
   /** Those of the pool with no fiche yet: never drawn. */
   missingFiches: number;
+  /** The neighbouring styles drawn from, the nearest first (none from an older server). */
+  neighbours?: RadioNeighbour[];
 }
 
 export interface RadioFiches {

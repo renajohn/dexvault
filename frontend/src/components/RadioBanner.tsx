@@ -7,7 +7,7 @@ import NowPlayingBars from './shared/NowPlayingBars';
 import { radio, useRadio, bandInPlayer, isRadioAlbum, BAND, type RadioState } from '../services/radio';
 import { usePlayer } from '../services/player';
 import musicService from '../services/musicService';
-import type { RadioCriteria, RadioPool, RadioSong } from '../services/radioService';
+import type { RadioCriteria, RadioNeighbour, RadioPool, RadioSong } from '../services/radioService';
 import { coverReady, thumbProps } from '../utils/thumb';
 import { useSlideText } from '../utils/slideText';
 import { useNarrow } from '../utils/useNarrow';
@@ -64,14 +64,24 @@ export const tintOf = (songs: RadioSong[]): number => {
   return Math.round(215 - ((Math.max(2.5, Math.min(7.5, mean)) - 2.5) / 5) * 200);
 };
 
-export interface HeardAs { key: string; label: string; without: RadioCriteria; /** The energy and the tempos, always shown. */ main: boolean }
+export interface HeardAs {
+  key: string; label: string; without: RadioCriteria;
+  /** The energy and the tempos, always shown. */
+  main: boolean;
+  /** A neighbouring style drawn from: the way from the style asked to it ("jazz → singer-songwriter → folk"). */
+  near?: string;
+}
 
 /** How many moods, styles and languages show before "+N" unfolds the rest (on a phone, about two lines). */
 export const HEARD_SHOWN = 6;
 export const HEARD_SHOWN_NARROW = 3;
 
-/** What a prompt was heard as, one chip each, with the criteria left once it is taken away. */
-export const heardAs = (criteria: RadioCriteria | null): HeardAs[] => {
+/**
+ * What a prompt was heard as, one chip each, with the criteria left once it
+ * is taken away; after them, the neighbouring styles the draw took, one
+ * taken away never drawn for being near.
+ */
+export const heardAs = (criteria: RadioCriteria | null, neighbours: RadioNeighbour[] = []): HeardAs[] => {
   if (!criteria) return [];
   const out: HeardAs[] = [];
   if (criteria.energyMin != null || criteria.energyMax != null) {
@@ -84,6 +94,11 @@ export const heardAs = (criteria: RadioCriteria | null): HeardAs[] => {
       without: { ...criteria, [field]: (criteria[field] as string[]).filter(one => one !== word) },
     }));
   });
+  neighbours.filter(one => criteria.styles?.length && !criteria.styles.includes(one.style) && !criteria.notStyles?.includes(one.style))
+    .forEach(one => out.push({
+      key: `near:${one.style}`, label: one.style, main: false, near: one.path.join(' → '),
+      without: { ...criteria, notStyles: [...(criteria.notStyles ?? []), one.style] },
+    }));
   return out;
 };
 
@@ -280,7 +295,7 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
   };
   const empty = state.status === 'ready' && songs.length === 0;
   const recent = state.recent.filter(one => one !== state.prompt);
-  const criteria = heardAs(state.criteria);
+  const criteria = heardAs(state.criteria, state.neighbours);
   const words = criteria.filter(one => !one.main);
   const foldsAt = narrow ? HEARD_SHOWN_NARROW : HEARD_SHOWN;
   const folded = unfolded ? 0 : Math.max(0, words.length - foldsAt);
@@ -372,11 +387,14 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
           <span className="radio-banner__label">Heard as</span>
           {shown.map(one => (
             <Chip key={one.key} removeLabel={`Not “${one.label}”`}
+              // A neighbouring style, quieter: drawn from for being near the one asked, only as the songs of that one were few.
+              muted={Boolean(one.near)}
               // From the criteria as they are now: two taken away in a row both go.
               onRemove={() => {
-                const now = heardAs(radio.getState().criteria).find(other => other.key === one.key);
-                if (now) radio.redraw(now.without);
-              }}>{one.label}</Chip>
+                const now = radio.getState();
+                const found = heardAs(now.criteria, now.neighbours).find(other => other.key === one.key);
+                if (found) radio.redraw(found.without);
+              }}>{one.near ? <span title={`Near: ${one.near}`}>{one.label}</span> : one.label}</Chip>
           ))}
           {folded > 0 && (
             <Chip onClick={() => setUnfolded(true)} title={words.slice(-folded).map(one => one.label).join(', ')}
@@ -405,7 +423,14 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
           action={everything(pool) ? undefined : <Button size="sm" onClick={widen}>Look in everything that plays</Button>}>
           {state.fitting ? `${count(state.fitting)} songs fit, all heard lately: they come back after half of them.` : 'No song of it fits these words.'}
         </Notice>
-      ) : (songs.length > 0 || thinking) && (
+      ) : (songs.length > 0 || thinking) && (<>
+        {state.short && !thinking && (
+          <Notice tone="info" className="radio-banner__notice radio-banner__short"
+            action={everything(pool) ? undefined : <Button size="sm" onClick={widen}>Look in everything that plays</Button>}>
+            {`Only ${count(state.fitting ?? songs.length)} ${state.fitting === 1 ? 'song fits' : 'songs fit'} in ${poolWords(pool)}`
+              + `${state.neighbours.length ? ', the styles near it included' : ''}: too few for a band.`}
+          </Notice>
+        )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}
           accessibility={{ announcements, screenReaderInstructions: { draggable: 'Drag a song to another place in the band.' } }}>
         <div className="next-banner__carousel">
@@ -422,7 +447,7 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
           </SortableContext>
         </div>
         </DndContext>
-      )}
+      </>)}
 
       {state.missingFiches > 0 && !thinking && (
         <div className="radio-banner__foot">

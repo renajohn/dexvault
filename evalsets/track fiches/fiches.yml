@@ -1,0 +1,2917 @@
+about: 'Track fiches evalset: 162 recordings of the collection (prod, 04.11.2026), 2 per artist for 70 artists and 14 classical ones, labelled by hand. styles: a fiche must carry one of them; also: styles
+  it may carry besides; energy within 2; lang one of those. genres: the album''s genres from MusicBrainz, as the database has them.'
+songs:
+- artist: Pink Floyd
+  title: The Post War Dream
+  album: The Final Cut
+  year: 1988
+  genres:
+  - ambient
+  - art rock
+  - blues
+  - classic rock
+  - classical
+  - electronic
+  - house
+  - jazz
+  - pop
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - symphonic rock
+  expected:
+    styles:
+    - progressive
+    - rock
+    also:
+    - singer-songwriter
+    energy: 4
+    lang:
+    - english
+- artist: Pink Floyd
+  title: One of These Days
+  album: 'Echoes: The Best of Pink Floyd'
+  year: 2001
+  genres:
+  - ambient
+  - art rock
+  - blues
+  - classic rock
+  - electronic
+  - hard rock
+  - house
+  - jazz
+  - pop
+  - progressive rock
+  - psychedelic rock
+  - rock
+  - space rock
+  - trance
+  expected:
+    styles:
+    - progressive
+    - rock
+    also:
+    - hard-rock
+    energy: 8
+    lang:
+    - instrumental
+- artist: The Beatles
+  title: You Can’t Do That
+  album: Anthology 1
+  year: 1995
+  genres:
+  - interview
+  - merseybeat
+  - non-music
+  - pop rock
+  - rock
+  - rock and roll
+  - spoken word
+  expected:
+    styles:
+    - rock
+    - pop
+    also: []
+    energy: 7
+    lang:
+    - english
+- artist: The Beatles
+  title: Day Tripper
+  album: 1962–1966
+  year: 1973
+  genres: []
+  expected:
+    styles:
+    - rock
+    - pop
+    also: []
+    energy: 8
+    lang:
+    - english
+- artist: Céline Dion
+  title: Medley Starmania
+  album: Céline Dion à l’Olympia
+  year: 1994
+  genres:
+  - electronic
+  - pop
+  - rock
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    - chanson
+    also:
+    - rock
+    energy: 6
+    lang:
+    - french
+- artist: Céline Dion
+  title: Love Can Move Mountains
+  album: Céline Dion à l’Olympia
+  year: 1994
+  genres:
+  - electronic
+  - pop
+  - rock
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    - dance
+    also:
+    - soul
+    energy: 8
+    lang:
+    - english
+- artist: The Alan Parsons Project
+  title: 'The Fall of the House of Usher (instrumental): I Prelude'
+  album: 'Tales of Mystery and Imagination: Edgar Allan Poe'
+  year: 1987
+  genres:
+  - art rock
+  - classic rock
+  - electronic
+  - experimental
+  - pop
+  - pop rock
+  - progressive rock
+  - rock
+  - soft rock
+  - symphonic rock
+  expected:
+    styles:
+    - progressive
+    - soundtrack
+    also:
+    - classical
+    - rock
+    energy: 3
+    lang:
+    - instrumental
+- artist: The Alan Parsons Project
+  title: You Won’t Be There
+  album: Eve
+  year: 1979
+  genres: []
+  expected:
+    styles:
+    - pop
+    - rock
+    also:
+    - progressive
+    - singer-songwriter
+    energy: 3
+    lang:
+    - english
+- artist: Muse
+  title: New Born
+  album: HAARP
+  year: 2008
+  genres:
+  - alternative rock
+  - progressive rock
+  - rock
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    - hard-rock
+    - progressive
+    energy: 9
+    lang:
+    - english
+- artist: Muse
+  title: Uprising
+  album: The Resistance
+  year: 2009
+  genres:
+  - alternative rock
+  - art rock
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    energy: 8
+    lang:
+    - english
+- artist: Patricia Kaas
+  title: Je voudrais la connaître
+  album: Dans ma chair
+  year: 1997
+  genres:
+  - chanson française
+  - easy listening
+  - jazz
+  - pop
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - chanson
+    - pop
+    also: []
+    energy: 3
+    lang:
+    - french
+- artist: Patricia Kaas
+  title: L’Abbé Caillou
+  album: Sexe fort
+  year: 2003
+  genres:
+  - chanson française
+  - easy listening
+  - jazz
+  - jazz fusion
+  - pop
+  - pop rock
+  - rock
+  - smooth jazz
+  expected:
+    styles:
+    - chanson
+    - pop
+    also:
+    - jazz
+    energy: 5
+    lang:
+    - french
+- artist: Tracy Chapman
+  title: If These Are the Things
+  album: Matters of the Heart
+  year: 1992
+  genres:
+  - folk
+  - folk rock
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - folk
+    - singer-songwriter
+    also:
+    - rock
+    - pop
+    energy: 4
+    lang:
+    - english
+- artist: Tracy Chapman
+  title: Be Careful of My Heart
+  album: Crossroads
+  year: 1989
+  genres:
+  - folk rock
+  - pop
+  - rock
+  expected:
+    styles:
+    - folk
+    - singer-songwriter
+    also:
+    - pop
+    energy: 3
+    lang:
+    - english
+- artist: Indochine
+  title: Le Message
+  album: Dancetaria
+  year: 1999
+  genres:
+  - alternative rock
+  - electronic
+  - pop
+  - pop rock
+  - rock
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    - rock
+    also:
+    - alternative
+    - electronic
+    energy: 6
+    lang:
+    - french
+- artist: Indochine
+  title: Tes yeux noirs
+  album: Nuits intimes
+  year: 2001
+  genres: []
+  expected:
+    styles:
+    - pop
+    - rock
+    also:
+    - chanson
+    energy: 4
+    lang:
+    - french
+- artist: Nightwish
+  title: Wishmaster (live)
+  album: Over the Hills and Far Away
+  year: 2001
+  genres: []
+  expected:
+    styles:
+    - hard-rock
+    also:
+    - rock
+    energy: 9
+    lang:
+    - english
+- artist: Nightwish
+  title: 'Lappi (Lapland): I. Erämaajärvi'
+  album: Angels Fall First
+  year: 1997
+  genres: []
+  expected:
+    styles:
+    - soundtrack
+    - classical
+    - progressive
+    also: []
+    energy: 2
+    lang:
+    - instrumental
+- artist: Queen
+  title: Fat Bottomed Girls
+  album: 'Greatest Hits I, II & III: The Platinum Collection'
+  year: 2000
+  genres:
+  - art rock
+  - disco
+  - glam rock
+  - hard rock
+  - pop
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - rock
+    - hard-rock
+    also: []
+    energy: 7
+    lang:
+    - english
+- artist: Queen
+  title: Who Wants to Live Forever
+  album: A Kind of Magic
+  year: null
+  genres:
+  - glam rock
+  - hard rock
+  - pop
+  - pop rock
+  - rock
+  - synth-pop
+  expected:
+    styles:
+    - rock
+    also:
+    - pop
+    - soundtrack
+    - progressive
+    energy: 5
+    lang:
+    - english
+- artist: Renaud
+  title: P’tit voleur
+  album: L'Absolutely meilleur of Renaud
+  year: 2000
+  genres: []
+  expected:
+    styles:
+    - chanson
+    also:
+    - folk
+    - rock
+    energy: 5
+    lang:
+    - french
+- artist: Renaud
+  title: Mistral gagnant
+  album: L'Absolutely meilleur of Renaud
+  year: 2000
+  genres: []
+  expected:
+    styles:
+    - chanson
+    also:
+    - singer-songwriter
+    energy: 2
+    lang:
+    - french
+- artist: Jacques Brel
+  title: Le Diable (Ça va)
+  album: 'Intégrale Grand Jacques, Volume 1 : Grand Jacques'
+  year: 1988
+  genres:
+  - pop
+  expected:
+    styles:
+    - chanson
+    also: []
+    energy: 6
+    lang:
+    - french
+- artist: Jacques Brel
+  title: La Chanson de Jacky
+  album: Quinze ans d’amour
+  year: 1988
+  genres: []
+  expected:
+    styles:
+    - chanson
+    also: []
+    energy: 6
+    lang:
+    - french
+- artist: Genesis
+  title: Hold On My Heart
+  album: We Can’t Dance
+  year: 1991
+  genres:
+  - art rock
+  - pop
+  - pop rock
+  - progressive rock
+  - rock
+  - soft rock
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    also:
+    - rock
+    energy: 3
+    lang:
+    - english
+- artist: Genesis
+  title: Tonight, Tonight, Tonight
+  album: Invisible Touch
+  year: null
+  genres:
+  - Electronic
+  - Rock
+  - Pop
+  - Soft Rock
+  - Synth-pop
+  - Ballad
+  expected:
+    styles:
+    - pop
+    - rock
+    also:
+    - progressive
+    energy: 6
+    lang:
+    - english
+- artist: Jean‐Jacques Goldman
+  title: Petite Fille
+  album: Singulier 81 / 89
+  year: 1996
+  genres:
+  - chanson française
+  - europop
+  - pop
+  expected:
+    styles:
+    - pop
+    - chanson
+    also: []
+    energy: 4
+    lang:
+    - french
+- artist: Jean‐Jacques Goldman
+  title: Pas toi
+  album: En public
+  year: 1986
+  genres: []
+  expected:
+    styles:
+    - pop
+    - chanson
+    also:
+    - rock
+    energy: 5
+    lang:
+    - french
+- artist: Alain Bashung
+  title: Vertige de l'amour
+  album: Les 50 Plus Belles Chansons
+  year: 2007
+  genres:
+  - chanson française
+  - rock
+  expected:
+    styles:
+    - rock
+    also:
+    - chanson
+    - pop
+    energy: 7
+    lang:
+    - french
+- artist: Alain Bashung
+  title: Les Petits Enfants
+  album: Les 50 Plus Belles Chansons
+  year: 2007
+  genres:
+  - chanson française
+  - rock
+  expected:
+    styles:
+    - chanson
+    also:
+    - rock
+    - singer-songwriter
+    energy: 3
+    lang:
+    - french
+- artist: David Bowie
+  title: Without You
+  album: Let’s Dance
+  year: 1999
+  genres:
+  - art rock
+  - blue-eyed soul
+  - blues
+  - dance
+  - dance-pop
+  - dance-rock
+  - electronic
+  - new wave
+  - pop
+  - pop rock
+  - rock
+  - synth funk
+  expected:
+    styles:
+    - pop
+    also:
+    - soul
+    - rock
+    energy: 4
+    lang:
+    - english
+- artist: David Bowie
+  title: Lady Stardust (demo)
+  album: The Rise and Fall of Ziggy Stardust and the Spiders From Mars
+  year: 1990
+  genres:
+  - art rock
+  - classic rock
+  - glam rock
+  - pop rock
+  - rock
+  - rock opera
+  - glam
+  - proto-punk
+  - rock and roll
+  expected:
+    styles:
+    - rock
+    also:
+    - pop
+    - singer-songwriter
+    energy: 3
+    lang:
+    - english
+- artist: Imagine Dragons
+  title: I'm So Sorry
+  album: Smoke + Mirrors
+  year: 2015
+  genres:
+  - alternative rock
+  - ambient
+  - dance
+  - electronic
+  - indie pop
+  - indietronica
+  - jazz
+  - pop
+  - pop rock
+  - rock
+  - trance
+  expected:
+    styles:
+    - alternative
+    - rock
+    also:
+    - blues
+    energy: 7
+    lang:
+    - english
+- artist: Imagine Dragons
+  title: Cool Out
+  album: Origins
+  year: 2018
+  genres:
+  - alternative rock
+  - ambient
+  - dance
+  - electronic
+  - indie pop
+  - jazz
+  - pop
+  - pop rock
+  - rock
+  - trance
+  expected:
+    styles:
+    - pop
+    - alternative
+    also:
+    - electronic
+    - r&b
+    energy: 4
+    lang:
+    - english
+- artist: Scorpions
+  title: He’s a Woman – She’s a Man
+  album: The Platinum Collection
+  year: 2005
+  genres:
+  - arena rock
+  - hard rock
+  - heavy metal
+  - rock
+  expected:
+    styles:
+    - hard-rock
+    also:
+    - rock
+    energy: 8
+    lang:
+    - english
+- artist: Scorpions
+  title: Now!
+  album: The Platinum Collection
+  year: 2005
+  genres:
+  - arena rock
+  - hard rock
+  - heavy metal
+  - rock
+  expected:
+    styles:
+    - hard-rock
+    also:
+    - rock
+    energy: 8
+    lang:
+    - english
+- artist: Bee Gees
+  title: Massachusetts
+  album: The Very Best of the Bee Gees
+  year: 1990
+  genres:
+  - ballad
+  - disco
+  - pop
+  - rock
+  - soft rock
+  expected:
+    styles:
+    - pop
+    also:
+    - folk
+    - rock
+    energy: 3
+    lang:
+    - english
+- artist: Bee Gees
+  title: Guilty
+  album: One Night Only
+  year: 1998
+  genres: []
+  expected:
+    styles:
+    - pop
+    - soul
+    also:
+    - r&b
+    energy: 4
+    lang:
+    - english
+- artist: Deep Purple
+  title: No No No
+  album: Fireball
+  year: 1989
+  genres:
+  - classic rock
+  - hard rock
+  - heavy metal
+  - metal
+  - rock
+  expected:
+    styles:
+    - hard-rock
+    also:
+    - rock
+    - blues
+    energy: 7
+    lang:
+    - english
+- artist: Deep Purple
+  title: Smoke on the Water
+  album: Machine Head
+  year: 1986
+  genres:
+  - arena rock
+  - blues rock
+  - classic rock
+  - hard rock
+  - heavy metal
+  - metal
+  - rock
+  expected:
+    styles:
+    - hard-rock
+    also:
+    - rock
+    energy: 8
+    lang:
+    - english
+- artist: Adele
+  title: He Won't Go
+  album: '21'
+  year: 2011
+  genres:
+  - blue-eyed soul
+  - pop
+  - pop soul
+  - soul
+  expected:
+    styles:
+    - soul
+    - pop
+    also:
+    - r&b
+    energy: 5
+    lang:
+    - english
+- artist: Adele
+  title: My Same
+  album: '19'
+  year: 2008
+  genres:
+  - blue-eyed soul
+  - blues
+  - jazz
+  - neo soul
+  - pop
+  - pop soul
+  expected:
+    styles:
+    - soul
+    - pop
+    also:
+    - jazz
+    energy: 6
+    lang:
+    - english
+- artist: Georges Brassens
+  title: Le Grand Chêne
+  album: Les Copains d'abord
+  year: 1989
+  genres: []
+  expected:
+    styles:
+    - chanson
+    also:
+    - folk
+    energy: 3
+    lang:
+    - french
+- artist: Georges Brassens
+  title: Dans l’eau de la claire fontaine
+  album: Les Copains d'abord
+  year: 1989
+  genres: []
+  expected:
+    styles:
+    - chanson
+    also:
+    - folk
+    energy: 3
+    lang:
+    - french
+- artist: Téléphone
+  title: Juste un autre genre
+  album: Platinum Collection
+  year: 2004
+  genres: []
+  expected:
+    styles:
+    - rock
+    also: []
+    energy: 6
+    lang:
+    - french
+- artist: Téléphone
+  title: Téléphomme (live 81)
+  album: Platinum Collection
+  year: 2004
+  genres: []
+  expected:
+    styles:
+    - rock
+    also:
+    - hard-rock
+    energy: 9
+    lang:
+    - french
+- artist: Simon & Garfunkel
+  title: Baby Driver
+  album: The Essential Simon & Garfunkel
+  year: 2003
+  genres:
+  - classic rock
+  - folk
+  - folk rock
+  - pop
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - pop
+    - folk
+    - rock
+    also: []
+    energy: 6
+    lang:
+    - english
+- artist: Simon & Garfunkel
+  title: Leaves That Are Green (live)
+  album: The Essential Simon & Garfunkel
+  year: 2003
+  genres:
+  - classic rock
+  - folk
+  - folk rock
+  - pop
+  - pop rock
+  - rock
+  expected:
+    styles:
+    - folk
+    also:
+    - singer-songwriter
+    energy: 2
+    lang:
+    - english
+- artist: Mariza
+  title: Menino do bairro negro
+  album: Fado curvo
+  year: 2003
+  genres:
+  - fado
+  expected:
+    styles:
+    - world
+    also:
+    - folk
+    energy: 3
+    lang:
+    - portuguese
+- artist: Mariza
+  title: Duas lágrimas de orvalho
+  album: Transparente
+  year: 2005
+  genres: []
+  expected:
+    styles:
+    - world
+    also:
+    - folk
+    energy: 2
+    lang:
+    - portuguese
+- artist: Norah Jones
+  title: Happy Pills
+  album: …Little Broken Hearts
+  year: 2012
+  genres:
+  - alternative rock
+  - indie pop
+  - indie rock
+  - jazz
+  - jazz pop
+  - pop
+  - rock
+  - singer-songwriter
+  - vocal jazz
+  expected:
+    styles:
+    - pop
+    - alternative
+    also:
+    - rock
+    energy: 6
+    lang:
+    - english
+- artist: Norah Jones
+  title: The Long Day Is Over
+  album: Come Away With Me
+  year: 2002
+  genres:
+  - blues
+  - contemporary jazz
+  - country
+  - easy listening
+  - folk
+  - jazz
+  - jazz blues
+  - pop
+  - singer-songwriter
+  - vocal jazz
+  expected:
+    styles:
+    - jazz
+    also:
+    - singer-songwriter
+    - pop
+    energy: 2
+    lang:
+    - english
+- artist: Michael Jackson
+  title: Burn This Disco Out
+  album: Off the Wall
+  year: 1983
+  genres:
+  - contemporary r&b
+  - disco
+  - funk
+  - pop
+  - quiet storm
+  - r&b
+  - soul
+  expected:
+    styles:
+    - dance
+    - funk
+    also:
+    - pop
+    - r&b
+    - soul
+    energy: 8
+    lang:
+    - english
+- artist: Michael Jackson
+  title: With a Child's Heart
+  album: Music and Me
+  year: 2000
+  genres:
+  - folk pop
+  - motown
+  - pop
+  - pop soul
+  - r&b
+  - soul
+  expected:
+    styles:
+    - soul
+    - pop
+    also:
+    - r&b
+    energy: 3
+    lang:
+    - english
+- artist: Bob Dylan
+  title: Everything Is Broken
+  album: The Essential Bob Dylan
+  year: 2000
+  genres: []
+  expected:
+    styles:
+    - rock
+    - blues
+    also:
+    - folk
+    energy: 6
+    lang:
+    - english
+- artist: Bob Dylan
+  title: Oh, Sister
+  album: Desire
+  year: 1976
+  genres: []
+  expected:
+    styles:
+    - folk
+    also:
+    - singer-songwriter
+    - rock
+    energy: 4
+    lang:
+    - english
+- artist: ABBA
+  title: Voulez-Vous (extended remix, 1979 US promo)
+  album: The Definitive Collection
+  year: 2001
+  genres:
+  - disco
+  - electronic
+  - electronica
+  - euro-disco
+  - europop
+  - glam rock
+  - pop
+  - pop rock
+  - rock
+  - soft rock
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    - dance
+    also: []
+    energy: 8
+    lang:
+    - english
+- artist: ABBA
+  title: Love Isn’t Easy (but It Sure Is Hard Enough)
+  album: The Definitive Collection
+  year: 2001
+  genres:
+  - disco
+  - electronic
+  - electronica
+  - euro-disco
+  - europop
+  - glam rock
+  - pop
+  - pop rock
+  - rock
+  - soft rock
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    also: []
+    energy: 6
+    lang:
+    - english
+- artist: R.E.M.
+  title: Losing My Religion
+  album: Out of Time
+  year: 1991
+  genres: []
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    - folk
+    energy: 5
+    lang:
+    - english
+- artist: R.E.M.
+  title: Walk Unafraid
+  album: Up
+  year: 1998
+  genres: []
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    energy: 6
+    lang:
+    - english
+- artist: Moby
+  title: The Sky Is Broken
+  album: Play
+  year: 1999
+  genres:
+  - ambient
+  - ambient pop
+  - ambient techno
+  - breakbeat
+  - downtempo
+  - electronic
+  - electronica
+  - electropop
+  - house
+  - leftfield
+  - techno
+  expected:
+    styles:
+    - electronic
+    also:
+    - pop
+    energy: 3
+    lang:
+    - english
+- artist: Moby
+  title: '7'
+  album: Play
+  year: 1999
+  genres:
+  - ambient
+  - ambient pop
+  - ambient techno
+  - breakbeat
+  - downtempo
+  - electronic
+  - electronica
+  - electropop
+  - house
+  - leftfield
+  - techno
+  expected:
+    styles:
+    - electronic
+    - dance
+    also: []
+    energy: 7
+    lang:
+    - instrumental
+    - english
+- artist: Stromae
+  title: Mon amour
+  album: Multitude
+  year: 2022
+  genres:
+  - afrobeats
+  - art pop
+  - dance-pop
+  - digital cumbia
+  - hip hop
+  - latin pop
+  expected:
+    styles:
+    - pop
+    also:
+    - dance
+    - latin
+    - electronic
+    energy: 6
+    lang:
+    - french
+- artist: Stromae
+  title: Formidable
+  album: Racine carrée
+  year: 2013
+  genres:
+  - dance-pop
+  - edm
+  - electro
+  - electro house
+  - electropop
+  - hip house
+  expected:
+    styles:
+    - pop
+    also:
+    - electronic
+    - hip-hop
+    - chanson
+    energy: 4
+    lang:
+    - french
+- artist: Dire Straits
+  title: Heavy Fuel
+  album: On Every Street
+  year: 1991
+  genres:
+  - blues rock
+  - classic rock
+  - country rock
+  - pop rock
+  - progressive rock
+  - rock
+  expected:
+    styles:
+    - rock
+    also:
+    - blues
+    energy: 7
+    lang:
+    - english
+- artist: Dire Straits
+  title: Calling Elvis
+  album: On Every Street
+  year: 1991
+  genres:
+  - blues rock
+  - classic rock
+  - country rock
+  - pop rock
+  - progressive rock
+  - rock
+  expected:
+    styles:
+    - rock
+    also: []
+    energy: 5
+    lang:
+    - english
+- artist: Howard Shore
+  title: The Council of Elrond (feat. "Aníron (Theme for Aragorn and Arwen)")
+  album: 'The Lord of the Rings: The Fellowship of the Ring (limited edition)'
+  year: 2001
+  genres: []
+  expected:
+    styles:
+    - soundtrack
+    also:
+    - classical
+    energy: 2
+    lang:
+    - instrumental
+    - elvish
+- artist: Howard Shore
+  title: Flight to the Ford
+  album: 'The Lord of the Rings: The Fellowship of the Ring (limited edition)'
+  year: 2001
+  genres: []
+  expected:
+    styles:
+    - soundtrack
+    also:
+    - classical
+    energy: 8
+    lang:
+    - instrumental
+    - elvish
+- artist: Francis Cabrel
+  title: Encore et encore
+  album: 77-87
+  year: 1987
+  genres:
+  - chanson française
+  - pop
+  expected:
+    styles:
+    - chanson
+    also:
+    - pop
+    - rock
+    - folk
+    energy: 5
+    lang:
+    - french
+- artist: Francis Cabrel
+  title: Assis sur le rebord du monde
+  album: Samedi soir sur la Terre
+  year: 1994
+  genres:
+  - ballad
+  - chanson française
+  - pop
+  expected:
+    styles:
+    - chanson
+    also:
+    - folk
+    - singer-songwriter
+    - pop
+    energy: 3
+    lang:
+    - french
+- artist: Red Hot Chili Peppers
+  title: I Could Have Lied
+  album: Blood Sugar Sex Magik
+  year: 1991
+  genres:
+  - alternative rock
+  - funk
+  - funk metal
+  - funk rock
+  - heavy metal
+  - pop
+  - rap rock
+  - rock
+  expected:
+    styles:
+    - rock
+    - alternative
+    also:
+    - singer-songwriter
+    - folk
+    energy: 3
+    lang:
+    - english
+- artist: Red Hot Chili Peppers
+  title: Scar Tissue
+  album: Californication
+  year: 1999
+  genres: []
+  expected:
+    styles:
+    - alternative
+    - rock
+    also: []
+    energy: 5
+    lang:
+    - english
+- artist: Matmatah
+  title: Il fait beau sur la France (take 1)
+  album: Archie Kramer
+  year: 2004
+  genres: []
+  expected:
+    styles:
+    - rock
+    - alternative
+    also:
+    - folk
+    - chanson
+    energy: 6
+    lang:
+    - french
+- artist: Matmatah
+  title: I Wanna Be Your Dog (live)
+  album: Archie Kramer
+  year: 2004
+  genres: []
+  expected:
+    styles:
+    - rock
+    - alternative
+    also:
+    - hard-rock
+    energy: 9
+    lang:
+    - english
+- artist: Santana
+  title: Havana Moon
+  album: 'Black Magic Woman: Best of Santana'
+  year: 1986
+  genres: []
+  expected:
+    styles:
+    - latin
+    - rock
+    also:
+    - blues
+    energy: 4
+    lang:
+    - english
+- artist: Santana
+  title: Evil Ways
+  album: 'Black Magic Woman: Best of Santana'
+  year: 1986
+  genres: []
+  expected:
+    styles:
+    - latin
+    - rock
+    also:
+    - blues
+    energy: 6
+    lang:
+    - english
+- artist: Led Zeppelin
+  title: Whole Lotta Love
+  album: Led Zeppelin II
+  year: 1994
+  genres:
+  - arena rock
+  - blues
+  - blues rock
+  - classic rock
+  - hard rock
+  - heavy metal
+  - rock
+  expected:
+    styles:
+    - hard-rock
+    also:
+    - rock
+    - blues
+    energy: 9
+    lang:
+    - english
+- artist: Led Zeppelin
+  title: The Rain Song
+  album: Remasters
+  year: 1990
+  genres: []
+  expected:
+    styles:
+    - rock
+    - progressive
+    also:
+    - folk
+    - singer-songwriter
+    energy: 3
+    lang:
+    - english
+- artist: Louise Attaque
+  title: Sans filet
+  album: Comme on a dit
+  year: 2000
+  genres:
+  - alternative rock
+  - folk rock
+  - rock
+  expected:
+    styles:
+    - rock
+    - folk
+    - alternative
+    also:
+    - chanson
+    energy: 7
+    lang:
+    - french
+- artist: Louise Attaque
+  title: D’amour en amour
+  album: Comme on a dit
+  year: 2000
+  genres:
+  - alternative rock
+  - folk rock
+  - rock
+  expected:
+    styles:
+    - rock
+    - folk
+    - alternative
+    also:
+    - chanson
+    energy: 6
+    lang:
+    - french
+- artist: Franz Ferdinand
+  title: B**e Hard
+  album: 'Tonight: Franz Ferdinand'
+  year: 2009
+  genres:
+  - alternative dance
+  - dance-punk
+  - electronic
+  - indie rock
+  - new rave
+  - post-punk revival
+  - synth-pop
+  expected:
+    styles:
+    - alternative
+    - rock
+    also:
+    - dance
+    energy: 8
+    lang:
+    - english
+- artist: Franz Ferdinand
+  title: No You Girls
+  album: 'Tonight: Franz Ferdinand'
+  year: 2009
+  genres:
+  - alternative dance
+  - dance-punk
+  - electronic
+  - indie rock
+  - new rave
+  - post-punk revival
+  - synth-pop
+  expected:
+    styles:
+    - alternative
+    - rock
+    also:
+    - dance
+    - pop
+    energy: 7
+    lang:
+    - english
+- artist: Noir Désir
+  title: Comme elle vient
+  album: 666.667 Club
+  year: 1996
+  genres: []
+  expected:
+    styles:
+    - rock
+    - alternative
+    also:
+    - hard-rock
+    energy: 9
+    lang:
+    - french
+- artist: Noir Désir
+  title: L’Europe
+  album: Des visages des figures
+  year: 2001
+  genres: []
+  expected:
+    styles:
+    - alternative
+    - rock
+    also:
+    - electronic
+    - progressive
+    energy: 5
+    lang:
+    - french
+- artist: Coldplay
+  title: Amsterdam
+  album: A Rush of Blood to the Head
+  year: 2002
+  genres:
+  - alternative rock
+  - art rock
+  - piano rock
+  - pop
+  - pop rock
+  - post-britpop
+  - post-rock
+  - rock
+  - britpop
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    - pop
+    energy: 3
+    lang:
+    - english
+- artist: Coldplay
+  title: Clocks
+  album: A Rush of Blood to the Head
+  year: 2002
+  genres:
+  - alternative rock
+  - art rock
+  - piano rock
+  - pop
+  - pop rock
+  - post-britpop
+  - post-rock
+  - rock
+  - britpop
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    - pop
+    energy: 6
+    lang:
+    - english
+- artist: Mano Negra
+  title: King of Bongo
+  album: Best Of
+  year: 1998
+  genres:
+  - alternative rock
+  - latin
+  - pop
+  - pop rap
+  - punk
+  - reggae
+  - rock
+  - salsa
+  - ska
+  expected:
+    styles:
+    - rock
+    - latin
+    - world
+    - alternative
+    also: []
+    energy: 9
+    lang:
+    - english
+    - french
+    - spanish
+- artist: Mano Negra
+  title: Out of Time Man
+  album: Best Of
+  year: 1998
+  genres:
+  - alternative rock
+  - latin
+  - pop
+  - pop rap
+  - punk
+  - reggae
+  - rock
+  - salsa
+  - ska
+  expected:
+    styles:
+    - rock
+    - world
+    - latin
+    - alternative
+    also: []
+    energy: 6
+    lang:
+    - english
+    - french
+    - spanish
+- artist: Massive Attack
+  title: Risingson
+  album: Mezzanine
+  year: 1998
+  genres:
+  - Electronic
+  - Leftfield
+  - Trip Hop
+  - Downtempo
+  expected:
+    styles:
+    - electronic
+    - hip-hop
+    also: []
+    energy: 5
+    lang:
+    - english
+- artist: Massive Attack
+  title: Teardrop
+  album: Mezzanine
+  year: 1998
+  genres:
+  - Electronic
+  - Leftfield
+  - Trip Hop
+  - Downtempo
+  expected:
+    styles:
+    - electronic
+    also: []
+    energy: 3
+    lang:
+    - english
+- artist: Édith Piaf
+  title: Le Chant du pirate
+  album: 'C''est pour ça: 20 Greatest Hits'
+  year: 1990
+  genres:
+  - ballad
+  - pop
+  expected:
+    styles:
+    - chanson
+    also: []
+    energy: 5
+    lang:
+    - french
+- artist: Édith Piaf
+  title: Un refrain courait dans la rue
+  album: 'C''est pour ça: 20 Greatest Hits'
+  year: 1990
+  genres:
+  - ballad
+  - pop
+  expected:
+    styles:
+    - chanson
+    also: []
+    energy: 4
+    lang:
+    - french
+- artist: MC Solaar
+  title: L’aigle ne chasse pas les mouches
+  album: Cinquième As
+  year: 2001
+  genres:
+  - hip hop
+  expected:
+    styles:
+    - hip-hop
+    also: []
+    energy: 5
+    lang:
+    - french
+- artist: MC Solaar
+  title: Le Cinquième As
+  album: Cinquième As
+  year: 2001
+  genres:
+  - hip hop
+  expected:
+    styles:
+    - hip-hop
+    also: []
+    energy: 6
+    lang:
+    - french
+- artist: Yann Tiersen
+  title: La Valse des vieux os
+  album: Amélie
+  year: 2001
+  genres:
+  - ambient
+  - electronic
+  - modern classical
+  - pop
+  expected:
+    styles:
+    - soundtrack
+    also:
+    - classical
+    - folk
+    energy: 5
+    lang:
+    - instrumental
+- artist: Yann Tiersen
+  title: La Valse des monstres
+  album: Amélie
+  year: 2001
+  genres:
+  - ambient
+  - electronic
+  - modern classical
+  - pop
+  expected:
+    styles:
+    - soundtrack
+    also:
+    - classical
+    - folk
+    energy: 5
+    lang:
+    - instrumental
+- artist: Buena Vista Social Club
+  title: Murmullo
+  album: Buena Vista Social Club
+  year: 1997
+  genres:
+  - afro-cuban jazz
+  - bolero
+  - danzón
+  - easy listening
+  - jazz
+  - latin
+  - salsa
+  - son cubano
+  expected:
+    styles:
+    - latin
+    also:
+    - world
+    - jazz
+    energy: 3
+    lang:
+    - spanish
+- artist: Buena Vista Social Club
+  title: ¿Y tú qué has hecho?
+  album: Buena Vista Social Club
+  year: 1997
+  genres:
+  - afro-cuban jazz
+  - bolero
+  - danzón
+  - easy listening
+  - jazz
+  - latin
+  - salsa
+  - son cubano
+  expected:
+    styles:
+    - latin
+    also:
+    - world
+    energy: 2
+    lang:
+    - spanish
+- artist: Cesária Évora
+  title: Tanha
+  album: Sodade
+  year: 1994
+  genres: []
+  expected:
+    styles:
+    - world
+    also:
+    - latin
+    - folk
+    energy: 3
+    lang:
+    - portuguese
+    - cape verdean creole
+- artist: Cesária Évora
+  title: Fruto proibido
+  album: Sodade
+  year: 1994
+  genres: []
+  expected:
+    styles:
+    - world
+    also:
+    - latin
+    energy: 4
+    lang:
+    - portuguese
+    - cape verdean creole
+- artist: Jamie Cullum
+  title: Catch the Sun
+  album: Catching Tales
+  year: 2005
+  genres:
+  - jazz
+  - pop
+  - rock
+  expected:
+    styles:
+    - jazz
+    - pop
+    also:
+    - rock
+    energy: 6
+    lang:
+    - english
+- artist: Jamie Cullum
+  title: Back to the Ground
+  album: Catching Tales
+  year: 2005
+  genres:
+  - jazz
+  - pop
+  - rock
+  expected:
+    styles:
+    - jazz
+    - pop
+    also:
+    - singer-songwriter
+    energy: 4
+    lang:
+    - english
+- artist: Nirvana
+  title: On a Plain
+  album: MTV Unplugged in New York
+  year: 1994
+  genres:
+  - acoustic rock
+  - alternative rock
+  - folk rock
+  - grunge
+  - indie rock
+  - rock
+  expected:
+    styles:
+    - alternative
+    - rock
+    also:
+    - folk
+    energy: 4
+    lang:
+    - english
+- artist: Nirvana
+  title: Come as You Are
+  album: MTV Unplugged in New York
+  year: 1994
+  genres:
+  - acoustic rock
+  - alternative rock
+  - folk rock
+  - grunge
+  - indie rock
+  - rock
+  expected:
+    styles:
+    - alternative
+    - rock
+    also:
+    - folk
+    energy: 3
+    lang:
+    - english
+- artist: The White Stripes
+  title: Well It’s True That We Love One Another
+  album: Elephant
+  year: 2003
+  genres:
+  - alternative pop
+  - alternative rock
+  - blues rock
+  - garage rock
+  - garage rock revival
+  - indie rock
+  - pop
+  - punk blues
+  - rock
+  expected:
+    styles:
+    - rock
+    - alternative
+    also:
+    - folk
+    - pop
+    energy: 5
+    lang:
+    - english
+- artist: The White Stripes
+  title: Black Math
+  album: Elephant
+  year: 2003
+  genres:
+  - alternative pop
+  - alternative rock
+  - blues rock
+  - garage rock
+  - garage rock revival
+  - indie rock
+  - pop
+  - punk blues
+  - rock
+  expected:
+    styles:
+    - alternative
+    - rock
+    also:
+    - hard-rock
+    energy: 9
+    lang:
+    - english
+- artist: Radiohead
+  title: Let Down
+  album: OK Computer
+  year: 1997
+  genres:
+  - alternative rock
+  - art rock
+  - electronic
+  - experimental
+  - indie rock
+  - leftfield
+  - pop rock
+  - post-britpop
+  - rock
+  - space rock revival
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    energy: 5
+    lang:
+    - english
+- artist: Radiohead
+  title: Electioneering
+  album: OK Computer
+  year: 1997
+  genres:
+  - alternative rock
+  - art rock
+  - electronic
+  - experimental
+  - indie rock
+  - leftfield
+  - pop rock
+  - post-britpop
+  - rock
+  - space rock revival
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    energy: 8
+    lang:
+    - english
+- artist: Gotan Project
+  title: Época
+  album: La Revancha del Tango
+  year: 2001
+  genres:
+  - breakbeat
+  - downtempo
+  - electronic
+  - electronica
+  - house
+  - latin
+  - tango
+  - techno
+  expected:
+    styles:
+    - electronic
+    - latin
+    also:
+    - world
+    - dance
+    energy: 5
+    lang:
+    - instrumental
+    - spanish
+- artist: Gotan Project
+  title: Queremos paz
+  album: La Revancha del Tango
+  year: 2001
+  genres:
+  - breakbeat
+  - downtempo
+  - electronic
+  - electronica
+  - house
+  - latin
+  - tango
+  - techno
+  expected:
+    styles:
+    - electronic
+    - latin
+    also:
+    - world
+    energy: 5
+    lang:
+    - spanish
+- artist: Amy Winehouse
+  title: Back to Black
+  album: Back to Black
+  year: 2007
+  genres:
+  - brill building
+  - contemporary jazz
+  - contemporary r&b
+  - jazz
+  - jazz pop
+  - neo soul
+  - pop
+  - pop soul
+  - r&b
+  - soul
+  expected:
+    styles:
+    - soul
+    also:
+    - r&b
+    - jazz
+    - pop
+    energy: 5
+    lang:
+    - english
+- artist: Amy Winehouse
+  title: Wake Up Alone
+  album: Back to Black
+  year: 2007
+  genres:
+  - brill building
+  - contemporary jazz
+  - contemporary r&b
+  - jazz
+  - jazz pop
+  - neo soul
+  - pop
+  - pop soul
+  - r&b
+  - soul
+  expected:
+    styles:
+    - soul
+    also:
+    - r&b
+    - jazz
+    energy: 3
+    lang:
+    - english
+- artist: Johnny Cash
+  title: Further on up the Road
+  album: 'American V: A Hundred Highways'
+  year: 2006
+  genres: []
+  expected:
+    styles:
+    - folk
+    also:
+    - singer-songwriter
+    - blues
+    energy: 3
+    lang:
+    - english
+- artist: Johnny Cash
+  title: Love’s Been Good to Me
+  album: 'American V: A Hundred Highways'
+  year: 2006
+  genres: []
+  expected:
+    styles:
+    - folk
+    also:
+    - singer-songwriter
+    energy: 3
+    lang:
+    - english
+- artist: Steely Dan
+  title: I Got the News
+  album: Aja
+  year: 1999
+  genres:
+  - jazz rock
+  - pop
+  - pop rock
+  - rock
+  - yacht rock
+  expected:
+    styles:
+    - jazz
+    - rock
+    - pop
+    also:
+    - funk
+    energy: 6
+    lang:
+    - english
+- artist: Steely Dan
+  title: Deacon Blues
+  album: Aja
+  year: 1999
+  genres:
+  - jazz rock
+  - pop
+  - pop rock
+  - rock
+  - yacht rock
+  expected:
+    styles:
+    - jazz
+    - rock
+    - pop
+    also: []
+    energy: 4
+    lang:
+    - english
+- artist: Jamiroquai
+  title: Virtual Insanity
+  album: Travelling Without Moving
+  year: 1996
+  genres:
+  - acid jazz
+  - funk
+  expected:
+    styles:
+    - funk
+    also:
+    - soul
+    - pop
+    - dance
+    - jazz
+    energy: 6
+    lang:
+    - english
+- artist: Jamiroquai
+  title: Didjerama
+  album: Travelling Without Moving
+  year: 1996
+  genres:
+  - acid jazz
+  - funk
+  expected:
+    styles:
+    - funk
+    - electronic
+    also:
+    - world
+    - dance
+    - jazz
+    energy: 6
+    lang:
+    - instrumental
+- artist: Gorillaz
+  title: Feel Good Inc.
+  album: Demon Days
+  year: 2005
+  genres:
+  - alternative dance
+  - alternative hip hop
+  - alternative punk
+  - alternative rock
+  - art pop
+  - downtempo
+  - electronic
+  - experimental hip hop
+  - funk
+  - hip hop
+  - indietronica
+  - leftfield
+  - pop
+  - pop rap
+  - pop rock
+  - rock
+  - trip hop
+  - alternative pop
+  expected:
+    styles:
+    - alternative
+    - hip-hop
+    also:
+    - pop
+    - electronic
+    energy: 6
+    lang:
+    - english
+- artist: Gorillaz
+  title: Kids With Guns
+  album: Demon Days
+  year: 2005
+  genres:
+  - alternative dance
+  - alternative hip hop
+  - alternative punk
+  - alternative rock
+  - art pop
+  - downtempo
+  - electronic
+  - experimental hip hop
+  - funk
+  - hip hop
+  - indietronica
+  - leftfield
+  - pop
+  - pop rap
+  - pop rock
+  - rock
+  - trip hop
+  - alternative pop
+  expected:
+    styles:
+    - alternative
+    also:
+    - electronic
+    - rock
+    energy: 6
+    lang:
+    - english
+- artist: Gipsy Kings
+  title: Amor, amor
+  album: Gipsy Kings
+  year: 1987
+  genres: []
+  expected:
+    styles:
+    - latin
+    also:
+    - world
+    - pop
+    energy: 6
+    lang:
+    - spanish
+- artist: Gipsy Kings
+  title: Tu quieres volver
+  album: Gipsy Kings
+  year: 1987
+  genres: []
+  expected:
+    styles:
+    - latin
+    also:
+    - world
+    energy: 6
+    lang:
+    - spanish
+- artist: Alain Souchon
+  title: Arlette Laguiller
+  album: C’est déjà ça
+  year: 1993
+  genres:
+  - pop
+  expected:
+    styles:
+    - chanson
+    - pop
+    also:
+    - rock
+    energy: 6
+    lang:
+    - french
+- artist: Alain Souchon
+  title: Le baiser
+  album: Au ras des pâquerettes
+  year: 1999
+  genres:
+  - chanson française
+  - pop
+  expected:
+    styles:
+    - chanson
+    also:
+    - pop
+    energy: 3
+    lang:
+    - french
+- artist: Zazie
+  title: Un point c’est toi
+  album: Zen
+  year: 1996
+  genres:
+  - art pop
+  - pop
+  - pop rock
+  expected:
+    styles:
+    - pop
+    also:
+    - chanson
+    - rock
+    energy: 5
+    lang:
+    - french
+- artist: Zazie
+  title: Je t’aime mais
+  album: Zen
+  year: 1996
+  genres:
+  - art pop
+  - pop
+  - pop rock
+  expected:
+    styles:
+    - pop
+    - chanson
+    also:
+    - singer-songwriter
+    energy: 4
+    lang:
+    - french
+- artist: Tricky
+  title: Black Steel
+  album: Maxinquaye
+  year: 1995
+  genres:
+  - dub
+  - electronic
+  - electronica
+  - experimental
+  - hip hop
+  - post-industrial
+  - post-rock
+  - psychedelic
+  - r&b
+  - trip hop
+  - uk street soul
+  expected:
+    styles:
+    - hip-hop
+    - electronic
+    also:
+    - rock
+    - alternative
+    energy: 8
+    lang:
+    - english
+- artist: Tricky
+  title: Hell Is Round the Corner
+  album: Maxinquaye
+  year: 1995
+  genres:
+  - dub
+  - electronic
+  - electronica
+  - experimental
+  - hip hop
+  - post-industrial
+  - post-rock
+  - psychedelic
+  - r&b
+  - trip hop
+  - uk street soul
+  expected:
+    styles:
+    - hip-hop
+    - electronic
+    also: []
+    energy: 4
+    lang:
+    - english
+- artist: Morcheeba
+  title: Be Yourself
+  album: Fragments of Freedom
+  year: 2000
+  genres:
+  - downtempo
+  - electronic
+  - electronica
+  - pop
+  - trip hop
+  expected:
+    styles:
+    - electronic
+    - pop
+    also:
+    - soul
+    - hip-hop
+    energy: 5
+    lang:
+    - english
+- artist: Morcheeba
+  title: Fragments of Freedom
+  album: Fragments of Freedom
+  year: 2000
+  genres:
+  - downtempo
+  - electronic
+  - electronica
+  - pop
+  - trip hop
+  expected:
+    styles:
+    - electronic
+    - pop
+    also:
+    - soul
+    - funk
+    energy: 5
+    lang:
+    - english
+    - instrumental
+- artist: Little Richard
+  title: Long Tall Sally
+  album: Good Golly Miss Molly
+  year: null
+  genres: []
+  expected:
+    styles:
+    - rock
+    also:
+    - blues
+    energy: 9
+    lang:
+    - english
+- artist: Little Richard
+  title: Good Golly Miss Molly
+  album: Good Golly Miss Molly
+  year: null
+  genres: []
+  expected:
+    styles:
+    - rock
+    also:
+    - blues
+    energy: 9
+    lang:
+    - english
+- artist: Lady Gaga
+  title: Look What I Found
+  album: A Star Is Born Soundtrack
+  year: 2018
+  genres:
+  - americana
+  - ballad
+  - contemporary country
+  - country
+  - country rock
+  - dance-pop
+  - electropop
+  - hard rock
+  - non-music
+  - pop
+  - pop rock
+  - rock
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    also:
+    - soundtrack
+    - soul
+    energy: 5
+    lang:
+    - english
+- artist: Lady Gaga
+  title: Before I Cry
+  album: A Star Is Born Soundtrack
+  year: 2018
+  genres:
+  - americana
+  - ballad
+  - contemporary country
+  - country
+  - country rock
+  - dance-pop
+  - electropop
+  - hard rock
+  - non-music
+  - pop
+  - pop rock
+  - rock
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    also:
+    - soundtrack
+    - soul
+    energy: 2
+    lang:
+    - english
+- artist: Grand Corps Malade
+  title: Avec eux
+  album: Enfant de la ville
+  year: 2008
+  genres: []
+  expected:
+    styles:
+    - chanson
+    - hip-hop
+    also: []
+    energy: 4
+    lang:
+    - french
+- artist: Grand Corps Malade
+  title: J’écris à l’oral
+  album: Enfant de la ville
+  year: 2008
+  genres: []
+  expected:
+    styles:
+    - chanson
+    - hip-hop
+    also: []
+    energy: 4
+    lang:
+    - french
+- artist: Leonard Cohen
+  title: Anthem
+  album: More Best of Leonard Cohen (CB 811, black border CD label)
+  year: 1997
+  genres: []
+  expected:
+    styles:
+    - singer-songwriter
+    - folk
+    also: []
+    energy: 3
+    lang:
+    - english
+- artist: Leonard Cohen
+  title: Take This Waltz
+  album: More Best of Leonard Cohen (CB 811, black border CD label)
+  year: 1997
+  genres: []
+  expected:
+    styles:
+    - singer-songwriter
+    - folk
+    also: []
+    energy: 3
+    lang:
+    - english
+- artist: Thirty Seconds to Mars
+  title: Closer to the Edge
+  album: This Is War
+  year: 2009
+  genres:
+  - alternative rock
+  - rock
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    energy: 8
+    lang:
+    - english
+- artist: Thirty Seconds to Mars
+  title: Search and Destroy
+  album: This Is War
+  year: 2009
+  genres:
+  - alternative rock
+  - rock
+  expected:
+    styles:
+    - alternative
+    also:
+    - rock
+    - hard-rock
+    energy: 8
+    lang:
+    - english
+- artist: Daniel Balavoine
+  title: Partir avant les miens
+  album: L’Essentiel
+  year: 1990
+  genres:
+  - electronic
+  - pop
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    also:
+    - chanson
+    energy: 5
+    lang:
+    - french
+- artist: Daniel Balavoine
+  title: Drôle de galaxie
+  album: L’Essentiel
+  year: 1990
+  genres:
+  - electronic
+  - pop
+  - synth-pop
+  expected:
+    styles:
+    - pop
+    also:
+    - chanson
+    - electronic
+    energy: 5
+    lang:
+    - french
+- artist: Supertramp
+  title: Asylum
+  album: Crime of the Century
+  year: 2002
+  genres:
+  - art rock
+  - classic rock
+  - pop
+  - pop rock
+  - progressive pop
+  - progressive rock
+  - rock
+  expected:
+    styles:
+    - progressive
+    - rock
+    also:
+    - pop
+    energy: 4
+    lang:
+    - english
+- artist: Supertramp
+  title: Bloody Well Right
+  album: Crime of the Century
+  year: 2002
+  genres:
+  - art rock
+  - classic rock
+  - pop
+  - pop rock
+  - progressive pop
+  - progressive rock
+  - rock
+  expected:
+    styles:
+    - progressive
+    - rock
+    also:
+    - pop
+    energy: 6
+    lang:
+    - english
+- artist: Whitney Houston
+  title: Love Will Save the Day
+  album: The Greatest Hits
+  year: 2000
+  genres: []
+  expected:
+    styles:
+    - pop
+    - dance
+    also:
+    - soul
+    - r&b
+    energy: 8
+    lang:
+    - english
+- artist: Whitney Houston
+  title: It’s Not Right but It’s Okay (Thunderpuss mix)
+  album: The Greatest Hits
+  year: 2000
+  genres: []
+  expected:
+    styles:
+    - dance
+    - pop
+    also:
+    - electronic
+    - r&b
+    energy: 9
+    lang:
+    - english
+- artist: Eric Clapton
+  title: Bad Love
+  album: 'Clapton Chronicles: The Best of Eric Clapton'
+  year: 1999
+  genres: []
+  expected:
+    styles:
+    - rock
+    also:
+    - blues
+    energy: 6
+    lang:
+    - english
+- artist: Eric Clapton
+  title: Tears in Heaven
+  album: 'Clapton Chronicles: The Best of Eric Clapton'
+  year: 1999
+  genres: []
+  expected:
+    styles:
+    - singer-songwriter
+    - folk
+    also:
+    - pop
+    energy: 2
+    lang:
+    - english
+- artist: Johann Sebastian Bach
+  title: 'Concerto in F major for oboe, strings, and continuo, BWV 1053: II. Siciliano'
+  album: 3 Oboe Concertos / 3 Oboenkonzerte (BWV 1053, 1055, 1059)
+  year: 1985
+  genres:
+  - Classical
+  - Baroque
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 2
+    lang:
+    - instrumental
+- artist: Fryderyk Chopin
+  title: Variations in B‐flat, op. 2 on «Là ci darem la mano» from Mozart‘s «Don Giovanni» for piano and orchestra
+  album: Concerto  = Klavierkonzert Nr. 1 / Variations On = Variationen Über «Là Ci Darem La Mano»
+  year: 1987
+  genres:
+  - Classical
+  - Romantic
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 6
+    lang:
+    - instrumental
+- artist: Сергей Васильевич Рахманинов
+  title: 'Suite no. 2 for Two Pianos, op. 17: III. Romance. Andantino'
+  album: Piano Concerto No. 3 / Suite No. 2
+  year: 2001
+  genres:
+  - Classical
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 3
+    lang:
+    - instrumental
+- artist: Leonard Bernstein
+  title: 'Three Meditations for Cello and Orchestra: III. Presto / Fast and primitive / Molto adagio'
+  album: Great Works For Cello And Orchestra
+  year: 1994
+  genres:
+  - Classical
+  - Baroque
+  - Romantic
+  - Concerto
+  - Theme With Variations
+  - String Instrument
+  - Orchestra
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 6
+    lang:
+    - instrumental
+- artist: Alessandro Scarlatti
+  title: 'Serenata "Puote si poco Amor" (Cupido e Onestà): Recitativo - Mia compagna vuoi farti'
+  album: Baroque Masterpieces
+  year: 2008
+  genres:
+  - baroque
+  - classical
+  - opera
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 2
+    lang:
+    - italian
+- artist: Carl Orff
+  title: 'Carmina Burana: Fortuna Imperatrix Mundi, 2. Fortune plango vulnera'
+  album: Carmina Burana
+  year: 1985
+  genres:
+  - classical
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 8
+    lang:
+    - latin
+- artist: Fryderyk Chopin
+  title: Nocturne, op. 27 no. 2 in D-flat major
+  album: Chopin the Nocturnes
+  year: 2010
+  genres:
+  - Classical
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 2
+    lang:
+    - instrumental
+- artist: Johann Joseph Fux
+  title: 'Requiem aeternam ''Kaiserrequiem'' K 51-53: Largo from Canon a due E 66 (2Trombones, organ,Violone)'
+  album: Baroque Masterpieces
+  year: 2008
+  genres:
+  - baroque
+  - classical
+  - opera
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 2
+    lang:
+    - instrumental
+- artist: Ludwig van Beethoven
+  title: Sonata no.9 in e, op. 14, no.1 _ 2. allegretto
+  album: Die 32 Klaviersonaten / The 32 Piano Sonatas / Les 32 Sonates Pour Piano
+  year: 1965
+  genres:
+  - classical
+  - romantic classical
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 4
+    lang:
+    - instrumental
+- artist: Claudio Monteverdi
+  title: 'Vespro della Beata vergine (Highlights): Sonata à 8 sopra ''Sancta maria ora pro nobis'''
+  album: Baroque Masterpieces
+  year: 2008
+  genres:
+  - baroque
+  - classical
+  - opera
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 5
+    lang:
+    - latin
+- artist: Wolfgang Amadeus Mozart
+  title: 'Requiem d‐moll, KV 626: III. Sequenz: No. 4. „Recordare“ (Sopran, Alt, Tenor, Bass)'
+  album: Requiem
+  year: 1987
+  genres:
+  - classical
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 3
+    lang:
+    - latin
+- artist: Jean‐Sébastien Bach
+  title: 'Overture no. 2, BWV 1067 in B minor: V. Polonaise avec double'
+  album: Baroque Masterpieces
+  year: 2008
+  genres:
+  - baroque
+  - classical
+  - opera
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 4
+    lang:
+    - instrumental
+- artist: Jean‐Sébastien Bach
+  title: 'The Art of Fugue, BWV 1080: Canon 2 [3]'
+  album: Baroque Masterpieces
+  year: 2008
+  genres:
+  - baroque
+  - classical
+  - opera
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 3
+    lang:
+    - instrumental
+- artist: Antonio Vivaldi
+  title: 'Concerto in F major, Op. 8 No. 3, RV 293 "L''autunno": III. Allegro'
+  album: Le quattro stagioni
+  year: 1990
+  genres:
+  - baroque
+  - classical
+  expected:
+    styles:
+    - classical
+    also: []
+    energy: 7
+    lang:
+    - instrumental

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import radioService, { type RadioCriteria, type RadioPool, type RadioSettings, type RadioSong } from './radioService';
+import radioService, { type RadioCriteria, type RadioNeighbour, type RadioDraw, type RadioPool, type RadioSettings, type RadioSong } from './radioService';
 import { player, subscribePlayer, type PlayerAlbum, type PlayerState, type PlayerTrack } from './player';
 import musicService from './musicService';
 import { readStored, writeStored } from '../utils/safeStorage';
@@ -35,6 +35,10 @@ export interface RadioState {
   poolSize: number | null;
   fitting: number | null;
   missingFiches: number;
+  /** Of the last draw: the styles drawn from for being near those asked. */
+  neighbours: RadioNeighbour[];
+  /** The last draw brought fewer songs than asked: too few fit, even with the neighbouring styles. */
+  short: boolean;
   /** The fiches asked for: how many wait in the writer's queue. */
   fichesQueued: number | null;
 }
@@ -59,7 +63,7 @@ const initial = (): RadioState => {
     pool: { ...DEFAULT_POOL, ...(kept.pool ?? {}) },
     songs: Array.isArray(kept.songs) ? kept.songs : [],
     status: Array.isArray(kept.songs) && kept.songs.length > 0 ? 'ready' : 'idle',
-    poolSize: null, fitting: null, missingFiches: 0, fichesQueued: null,
+    poolSize: null, fitting: null, missingFiches: 0, neighbours: [], short: false, fichesQueued: null,
   };
 };
 
@@ -180,7 +184,8 @@ const drawAgain = async (keepNow = true, fresh = false): Promise<void> => {
   const keep = fresh ? [] : ids(state.songs.slice(now.length).filter(song => !handIds.includes(song.songId)));
   set({ status: 'drawing' });
   try {
-    const draw = await radioService.next(criteria, state.pool, BAND - now.length - hand.size, [...ids(now), ...handIds], keep);
+    const asked = BAND - now.length - hand.size;
+    const draw = await radioService.next(criteria, state.pool, asked, [...ids(now), ...handIds], keep);
     if (ticket !== drawing) return;
     learn(draw.songs);
     // The songs drawn in the places of the others; those put by hand where they were, or after them all when
@@ -204,11 +209,17 @@ const drawAgain = async (keepNow = true, fresh = false): Promise<void> => {
       // Those put in by hand keep what they are.
       player.playAlbum(radioAlbum(state.prompt, now[0]), [...now.map(trackOf), ...upcoming.map(one => one.track)], 0, view.position);
     }
-    set({ songs, status: 'ready', poolSize: draw.poolSize, fitting: draw.fitting, missingFiches: draw.missingFiches });
+    set({ songs, status: 'ready', ...drawnOf(draw, asked) });
   } catch {
     if (ticket === drawing) set({ status: 'failed' });
   }
 };
+
+/** What a draw tells of the pool, `asked` the songs it was asked for. */
+const drawnOf = (draw: RadioDraw, asked: number): Partial<RadioState> => ({
+  poolSize: draw.poolSize, fitting: draw.fitting, missingFiches: draw.missingFiches,
+  neighbours: draw.neighbours ?? [], short: asked > 0 && draw.songs.length < asked,
+});
 
 /** The band back to BAND songs, those drawn after the others, the player's too while it plays the radio. */
 export const refill = (): Promise<void> => {
@@ -226,7 +237,7 @@ export const refill = (): Promise<void> => {
       const view = player.getState();
       if (radioPlaying(view) && view.tracks.length - view.index < BAND) player.appendTracks(fresh.map(trackOf));
       const songs = [...state.songs, ...fresh.filter(song => !state.songs.some(one => one.songId === song.songId))];
-      set({ songs, poolSize: draw.poolSize, fitting: draw.fitting, missingFiches: draw.missingFiches });
+      set({ songs, ...drawnOf(draw, missing) });
     })
     .catch(() => undefined)
     .finally(() => { refilling = null; });
@@ -248,7 +259,7 @@ export const radio = {
     if (play) player.prime();
     const ticket = ++drawing;
     // What the prompt before was heard as goes at once: these words are heard anew.
-    set({ prompt, recent: [prompt, ...state.recent.filter(one => one !== prompt)].slice(0, RECENT), criteria: null, status: 'hearing' });
+    set({ prompt, recent: [prompt, ...state.recent.filter(one => one !== prompt)].slice(0, RECENT), criteria: null, neighbours: [], short: false, status: 'hearing' });
     try {
       const criteria = await radioService.criteria(prompt);
       if (ticket !== drawing) return;
@@ -438,7 +449,7 @@ export const syncRadioSettings = async (): Promise<void> => {
     recent: settings.recent.slice(0, RECENT),
     pool: { ...DEFAULT_POOL, ...settings.pool },
     criteria: settings.criteria,
-    ...(otherPrompt ? { songs: [], status: 'idle' as RadioStatus, poolSize: null, fitting: null, missingFiches: 0 } : {}),
+    ...(otherPrompt ? { songs: [], status: 'idle' as RadioStatus, poolSize: null, fitting: null, missingFiches: 0, neighbours: [], short: false } : {}),
   }, { fromServer: true });
   dropOtherBand(player.getState());
 };

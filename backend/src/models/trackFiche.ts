@@ -24,6 +24,8 @@ export interface FicheRecord extends Fiche {
   key: string;
   model: string | null;
   madeAt: string;
+  /** The way it was asked for: one older than the writer's is written again. */
+  version: number;
 }
 
 interface FicheRow {
@@ -35,6 +37,7 @@ interface FicheRow {
   lang: string;
   model: string | null;
   made_at: string;
+  version: number | null;
 }
 
 const run = (sql: string, params: unknown[] = []): Promise<void> =>
@@ -69,7 +72,7 @@ const list = (text: string): string[] => {
  */
 const ficheOf = (row: FicheRow): FicheRecord => ({
   key: row.recording_key, energy: row.energy, tempo: row.tempo, moods: list(row.moods), styles: list(row.styles),
-  lang: row.lang, model: row.model, madeAt: row.made_at,
+  lang: row.lang, model: row.model, madeAt: row.made_at, version: row.version ?? 1,
 });
 
 const TrackFiche = {
@@ -83,7 +86,8 @@ const TrackFiche = {
         styles        TEXT NOT NULL,
         lang          TEXT NOT NULL,
         model         TEXT,
-        made_at       TEXT NOT NULL
+        made_at       TEXT NOT NULL,
+        version       INTEGER NOT NULL DEFAULT 1
       )`),
 
   all: async (): Promise<Map<string, FicheRecord>> => {
@@ -129,15 +133,15 @@ const TrackFiche = {
     return out;
   },
 
-  saveMany: async (fiches: Array<{ key: string; fiche: Fiche }>, model: string | null): Promise<void> => {
+  saveMany: async (fiches: Array<{ key: string; fiche: Fiche }>, model: string | null, version = 1): Promise<void> => {
     const now = new Date().toISOString();
     for (const { key, fiche } of fiches) {
       await run(
-        `INSERT INTO track_fiches (recording_key, energy, tempo, moods, styles, lang, model, made_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO track_fiches (recording_key, energy, tempo, moods, styles, lang, model, made_at, version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(recording_key) DO UPDATE SET energy = excluded.energy, tempo = excluded.tempo, moods = excluded.moods,
-           styles = excluded.styles, lang = excluded.lang, model = excluded.model, made_at = excluded.made_at`,
-        [key, fiche.energy, fiche.tempo, JSON.stringify(fiche.moods), JSON.stringify(fiche.styles), fiche.lang, model, now]);
+           styles = excluded.styles, lang = excluded.lang, model = excluded.model, made_at = excluded.made_at, version = excluded.version`,
+        [key, fiche.energy, fiche.tempo, JSON.stringify(fiche.moods), JSON.stringify(fiche.styles), fiche.lang, model, now, version]);
     }
   },
 

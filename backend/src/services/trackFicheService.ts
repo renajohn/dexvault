@@ -1,5 +1,5 @@
 import axios from 'axios';
-import TrackFiche, { type Fiche, MOODS, STYLES, TEMPOS, type Tempo } from '../models/trackFiche';
+import TrackFiche, { type Fiche, type FicheRecord, MOODS, STYLES, TEMPOS, type Tempo } from '../models/trackFiche';
 import { getConfig, requestFailure } from './coverScanService';
 import { catalogue, inPool, type RadioEntry, type RadioPool } from './radioCatalogue';
 import { inTurn } from '../utils/localLlmQueue';
@@ -27,7 +27,27 @@ export interface FicheAsk {
   title: string;
   album: string;
   year: number | null;
+  /** The album's genres from MusicBrainz, a hint the model weighs: an album's, not the song's. */
+  genres?: string[];
 }
+
+/**
+ * The way fiches are asked for. 2: the album's genres and what each style
+ * means, measured on evalsets/track fiches (04.11.2026): the hard cases went
+ * from 44 % to 91 % right, no Pink Floyd as alternative. A fiche of an older
+ * way is written again, and serves until then.
+ */
+export const FICHE_VERSION = 2;
+/** How many of an album's genres a song is told: as many as the evalset measured. */
+const GENRES_TOLD = 8;
+
+const STYLE_GUIDE = 'Styles: alternative = alternative and indie rock from the 1980s on (R.E.M., Nirvana, Radiohead, Muse, The White Stripes), never classic rock, progressive or 1970s rock; '
+  + 'progressive = progressive and art rock, concept albums (Pink Floyd, 1970s Genesis, Yes, Supertramp, The Alan Parsons Project); hard-rock = hard rock and metal; '
+  + 'rock = any other rock (classic rock, rock and roll, pop rock); chanson = French chanson where the words come first (Brel, Brassens, Piaf, Renaud, Cabrel, Souchon), not every song in French; '
+  + 'pop = mainstream pop in any language; singer-songwriter = a voice with a guitar or a piano, words first; world = traditional or non-western music (fado, morna, African…); '
+  + 'latin = Latin American, Cuban, flamenco and rumba; electronic = electronic production, trip hop, ambient; soundtrack = film and TV scores; classical = art music. '
+  + 'Energy: 2 a quiet ballad, 5 mid-tempo, 8 driving rock or dance, 10 punk; judge this very recording (a live take, a demo, a short interlude), not the artist or the album. '
+  + 'Songs of one album differ: describe each on its own.';
 
 /** One request to the local LLM, its answer's text; thinking off, which only slows it down here. */
 export const chatLocal = async (prompt: string, { maxTokens, temperature, timeoutSec = LLM_TIMEOUT_SEC }: { maxTokens: number; temperature: number; timeoutSec?: number }): Promise<string> => {
@@ -105,8 +125,10 @@ export const fichePrompt = (songs: FicheAsk[]): string => [
   'Describe each recording for a listener\'s playlists. For each give: n; energy 0-10 (how lively, driving, danceable: 0 a lullaby, 10 pure adrenaline); tempo slow|mid|fast; '
   + `moods: 2 or 3 words taken ONLY from [${MOODS.join(', ')}]; styles: 1 or 2 taken ONLY from [${STYLES.join(', ')}]; `
   + 'lang: the sung language in English and lower case (english, french, german…), or instrumental. '
-  + 'Use what you know of the recording; for a classical movement, its tempo marking. Answer a JSON array of {n,energy,tempo,moods,styles,lang} only.',
-  ...songs.map((song, at) => `${at + 1}. ${song.artist} — ${song.title} (album ${song.album}${song.year ? `, ${song.year}` : ''})`),
+  + 'Use what you know of the recording; for a classical movement, its tempo marking. '
+  + `${STYLE_GUIDE} Answer a JSON array of {n,energy,tempo,moods,styles,lang} only.`,
+  ...songs.map((song, at) => `${at + 1}. ${song.artist} — ${song.title} (album ${song.album}${song.year ? `, ${song.year}` : ''}`
+    + `${song.genres?.length ? `; album genres: ${song.genres.slice(0, GENRES_TOLD).join(', ')}` : ''})`),
 ].join('\n');
 
 /** No usable answer in all the attempts: the model is there, these songs are the trouble. */
@@ -124,8 +146,12 @@ export const describe = async (songs: FicheAsk[]): Promise<Array<{ key: string; 
 };
 
 const askOf = (entry: RadioEntry): FicheAsk => ({
-  key: entry.key, artist: entry.song.artist, title: entry.song.title, album: entry.song.album, year: entry.year,
+  key: entry.key, artist: entry.song.artist, title: entry.song.title, album: entry.song.album, year: entry.year, genres: entry.genres,
 });
+
+/** The fiches written the way they are asked for now: the others wait to be written again. */
+const current = (have: Map<string, FicheRecord>): Set<string> =>
+  new Set([...have].filter(([, fiche]) => fiche.version >= FICHE_VERSION).map(([key]) => key));
 
 /** What waits to be written: the pools asked for first, then the rest; by recording, each once. */
 const asked = new Map<string, FicheAsk>();
@@ -149,14 +175,14 @@ const takeBatch = (have: Set<string>): FicheAsk[] => {
 /** Writes what waits, a batch at a time; stops when the model cannot be reached, the rest left for the next pass. */
 const drain = (): Promise<void> => {
   draining = draining ?? (async () => {
-    const have = new Set((await TrackFiche.all()).keys());
+    const have = current(await TrackFiche.all());
     for (;;) {
       const batch = takeBatch(have);
       if (batch.length === 0) return;
       const started = Date.now();
       try {
         const written = await describe(batch);
-        await TrackFiche.saveMany(written, getConfig().model);
+        await TrackFiche.saveMany(written, getConfig().model, FICHE_VERSION);
         written.forEach(one => have.add(one.key));
         batch.filter(song => !have.has(song.key)).forEach(song => failedAt.set(song.key, Date.now()));
         logger.info(`Radio fiches: ${written.length} of ${batch.length} written in ${Math.round((Date.now() - started) / 1000)} s`);
@@ -171,8 +197,14 @@ const drain = (): Promise<void> => {
   return draining;
 };
 
-const missing = (entries: RadioEntry[], have: Map<string, unknown>): RadioEntry[] =>
-  entries.filter(entry => !have.has(entry.key) && Date.now() - (failedAt.get(entry.key) ?? 0) > RETRY_FAILED_AFTER_MS);
+/** The songs to write: those with no fiche, then those of an older way, each left alone a day once the model failed it. */
+const missing = (entries: RadioEntry[], have: Map<string, FicheRecord>): RadioEntry[] => {
+  const due = entries.filter(entry => Date.now() - (failedAt.get(entry.key) ?? 0) > RETRY_FAILED_AFTER_MS);
+  return [
+    ...due.filter(entry => !have.has(entry.key)),
+    ...due.filter(entry => have.has(entry.key) && have.get(entry.key)!.version < FICHE_VERSION),
+  ];
+};
 
 export interface FicheStatus {
   songs: number;
@@ -202,7 +234,7 @@ const trackFicheService = {
     return statusOf(entries);
   },
 
-  queueFirst: (entries: RadioEntry[], have: Map<string, unknown>): void => {
+  queueFirst: (entries: RadioEntry[], have: Map<string, FicheRecord>): void => {
     const songs = missing(entries, have);
     if (songs.length === 0) return;
     for (const entry of songs) { background.delete(entry.key); asked.set(entry.key, askOf(entry)); }

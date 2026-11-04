@@ -11,7 +11,8 @@ import ripStatusService from '../../src/services/ripStatusService';
 import mixtapeSearchService from '../../src/services/mixtapeSearchService';
 import { catalogue, forgetCatalogue, inPool, type RadioEntry, type RadioPool } from '../../src/services/radioCatalogue';
 import trackFicheService, { describe as describeSongs, NoFichesError, parseFiches } from '../../src/services/trackFicheService';
-import { arrange, criteriaOf, fitScore, restingSongs } from '../../src/services/radioService';
+import { arrange, criteriaOf, fitScore, reachOf, restingSongs, stillFits } from '../../src/services/radioService';
+import { buildStyleGraph } from '../../src/services/styleGraph';
 import albumGuideService from '../../src/services/albumGuideService';
 import albumStoryService from '../../src/services/albumStoryService';
 import musicService from '../../src/services/musicService';
@@ -124,10 +125,19 @@ describe('a fiche as the model gives it', () => {
     const body = post.mock.calls[0][1] as any;
     expect(body).toMatchObject({ temperature: 0.1, chat_template_kwargs: { enable_thinking: false } });
     expect(askedOf(body)).toContain('1. A — T (album Al, 2000)');
+    expect(askedOf(body)).toContain('never classic rock, progressive or 1970s rock');
 
     post.mockReset().mockResolvedValue(answer('nothing'));
     await expect(describeSongs([{ key: 'k1', artist: 'A', title: 'T', album: 'Al', year: null }])).rejects.toBeInstanceOf(NoFichesError);
     expect(post).toHaveBeenCalledTimes(3);
+  });
+
+  it('tells the model the album\'s genres, the first eight', async () => {
+    const post = jest.spyOn(axios, 'post').mockResolvedValue(answer('[{"n": 1, "energy": 7, "tempo": "fast", "moods": ["driving"], "styles": ["progressive"], "lang": "english"}]'));
+    const genres = ['ambient', 'art rock', 'classic rock', 'classical', 'electronic', 'hard rock', 'jazz', 'progressive', 'progressive rock'];
+    await describeSongs([{ key: 'k1', artist: 'Pink Floyd', title: 'Sheep', album: 'Animals', year: 1977, genres }]);
+    expect(askedOf(post.mock.calls[0][1] as any)).toContain(
+      '1. Pink Floyd — Sheep (album Animals, 1977; album genres: ambient, art rock, classic rock, classical, electronic, hard rock, jazz, progressive)');
   });
 });
 
@@ -157,6 +167,29 @@ describe('the fiches written for a pool', () => {
     expect(askedOf(post.mock.calls[1][1]).split('\n').filter(line => /^\d+\. /.test(line))).toHaveLength(6);
     expect((await request(app).get('/api/radio/fiches').expect(200)).body.withFiche).toBe(10);
   });
+
+  it('writes again the fiches of an older way, those with none first, and keeps them until then', async () => {
+    const post = jest.spyOn(axios, 'post').mockImplementation(async (_url: string, body: any) => {
+      const lines = askedOf(body).split('\n').filter(line => /^\d+\. /.test(line));
+      return answer(JSON.stringify(lines.map((_, at) => ({ n: at + 1, energy: 4, tempo: 'mid', moods: ['calm'], styles: ['progressive'], lang: 'english' }))));
+    });
+    const { entries } = await catalogue();
+    const old = [...new Map(entries.map(entry => [entry.key, entry])).values()].slice(0, 3);
+    await TrackFiche.saveMany(old.map(entry => ({ key: entry.key, fiche: fiche(7, ['driving'], ['alternative']) })), 'old', 1);
+    expect((await TrackFiche.all()).get(old[0].key)).toMatchObject({ styles: ['alternative'], version: 1 });
+
+    await trackFicheService.writeMissing();
+    const lines = askedOf(post.mock.calls[0][1]).split('\n').filter(line => /^\d+\. /.test(line));
+    // Those with no fiche are asked first, then the older ones.
+    expect(lines.slice(-3).map(line => line.replace(/^\d+\. /, '').split(' (album')[0]))
+      .toEqual(old.map(entry => `${entry.song.artist} — ${entry.song.title}`));
+    const after = await TrackFiche.all();
+    expect(old.map(entry => after.get(entry.key))).toEqual(old.map(() => expect.objectContaining({ styles: ['progressive'], version: 2 })));
+
+    post.mockClear();
+    await trackFicheService.writeMissing();
+    expect(post).not.toHaveBeenCalled();
+  });
 });
 
 describe('the pool', () => {
@@ -184,7 +217,7 @@ describe('the criteria', () => {
     expect(fitScore(song, { energyMax: 6 })).toBe(0);
     expect(fitScore(song, { styles: ['jazz'] })).toBe(0);
     expect(fitScore(song, { langs: ['french'] })).toBe(0);
-    expect(fitScore(song, { styles: ['rock', 'jazz'], tempos: ['fast'], moods: ['driving', 'anthemic', 'calm'] })).toBe(4);
+    expect(fitScore(song, { styles: ['rock', 'jazz'], tempos: ['fast'], moods: ['driving', 'anthemic', 'calm'] })).toBe(104);
   });
 
   it('keeps the closed lists, takes numbers as strings and refuses what is no criteria', () => {
@@ -194,6 +227,22 @@ describe('the criteria', () => {
     expect(criteriaOf('loud')).toBeNull();
     expect(criteriaOf({ energyMin: 'loud' })).toBeNull();
     expect(criteriaOf({ moods: 'calm' })).toBeNull();
+    expect(criteriaOf({ notStyles: 'rock' })).toBeNull();
+  });
+
+  it('reads the criteria saved before, several styles all asked, and the neighbours taken away', () => {
+    expect(criteriaOf({ energyMin: 7, styles: ['rock', 'alternative', 'hard-rock'], moods: ['energetic'] }))
+      .toEqual({ energyMin: 7, energyMax: null, tempos: [], moods: ['energetic'], styles: ['rock', 'alternative', 'hard-rock'], langs: [] });
+    expect(criteriaOf({ styles: ['alternative'], notStyles: ['rock', 'krautrock'] }))
+      .toMatchObject({ styles: ['alternative'], notStyles: ['rock'] });
+  });
+
+  it('asks the model for the styles named alone, and a language only when it qualifies the music', async () => {
+    const post = jest.spyOn(axios, 'post').mockResolvedValue(answer('{"styles": ["alternative"], "moods_any": ["energetic"]}'));
+    await request(app).post('/api/radio/criteria').send({ prompt: 'du rock alternatif plein d\'énergie' }).expect(200);
+    const asked = askedOf(post.mock.calls[0][1]);
+    expect(asked).toContain('"rock alternatif" is ["alternative"], not "rock"');
+    expect(asked).toContain('"rock français" is french');
   });
 
   it('hears a prompt through the local LLM', async () => {
@@ -204,9 +253,72 @@ describe('the criteria', () => {
   });
 });
 
+describe('the styles\' neighbours', () => {
+  const rec = (key: string, artist: string, ...styles: string[]) => ({ key, artist, styles });
+  // Muse plays alternative and rock, the Beatles rock and pop, Adele pop and soul, Bach classical alone.
+  const graph = buildStyleGraph([
+    rec('m1', 'muse', 'alternative'), rec('m2', 'muse', 'alternative', 'rock'), rec('m3', 'muse', 'rock'),
+    // The same recording on another album counts once.
+    rec('m3', 'muse', 'rock'),
+    rec('b1', 'beatles', 'rock'), rec('b2', 'beatles', 'pop'),
+    rec('a1', 'adele', 'pop'), rec('a2', 'adele', 'soul'),
+    rec('j1', 'bach', 'classical'),
+  ]);
+
+  it('are as close as the artists playing both, through those between, the best path kept', () => {
+    // alternative {muse 2}, rock {muse 2, beatles 1}: 4 / (2 × √5).
+    expect(graph.weight('alternative', 'rock')).toBeCloseTo(4 / (2 * Math.sqrt(5)));
+    expect(graph.weight('rock', 'alternative')).toBeCloseTo(graph.weight('alternative', 'rock'));
+    // rock {muse 2, beatles 1}, pop {beatles 1, adele 1}: 1 / (√5 × √2).
+    expect(graph.weight('rock', 'pop')).toBeCloseTo(1 / Math.sqrt(10));
+    // No artist plays alternative and pop: through rock, the product.
+    expect(graph.weight('alternative', 'pop')).toBeCloseTo(graph.weight('alternative', 'rock') * graph.weight('rock', 'pop'));
+    expect(graph.path('alternative', 'soul')).toEqual(['alternative', 'rock', 'pop', 'soul']);
+    expect(graph.path('rock', 'rock')).toEqual(['rock']);
+    expect(graph.weight('classical', 'classical')).toBe(1);
+    expect(graph.weight('classical', 'rock')).toBe(0);
+    expect(graph.path('classical', 'rock')).toEqual([]);
+    expect(graph.weight('jazz', 'rock')).toBe(0);
+  });
+
+  it('fill in only when the styles asked are by too few artists, the nearest first', () => {
+    const songs = (artists: string[], ...styles: string[]) => artists.map(artist => ({ artist, styles }));
+    const few = [...songs(['muse'], 'alternative'), ...songs(['beatles', 'queen'], 'rock'), ...songs(['adele', 'abba', 'blur', 'cure'], 'pop'), ...songs(['otis'], 'soul')];
+    const reach = reachOf({ styles: ['alternative'] }, graph, few);
+    // Muse alone, then rock's two, then pop's four: six artists, soul not needed.
+    expect(reach.neighbours.map(one => one.style)).toEqual(['rock', 'pop']);
+    expect(reach.neighbours[1].path).toEqual(['alternative', 'rock', 'pop']);
+    expect(reach.weights.get('alternative')).toBe(1);
+    expect(reach.weights.has('soul')).toBe(false);
+    // Six artists of the style asked: no neighbour.
+    expect(reachOf({ styles: ['alternative'] }, graph, songs(['a', 'b', 'c', 'd', 'e', 'f'], 'alternative')).neighbours).toEqual([]);
+    // One taken away is passed over; one bringing no song of its own is not kept.
+    expect(reachOf({ styles: ['alternative'], notStyles: ['rock'] }, graph, few).neighbours.map(one => one.style)).toEqual(['pop', 'soul']);
+    expect(reachOf({ styles: ['alternative'] }, graph, [...songs(['muse'], 'alternative', 'rock'), ...songs(['adele'], 'pop')]).neighbours.map(one => one.style)).toEqual(['pop']);
+    // None asked: no style rule.
+    expect(reachOf({}, graph, few)).toEqual({ weights: new Map(), neighbours: [] });
+    // Classical has no neighbour.
+    expect(reachOf({ styles: ['classical'] }, graph, few).neighbours).toEqual([]);
+  });
+
+  it('rank the style asked ahead of a neighbour, whatever their moods', () => {
+    const weights = new Map([['alternative', 1], ['rock', 0.47]]);
+    const criteria = { styles: ['alternative'], moods: ['energetic', 'driving', 'intense'], tempos: ['fast' as const] };
+    const asked = fitScore(fiche(8, [], ['alternative']), criteria, weights);
+    const near = fitScore(fiche(8, ['energetic', 'driving', 'intense'], ['rock'], 'fast'), criteria, weights);
+    expect(near).toBeGreaterThan(0);
+    expect(asked).toBeGreaterThan(near);
+    // A song of both is the style asked; one of neither is out, and stays out of the band.
+    expect(fitScore(fiche(8, [], ['rock', 'alternative']), criteria, weights)).toBe(asked);
+    expect(fitScore(fiche(8, ['energetic'], ['pop']), criteria, weights)).toBe(0);
+    expect(stillFits(fiche(8, ['energetic'], ['rock']), criteria, weights)).toBe(true);
+    expect(stillFits(fiche(8, ['energetic'], ['rock']), criteria)).toBe(false);
+  });
+});
+
 const entry = (songId: string, artist: string, track = 1, work: string | null = null): RadioEntry => ({
   song: { songId, title: songId, artist, albumId: 1, album: 'Al', cover: null, discNumber: 1, track, durationSec: 60, starred: false, popular: false, work, movement: work ? songId : null },
-  key: songId, stars: null, classical: Boolean(work), year: null, workKey: work, workSongs: [],
+  key: songId, stars: null, classical: Boolean(work), year: null, genres: [], workKey: work, workSongs: [],
 });
 
 describe('the songs arranged', () => {
@@ -348,7 +460,29 @@ describe('the next songs', () => {
     await giveFiches({ m1: fiche(8, ['driving'], ['rock']) });
     const { body } = await request(app).post('/api/radio/next')
       .send({ criteria: { styles: ['jazz'] }, pool: POOL, count: 10, ahead: [] }).expect(200);
-    expect(body).toEqual({ songs: [], poolSize: 10, fitting: 0, missingFiches: 8 });
+    expect(body).toEqual({ songs: [], poolSize: 10, fitting: 0, missingFiches: 8, neighbours: [] });
+  });
+
+  it('draws from the neighbouring styles when the one asked is by too few artists, and keeps the band by them', async () => {
+    await giveFiches({
+      m1: fiche(8, ['driving'], ['alternative']), m2: fiche(8, ['driving'], ['alternative', 'rock']), m3: fiche(8, ['driving'], ['rock']),
+      r1: fiche(7, ['playful'], ['rock']), a1: fiche(6, ['groovy'], ['soul']),
+    });
+    const { body } = await request(app).post('/api/radio/next')
+      .send({ criteria: { styles: ['alternative'] }, pool: POOL, count: 10, ahead: [] }).expect(200);
+    expect(body.neighbours).toEqual([{ style: 'rock', weight: expect.any(Number), path: ['alternative', 'rock'] }]);
+    // Muse's three and their best of's, and the Beatles' for rock; never Adele's soul, nowhere near.
+    expect(body.fitting).toBe(5);
+    expect(body.songs.map((one: { songId: string }) => one.songId)).toContain('r1');
+    expect(body.songs.map((one: { songId: string }) => one.songId)).not.toContain('a1');
+    // The Beatles' song stays in the band, near enough; rock taken away, it goes.
+    const kept = await request(app).post('/api/radio/next')
+      .send({ criteria: { styles: ['alternative'] }, pool: POOL, count: 1, ahead: [], keep: ['r1'] }).expect(200);
+    expect(kept.body.songs.map((one: { songId: string }) => one.songId)).toEqual(['r1']);
+    const without = await request(app).post('/api/radio/next')
+      .send({ criteria: { styles: ['alternative'], notStyles: ['rock'] }, pool: POOL, count: 1, ahead: [], keep: ['r1'] }).expect(200);
+    expect(without.body.songs.map((one: { songId: string }) => one.songId)).not.toContain('r1');
+    expect(without.body.neighbours).toEqual([]);
   });
 });
 
