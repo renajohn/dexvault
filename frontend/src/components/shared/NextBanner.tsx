@@ -74,7 +74,7 @@ interface NextBannerProps {
  * first and a swipe along the row dragged its cover; a finger goes to the
  * TouchSensor, which waits for it to hold.
  */
-class MousePointerSensor extends PointerSensor {
+export class MousePointerSensor extends PointerSensor {
   static activators = [{
     eventName: 'onPointerDown' as const,
     handler: ({ nativeEvent: event }: React.PointerEvent, { onActivation }: PointerSensorOptions) => {

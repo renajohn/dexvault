@@ -145,6 +145,27 @@ describe('with it', () => {
       .toMatchObject({ index: 1, count: 4, position: 20, status: 'playing', album: { id: null, title: radio.title } });
   });
 
+  it('puts the tracks after the one playing in another order, any album, the next one given again', async () => {
+    const queued = { ...tracksOf(9, 1)[0], songId: 'q1', queued: true };
+    expect((await request(app).post(`/api/outputs/${ONKYO}/queue`).send({ tracks: [queued] })).status).toBe(404);
+    await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7 }).expect(200);
+    const [, second, third] = tracksOf(7);
+    expect((await request(app).post(`/api/outputs/${ONKYO}/queue`).send({ tracks: [third, second], albumKey: 'Another' })).status).toBe(409);
+    expect((await request(app).post(`/api/outputs/${ONKYO}/queue`).send({ tracks: [third, second], current: 'nope' })).status).toBe(409);
+    expect((await request(app).post(`/api/outputs/${ONKYO}/queue`).send({ tracks: [{ songId: '../x' }] })).status).toBe(400);
+    const nextBefore = onkyo.of('SetNextAVTransportURI').length;
+    const res = await request(app).post(`/api/outputs/${ONKYO}/queue`)
+      .send({ tracks: [queued, third, second], albumKey: albumOf(7).title, current: tracksOf(7)[0].songId });
+    expect(res.body).toEqual({ count: 4 });
+    const session = outputs.session(ONKYO)!.state();
+    expect(session.tracks.map(track => track.songId)).toEqual([tracksOf(7)[0].songId, 'q1', third.songId, second.songId]);
+    expect(session.tracks[1].queued).toBe(true);
+    expect(onkyo.of('SetNextAVTransportURI')).toHaveLength(nextBefore + 1);
+    expect(onkyo.of('SetNextAVTransportURI').at(-1)!.args.NextURI).toContain('/q1');
+    // Every track to come taken out: the one playing alone.
+    expect((await request(app).post(`/api/outputs/${ONKYO}/queue`).send({ tracks: [] })).body).toEqual({ count: 1 });
+  });
+
   it('carries a play over from one appliance to the other, the first paused', async () => {
     await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7, index: 1 }).expect(200);
     onkyo.advance(20);

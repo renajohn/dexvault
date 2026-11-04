@@ -35,6 +35,8 @@ export interface PlayerTrack {
   /** What the page says is heard: the file lossless (FLAC, ALAC…), or its format (MP3, AAC). */
   lossless?: boolean;
   format?: string;
+  /** Put there by hand (Play next, Play last) from another album than the one playing: not counted as one of its tracks. */
+  queued?: boolean;
 }
 
 /** The album a play belongs to. */

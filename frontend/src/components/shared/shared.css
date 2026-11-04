@@ -743,6 +743,17 @@
 }
 
 /* A card dragged into a new order: it follows the pointer at once, above the others, which make room for it. */
+/*
+ * A banner's card is drawn, not read: a mouse pressed on it and moved, a
+ * card that does not move (the song playing) included, selects none of its
+ * words, and a finger held on it opens neither the loupe nor Copy.
+ */
+.next-banner__card {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .next-banner__card--sortable {
   /* A finger scrolls both ways from a cover: it drags only once held (the TouchSensor's delay). */
   touch-action: manipulation;

@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { BsCheck2, BsMusicNoteList, BsPlayFill } from 'react-icons/bs';
+import { BsCheck2, BsGripVertical, BsMusicNoteList, BsPlayFill, BsThreeDots } from 'react-icons/bs';
+import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type Announcements, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import Dialog, { useDialogClose } from './shared/Dialog';
+import Menu from './shared/Menu';
+import { UpcomingEntries } from './QueueEntries';
+import { IconButton } from './shared/Button';
 import CoverTag from './shared/CoverTag';
 import NowPlayingBars from './shared/NowPlayingBars';
 import { Loading } from './shared/Spinner';
@@ -10,6 +16,7 @@ import { listenNextQueue, playingKey } from '../services/listenNextQueue';
 import { entryKey, parseEntryKey } from '../utils/listenNextEntry';
 import musicService from '../services/musicService';
 import { loadPlayable } from '../utils/playAlbum';
+import { inAlbumOrder } from '../utils/queueOrder';
 import './PlayerTracks.css';
 
 /** An album of the dialog: out of the list (played to its end, or taken out by hand), or in it. */
@@ -23,6 +30,39 @@ const time = (seconds: number | null): string => {
   if (seconds == null) return '';
   const s = Math.max(0, Math.round(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+/** A key for each track that stays with it as it moves: its song, and which of that song's times when it is there twice. */
+const keysOf = (tracks: PlayerTrack[]): string[] => {
+  const seen = new Map<string, number>();
+  return tracks.map(track => {
+    const nth = seen.get(track.songId) ?? 0;
+    seen.set(track.songId, nth + 1);
+    return `${track.songId}#${nth}`;
+  });
+};
+
+/**
+ * A track still to come of what plays: dragged to another place among those
+ * to come (a mouse past a few pixels, a finger held a moment), or moved by
+ * its ⋯ (next, last, taken out), or Alt ↑ ↓ from the keys.
+ */
+const Upcoming: React.FC<{ id: string; at: number; title: string; children: React.ReactNode }> = ({ id, at, title, children }) => {
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = { transform: CSS.Translate.toString(transform), transition: transition || undefined };
+  return (
+    <div ref={setNodeRef} style={style} className={`player-tracks-row player-tracks-row--upcoming${isDragging ? ' player-tracks-row--dragging' : ''}`} {...listeners}>
+      <BsGripVertical className="player-tracks-grip" aria-hidden="true" />
+      {children}
+      <span className="player-tracks-more" onPointerDown={event => event.stopPropagation()}>
+        <Menu align="end" label={`Move ${title}`} trigger={props => (
+          <IconButton {...props} size="sm" label={`Move ${title}`} title="Move"><BsThreeDots aria-hidden="true" /></IconButton>
+        )}>
+          <UpcomingEntries at={at} />
+        </Menu>
+      </span>
+    </div>
+  );
 };
 
 /** The albums to show: of Listen Next, those of this play that left it and the list, an album or one disc of it; else the album playing. */
@@ -100,11 +140,40 @@ const Tracks: React.FC<{ fromListenNext: boolean }> = ({ fromListenNext }) => {
     if (!started) toast(`Could not play ${one.album.title}`, { tone: 'danger' });
   };
 
-  // ↑ ↓ from track to track.
+  // A mouse drags past a few pixels, for a click to stay a click; a finger holds first, for a swipe to scroll.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
+  const keys = keysOf(tracks);
+  // Said to a screen reader by the tracks' titles, not by their keys.
+  const titleOf = (id: string | number | undefined) => tracks[keys.indexOf(String(id))]?.title ?? 'The track';
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => `${titleOf(active.id)} picked up.`,
+    onDragOver: ({ active, over }) => (over ? `${titleOf(active.id)} over ${titleOf(over.id)}.` : `${titleOf(active.id)} is no longer over a track.`),
+    onDragEnd: ({ active, over }) => (over ? `${titleOf(active.id)} put where ${titleOf(over.id)} was.` : `${titleOf(active.id)} put back.`),
+    onDragCancel: ({ active }) => `${titleOf(active.id)} put back where it was.`,
+  };
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    player.moveTrack(keys.indexOf(String(active.id)), keys.indexOf(String(over.id)));
+  };
+
+  // ↑ ↓ from track to track; Alt ↑ ↓ moves a track to come, the focus with it.
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     const all = Array.from(list.current?.querySelectorAll<HTMLButtonElement>('.player-tracks-track') || []);
     const at = all.indexOf(document.activeElement as HTMLButtonElement);
+    const moving = event.altKey ? (document.activeElement as HTMLElement | null)?.dataset.upcoming : undefined;
+    if (moving != null) {
+      event.preventDefault();
+      const from = Number(moving);
+      const to = from + (event.key === 'ArrowDown' ? 1 : -1);
+      if (player.moveTrack(from, to)) {
+        requestAnimationFrame(() => list.current?.querySelector<HTMLButtonElement>(`[data-upcoming="${to}"]`)?.focus());
+      }
+      return;
+    }
     const next = all[Math.max(0, Math.min(all.length - 1, at + (event.key === 'ArrowDown' ? 1 : -1)))];
     if (next) {
       event.preventDefault();
@@ -121,7 +190,8 @@ const Tracks: React.FC<{ fromListenNext: boolean }> = ({ fromListenNext }) => {
     if (one.gone === 'out') return <CoverTag variant="muted">Taken out</CoverTag>;
     return null;
   };
-  const discsOf = (one: Shown) => new Set(one.tracks.map(track => track.disc)).size;
+  // The album's own discs: a track put there by hand from another album counts none.
+  const discsOf = (one: Shown) => new Set(one.tracks.filter(track => !track.queued).map(track => track.disc)).size;
   const length = side ? side.tracks.reduce((sum, track) => sum + (track.durationSec || 0), 0) : 0;
 
   return (
@@ -142,10 +212,16 @@ const Tracks: React.FC<{ fromListenNext: boolean }> = ({ fromListenNext }) => {
           </div>
         </aside>
       )}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}
+        accessibility={{ announcements, screenReaderInstructions: { draggable: 'Drag a track to come to another place, or use Alt and the arrows.' } }}>
       <div className="player-tracks-list" ref={list} onScroll={follow} onKeyDown={onKeyDown}>
         {shown.map(one => {
-          const several = discsOf(one) > 1;
           const here = playingKey(one.album) === playingKey(album);
+          // The album playing as it now plays: its tracks moved, taken out, or put there by hand.
+          const theirs = here ? tracks : one.tracks;
+          // Put in another order: numbered by their places, the album's numbers saying nothing any more.
+          const ordered = inAlbumOrder(theirs);
+          const several = discsOf(one) > 1 && ordered;
           return (
             <section key={playingKey(one.album) ?? 'alone'} className={`player-tracks-album${one.gone ? ' player-tracks-album--gone' : ''}`}
               aria-label={one.album.title}>
@@ -159,21 +235,20 @@ const Tracks: React.FC<{ fromListenNext: boolean }> = ({ fromListenNext }) => {
                   {tagOf(one)}
                 </div>
               )}
-              {one.tracks.map((track, at) => {
+              <SortableContext items={here ? keys.slice(index + 1) : []} strategy={verticalListSortingStrategy}>
+              {theirs.map((track, at) => {
                 const now = here && at === index;
                 // Already heard, before the one playing in its album: dimmed.
                 const past = here && at < index;
-                return (
-                  <React.Fragment key={`${track.songId}-${at}`}>
-                    {several && (at === 0 || one.tracks[at - 1].disc !== track.disc) && (
-                      <div className="player-tracks-disc">Disc {track.disc}</div>
-                    )}
+                const upcoming = here && at > index;
+                const button = (
                     <button type="button" className={`player-tracks-track${now ? ' player-tracks-track--now' : ''}${past ? ' player-tracks-track--past' : ''}`}
-                      aria-current={now ? 'true' : undefined} onClick={() => jump(one, at)}>
+                      aria-current={now ? 'true' : undefined} onClick={() => jump(one, at)} data-upcoming={upcoming ? at : undefined}
+                      aria-keyshortcuts={upcoming ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}>
                       <span className="player-tracks-no">
                         {now ? <NowPlayingBars playing={playing} /> : (
                           <>
-                            <span className="player-tracks-number">{track.no}</span>
+                            <span className="player-tracks-number">{ordered ? track.no : at + 1}</span>
                             <BsPlayFill className="player-tracks-play" aria-hidden="true" />
                           </>
                         )}
@@ -185,13 +260,22 @@ const Tracks: React.FC<{ fromListenNext: boolean }> = ({ fromListenNext }) => {
                       </span>
                       <span className="player-tracks-time">{time(track.durationSec)}</span>
                     </button>
+                );
+                return (
+                  <React.Fragment key={here ? keys[at] : `${track.songId}-${at}`}>
+                    {several && (at === 0 || theirs[at - 1].disc !== track.disc) && (
+                      <div className="player-tracks-disc">Disc {track.disc}</div>
+                    )}
+                    {upcoming ? <Upcoming id={keys[at]} at={at} title={track.title}>{button}</Upcoming> : <div className="player-tracks-row">{button}</div>}
                   </React.Fragment>
                 );
               })}
+              </SortableContext>
             </section>
           );
         })}
       </div>
+      </DndContext>
     </Dialog.Body>
   );
 };

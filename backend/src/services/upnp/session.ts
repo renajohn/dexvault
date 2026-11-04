@@ -222,6 +222,11 @@ export class OutputSession {
   private onDevice = false;
   /** The track given as the next one, which the appliance goes on to by itself; -1 for none. */
   private nextSet = -1;
+  /**
+   * The song given as next that was taken out of the play by hand, when the
+   * appliance would not forget it: gone on to it, the track before it ended.
+   */
+  private withdrawn: string | null = null;
   private announced = false;
   private counted = false;
   private lastPosition = 0;
@@ -560,6 +565,12 @@ export class OutputSession {
    * player's, another DexVault's), STALE for one of ours that is not in the
    * list (left from an earlier play), null for none at all.
    */
+  /** The song of one of our URIs, whatever play it was given for. */
+  private songOfUri(uri: string): string | null {
+    const match = /\/upnp\/stream\/([^/]+)\/([^/?#]+?)(?:\.[a-z0-9]+)?(?:[?#].*)?$/i.exec(uri);
+    return match ? decodeURIComponent(match[2]) : null;
+  }
+
   private indexOfUri(uri: string): number | null {
     if (!uri) return null;
     const match = /\/upnp\/stream\/([^/]+)\/([^/?#]+?)(?:\.[a-z0-9]+)?(?:[?#].*)?$/i.exec(uri);
@@ -668,7 +679,7 @@ export class OutputSession {
     const duration = this.duration || track.durationSec || 0;
     if (!(this.position >= SCROBBLE_AFTER_SEC || (duration > 0 && this.position >= duration / 2))) return;
     this.counted = true;
-    this.turn?.noteCounted();
+    if (!track.queued) this.turn?.noteCounted();
     this.later(this.deps.scrobble(track.songId, true).then(({ left }) => {
       if (!left) return;
       this.turn?.noteDeparted(left.albumId, left.disc);
@@ -798,6 +809,7 @@ export class OutputSession {
     this.counted = countedAt(track, at);
     this.announced = false;
     this.nextSet = -1;
+    this.withdrawn = null;
     this.error = null;
     this.hush = null;
     this.stillWanted();
@@ -1053,6 +1065,14 @@ export class OutputSession {
       await this.startTrack(this.index, this.lastPosition);
       return;
     }
+    // Gone on to the track taken out by hand, which it would not forget: the one before it ended there.
+    if (ours === STALE && this.withdrawn && this.songOfUri(where.trackUri) === this.withdrawn) {
+      this.withdrawn = null;
+      this.strikes = 0;
+      await this.call(r => r.stop()).catch(() => undefined);
+      await this.trackEnded();
+      return;
+    }
     if (transport.state === 'NO_MEDIA_PRESENT' || ours === -1 || ours === STALE) {
       // Read twice in a row before letting go: between two tracks the appliance may say nothing for a moment.
       if (++this.strikes >= FOREIGN_STRIKES) this.letGo();
@@ -1188,6 +1208,48 @@ export class OutputSession {
       this.save();
       this.emit(true);
       return tracks.length;
+    });
+  }
+
+  /**
+   * The tracks after the one playing, in place of those there: put in
+   * another order by hand, one taken out, or tracks put next or last. Any
+   * play, an album or Listen Next as well as a radio; `albumKey` (its title)
+   * and `current` (the song playing as the page saw it) for the server to
+   * refuse (409) once another album or another track plays. The one after it
+   * given again as next when it changed, for the appliance to follow on with
+   * no gap.
+   */
+  queueUp(upcoming: PlayerTrack[], albumKey: string | null = null, current: string | null = null, seen: number | null = null): Promise<number> {
+    return this.run(async () => {
+      if (!this.album) throw Object.assign(new Error('Nothing plays there'), { status: 404 });
+      if (albumKey != null && albumKey !== this.album.title) throw Object.assign(new Error('Another album plays there'), { status: 409 });
+      if (current != null && this.tracks[this.index]?.songId !== current) throw Object.assign(new Error('Another track plays there'), { status: 409 });
+      const nextBefore = this.tracks[this.index + 1]?.songId;
+      const given = this.nextSet === this.index + 1 ? nextBefore ?? null : null;
+      // Added at the end since the page saw `seen` tracks (the radio refilled meanwhile): kept after the others.
+      const since = seen == null ? [] : this.tracks.slice(Math.max(seen, this.index + 1));
+      this.tracks = [...this.tracks.slice(0, this.index + 1), ...upcoming, ...since];
+      if (this.tracks[this.index + 1]?.songId !== nextBefore) {
+        this.nextSet = -1;
+        this.withdrawn = null;
+        if (this.onDevice && this.status === 'playing') {
+          await this.postNext().catch(error => {
+            if (!(error instanceof OutputUnreachableError)) throw error;
+          });
+        }
+        // Nothing after this track any more, and the appliance holds the one given: forgotten there, for it to stop
+        // at the end of this one. Refused, the session knows the song when the appliance goes on to it anyway.
+        if (given && this.index + 1 >= this.tracks.length) {
+          this.withdrawn = given;
+          await this.call(r => r.setNextUri('', '')).then(() => { this.withdrawn = null; }, error => {
+            if (!(error instanceof OutputUnreachableError)) logger.warn(`${this.deps.name()} kept the next track: ${(error as Error).message}`);
+          });
+        }
+      }
+      this.save();
+      this.emit(true);
+      return this.tracks.length;
     });
   }
 

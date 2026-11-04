@@ -238,6 +238,69 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * A row: the track, and for one still to come of the album playing, a grip
+ * on its left and its ⋯ on its right, both under the pointer. Dragged, it
+ * lifts above the others.
+ */
+.player-tracks-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.player-tracks-row .player-tracks-track {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-tracks-row--upcoming {
+  cursor: grab;
+  touch-action: manipulation;
+  /* Drawn, not read: a drag selects none of the words, a finger held opens no Copy. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.player-tracks-grip {
+  position: absolute;
+  left: -10px;
+  color: var(--dv-text-faint);
+  font-size: 0.8rem;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.player-tracks-more {
+  position: absolute;
+  right: 52px;
+  opacity: 0;
+}
+
+.player-tracks-row--upcoming:hover .player-tracks-grip,
+.player-tracks-row--upcoming:hover .player-tracks-more,
+.player-tracks-row--upcoming:focus-within .player-tracks-more {
+  opacity: 1;
+}
+
+.player-tracks-row--dragging {
+  z-index: 2;
+  cursor: grabbing;
+}
+
+.player-tracks-row--dragging .player-tracks-track {
+  background: var(--dv-veil, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* Under a finger, no pointer to show them: the ⋯ always there. */
+@media (hover: none) {
+  .player-tracks-more {
+    opacity: 1;
+  }
+}
+
 /* On a phone, the dialog takes the screen: the cover goes small, beside its name. */
 @media (max-width: 767px) {
   .player-tracks.modal-body,

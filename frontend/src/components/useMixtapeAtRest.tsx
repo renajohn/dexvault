@@ -3,6 +3,7 @@ import { BsBoxArrowUpRight, BsFiles, BsHeadphones, BsPencil, BsPlus, BsShuffle, 
 import musicService, { type MixtapeDetails } from '../services/musicService';
 import { setFullPlayer, showAlbum, type ShownAlbum } from '../services/phoneDoor';
 import { playAlbumById, mixtapeTracksOf } from '../utils/playAlbum';
+import { usePlayer } from '../services/player';
 import { playingTime } from '../utils/albumHead';
 import { forgetMixtape, noteMixtape, reloadMixtapes } from '../utils/mixtapeStore';
 import { duplicateMixtape } from '../utils/mixtapeActions';
@@ -43,6 +44,7 @@ export const showMixtapeOnPhone = async (albumId: number, sheet?: { naming: bool
  * Delete. A song slid to the left goes out, held it moves, a work whole.
  */
 export const useMixtapeAtRest = (album: ShownAlbum | null): (AlbumAtRest & { editing: MixtapeEditing }) | null => {
+  const busy = usePlayer(state => state.album !== null);
   const albumId = album && isMixtape(album) ? Number(album.id) : null;
   const [mixtape, setMixtape] = useState<MixtapeDetails | null>(null);
   const [inListenNext, setInListenNext] = useState(false);
@@ -206,6 +208,10 @@ export const useMixtapeAtRest = (album: ShownAlbum | null): (AlbumAtRest & { edi
     tracks,
     shownTracks: tracks,
     playFrom: index => { playAlbumById(albumId, undefined, index).catch(() => undefined); },
+    // Something else plays: a song put next or last in it, with its own artist, CD and cover.
+    queueFrom: busy && tracks.length > 0
+      ? { id: albumId, title: mixtape.album.title, artist: 'Mixtape', cover: musicService.getImageUrl(mixtape.album.cover) }
+      : null,
     actions: { menu, disc: () => ({ on: false, toggle: () => undefined, menu: null }), dialog },
     dialog,
     editing: {

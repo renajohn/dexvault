@@ -911,7 +911,7 @@
 }
 .now-playing-rest__cd { color: var(--dv-silver); }
 
-/* A mixtape at rest: a track held lifts (useLiftToMove), a gold line where it will go. */
+/* A mixtape at rest, or the tracks to come of what plays: a track held lifts (useLiftToMove), a gold line where it will go. */
 .now-playing-tracks--mixtape {
   -webkit-touch-callout: none;
   user-select: none;
@@ -944,3 +944,8 @@
 
 .now-playing-unit--drop::before { top: -1px; }
 .now-playing-unit--drop-end::after { bottom: -1px; }
+
+/* A track put there by hand from another album: whose it is, after its title. */
+.now-playing-tracks__by {
+  color: var(--dv-text-muted);
+}

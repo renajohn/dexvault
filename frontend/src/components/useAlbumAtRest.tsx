@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { BsBoxArrowUpRight, BsHeadphones, BsXLg } from 'react-icons/bs';
 import musicService, { type RipTracks } from '../services/musicService';
-import { player, type PlayerTrack } from '../services/player';
+import { player, usePlayer, type PlayerAlbum, type PlayerTrack } from '../services/player';
 import { setFullPlayer, type ShownAlbum } from '../services/phoneDoor';
 import { playerAlbumOf, playerTracksOf } from '../utils/playAlbum';
 import { playingTime } from '../utils/albumHead';
@@ -11,6 +11,7 @@ import Menu from './shared/Menu';
 import { toast } from './shared/Toast';
 import { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
 import { soundDiscs } from '../utils/medium';
+import { EnqueueEntries } from './QueueEntries';
 
 /** Told by Listen Next's ⋯ entries here: the page's banner reads its list again. */
 export const LISTEN_NEXT_CHANGED_EVENT = 'dexvault:listen-next-changed';
@@ -156,6 +157,8 @@ export interface AlbumAtRest {
   shownTracks: PhoneTrackLike[];
   /** ▶, or a track touched: the album played from there, the full screen then showing it playing. */
   playFrom: (index: number) => void;
+  /** The album as the player would play it, while another plays: its tracks put next or last in that one. Null otherwise. */
+  queueFrom: PlayerAlbum | null;
   /** Listen Next, the mixtapes, Amperfy: the album's own entries of ⋯, and its discs' heads. */
   actions: AlbumActions;
   /** A new mixtape's name asked over the full screen. */
@@ -188,6 +191,7 @@ export const useAlbumAtRest = (album: ShownAlbum | null): AlbumAtRest | null => 
 
   const playerTracks = album ? playerTracksOf(album, rip) : [];
   const actions = useAlbumActions(albumId, playerTracks);
+  const busy = usePlayer(state => state.album !== null);
 
   if (!album || !actions) return null;
   // Read, and nothing to play: on CD only, not ripped yet.
@@ -214,8 +218,16 @@ export const useAlbumAtRest = (album: ShownAlbum | null): AlbumAtRest | null => 
   const shownTracks: PhoneTrackLike[] = playerTracks.length > 0 ? playerTracks
     : discs.flatMap(disc => disc.tracks.map(track => ({ title: track.title, durationSec: track.durationSec ?? null, disc: disc.number })));
 
+  const queueFrom = busy && playerTracks.length > 0 ? playerAlbumOf(album, rip) : null;
   const menu = (
     <>
+      {/* Another album plays: this one after its track, or at its end. */}
+      {queueFrom && (
+        <>
+          <Menu.Section title="Queue" />
+          <EnqueueEntries tracks={playerTracks} from={queueFrom} title={album.title} />
+        </>
+      )}
       {actions.menu}
       {rip?.found && rip.album && (
         <>
@@ -237,6 +249,7 @@ export const useAlbumAtRest = (album: ShownAlbum | null): AlbumAtRest | null => 
     tracks: playerTracks,
     shownTracks,
     playFrom: index => { if (playerTracks.length > 0) player.playAlbum(playerAlbumOf(album, rip), playerTracks, index); },
+    queueFrom,
     actions: { ...actions, menu },
     dialog: actions.dialog,
   };

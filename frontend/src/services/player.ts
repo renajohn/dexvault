@@ -32,6 +32,8 @@ export interface PlayerTrack {
   /** The file as it lies in Navidrome: lossless (FLAC, ALAC…), or its format (MP3, AAC); unknown for a mixtape's song. */
   lossless?: boolean;
   format?: string;
+  /** Put there by hand (Play next, Play last) from another album than the one playing: not counted as one of its tracks. */
+  queued?: boolean;
 }
 
 /** The album a play belongs to, for the bar, the cards and the Mac's own controls. */
@@ -950,7 +952,7 @@ const setUp = () => {
       if (track && !scrobbled && duration > 0 && (position >= duration / 2 || position >= SCROBBLE_AFTER_SEC)) {
         scrobbled = true;
         post(track.songId, true);
-        options.onCounted?.();
+        if (!track.queued) options.onCounted?.();
       }
       if (Math.abs(position - lastSaved) >= 5) {
         lastSaved = position;
@@ -1058,6 +1060,32 @@ const stopHere = () => {
   if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
 };
 
+/**
+ * The tracks after the one playing, in place of those there, by hand: on an
+ * appliance the server's (any play there, the album and the track playing
+ * checked), here this browser's, the track playing going on and the next one
+ * loading beside it, kept at once for a reload.
+ */
+const queueUp = (upcoming: PlayerTrack[]): boolean => {
+  const id = rendererId();
+  if (id && !carrying) {
+    const playing = view.tracks[view.index];
+    if (!view.album || !playing) return false;
+    heard();
+    outputs.queue(id, upcoming, view.album.title, playing.songId, view.tracks.length).catch(error => {
+      // The appliance went on to another track meanwhile: the change no longer fits what plays, said quietly.
+      if ((error as OutputError)?.code === 409) toast('The track changed meanwhile: try again', { tone: 'info' });
+      else reportOutputError(error);
+    });
+    return true;
+  }
+  if (!state.album) return false;
+  set({ tracks: [...state.tracks.slice(0, state.index + 1), ...upcoming] });
+  writeResume(here(state.index, current()?.currentTime || state.position));
+  preloadNext();
+  return true;
+};
+
 export const player = {
   /**
    * Called within a touch or a click, before the tracks are asked for: an
@@ -1124,6 +1152,53 @@ export const player = {
     preloadNext();
     if (album) updateMediaSession();
     return true;
+  },
+
+  /**
+   * Tracks put after the one playing (`next`) or at the end of what plays
+   * (`last`), what plays untouched: of an album alone, of the radio, or of
+   * the album of Listen Next playing, before the next entry. Tracks of
+   * another album than the one playing carry its artist, CD and cover, for
+   * the bar to show them as a mixtape's. A track already to come moves
+   * rather than plays twice. Nothing playing: they play, as an album of
+   * their own. False when nothing could be done.
+   */
+  enqueue: (tracks: PlayerTrack[], where: 'next' | 'last', from: PlayerAlbum): boolean => {
+    if (tracks.length === 0) return false;
+    const playing = player.rendererId() && !carrying ? view : state;
+    if (!playing.album) {
+      player.playAlbum(from, tracks, 0);
+      return true;
+    }
+    const foreign = from.id !== playing.album.id || from.title !== playing.album.title;
+    const stamped = tracks.map(track => (foreign ? {
+      ...track,
+      queued: true,
+      artist: track.artist ?? from.artist,
+      albumId: track.albumId !== undefined ? track.albumId : from.id,
+      cover: track.cover !== undefined ? track.cover : from.cover,
+    } : track));
+    const ids = new Set(stamped.map(track => track.songId));
+    const ahead = playing.tracks.slice(playing.index + 1).filter(track => !ids.has(track.songId));
+    return queueUp(where === 'next' ? [...stamped, ...ahead] : [...ahead, ...stamped]);
+  },
+
+  /** A track to come moved from `from` to `to`, both places in the tracks after the one playing. */
+  moveTrack: (from: number, to: number): boolean => {
+    const playing = player.rendererId() && !carrying ? view : state;
+    const first = playing.index + 1;
+    if (from < first || to < first || from >= playing.tracks.length || to >= playing.tracks.length || from === to) return false;
+    const ahead = playing.tracks.slice(first);
+    const [moved] = ahead.splice(from - first, 1);
+    ahead.splice(to - first, 0, moved);
+    return queueUp(ahead);
+  },
+
+  /** A track to come taken out of what plays. */
+  removeTrack: (at: number): boolean => {
+    const playing = player.rendererId() && !carrying ? view : state;
+    if (at <= playing.index || at >= playing.tracks.length) return false;
+    return queueUp(playing.tracks.slice(playing.index + 1).filter((_, i) => i !== at - playing.index - 1));
   },
 
   /** Tracks at the end of the album playing, without stopping it: the radio refilled as it goes, here or on an appliance. */

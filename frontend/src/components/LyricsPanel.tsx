@@ -9,6 +9,7 @@ import { LyricsMenu, TimingDrawer, TryBar } from './LyricsTiming';
 import { useLyricsTiming } from './useLyricsTiming';
 import { Loading } from './shared/Spinner';
 import './LyricsPanel.css';
+import { wordsAlbumOf } from '../utils/queueOrder';
 
 /** The eye reads a little before the voice sings: a line lights a fifth of a second early. */
 const LEAD_SEC = 0.2;
@@ -28,7 +29,8 @@ const LyricsPanel: React.FC = () => {
   const open = usePlayer(state => state.lyricsOpen && state.barShown);
   const album = usePlayer(state => state.album);
   const track = usePlayer(state => state.tracks[state.index]);
-  const albumId = album?.id ?? null;
+  // A track put there by hand from another album: that album's words.
+  const albumId = wordsAlbumOf(album, track);
   const shown = Boolean(open && album && albumId != null && track);
   const disc = track?.disc;
   const no = track?.no;

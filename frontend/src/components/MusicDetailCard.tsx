@@ -15,7 +15,9 @@ import { discCredits, workGroups, type TrackPerformer } from '../utils/trackCred
 import { canUsePicard, openInPicard } from '../utils/picard';
 import { isAppleMobile, openListen, trackListenUrl } from '../utils/navidrome';
 import { ripFileFor } from '../utils/trackDetail';
-import { localOutputName, player, sameOutput, usePlayer, type PlayerOutput } from '../services/player';
+import { localOutputName, player, sameOutput, usePlayer, type PlayerAlbum, type PlayerOutput, type PlayerTrack } from '../services/player';
+import { MdQueueMusic } from 'react-icons/md';
+import { EnqueueEntries } from './QueueEntries';
 import { useOutputs } from '../services/outputs';
 import { extraFilesOf, playerAlbumOf, playerTracksOf } from '../utils/playAlbum';
 import { playingTime, ripSummary, urlLabel } from '../utils/albumHead';
@@ -240,6 +242,27 @@ const TrackMixtapes: React.FC<{ songId: string; title: string }> = ({ songId, ti
             <BsCassetteFill aria-hidden="true" />
           </IconButton>
         )} />
+    </span>
+  );
+};
+
+/**
+ * A track put after the one playing, or at the end of what plays, whatever
+ * plays (an album, Listen Next, the radio), here or on an appliance: under
+ * the pointer, while something is in the player.
+ */
+const TrackQueue: React.FC<{ track: PlayerTrack | undefined; album: () => PlayerAlbum }> = ({ track, album }) => {
+  const busy = usePlayer(state => state.album !== null);
+  if (!track || !busy) return null;
+  return (
+    <span className="track-queue-host" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+      <Menu align="end" label={`Queue ${track.title}`} trigger={(props, open) => (
+        <IconButton {...props} size="sm" className={`track-queue${open ? ' track-queue-open' : ''}`} label={`Queue ${track.title}`} title="Play next or last">
+          <MdQueueMusic aria-hidden="true" />
+        </IconButton>
+      )}>
+        <EnqueueEntries tracks={[track]} from={album()} title={track.title} />
+      </Menu>
     </span>
   );
 };
@@ -610,6 +633,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       {target.kind === 'renderer' ? target.name : localOutputName()}
     </Menu.Choice>
   ));
+  const barBusy = usePlayer(state => state.album !== null);
   /** Plays the album from a track, the rest of it after. */
   const playFrom = (disc: number, no: number) => {
     const index = playerTracks.findIndex(track => track.disc === disc && track.no === no);
@@ -1013,7 +1037,9 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                 const file = rip?.found ? ripFileFor(rip.tracks, disc.number, Number(track.no)) : null;
                 const playUrl = file ? trackListenUrl(file, appleMobile) : null;
                 const ownPlay = ownPlayer && Boolean(file?.id);
-                const current = playingHere && nowTrack?.disc === disc.number && nowTrack?.no === Number(track.no);
+                // A track put in by hand plays as one of its own album, whatever album it was put in.
+                const current = (nowTrack?.queued ? nowTrack.albumId === Number(cd.id) : playingHere)
+                  && nowTrack?.disc === disc.number && nowTrack?.no === Number(track.no);
                 // The buttons inside the row act on their own, not as a click on the row.
                 const own = (event: React.SyntheticEvent) => event.stopPropagation();
                 const work = works[trackIndex];
@@ -1115,6 +1141,9 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
                       </span>
                     );
                   })()}
+                  {ownPlay && !current && (
+                    <TrackQueue track={playerTracks.find(one => one.songId === file!.id)} album={playerAlbum} />
+                  )}
                   {file?.id && <TrackMixtapes songId={file.id} title={track.title} />}
                   {track.durationSec && (
                     <span className="track-duration">
@@ -1213,6 +1242,10 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
       {ownPlayer && elsewhere.length > 0 && <Menu.Separator />}
       {ownPlayer && (playingHere || resumeHere) && (
         <Menu.Item icon={<BsArrowCounterclockwise />} onSelect={() => player.playAlbum(playerAlbum(), playerTracks, 0)}>Play from the start</Menu.Item>
+      )}
+      {/* Something else in the player: the album after the track playing, or at the end of what plays. */}
+      {ownPlayer && barBusy && !playingHere && (
+        <EnqueueEntries tracks={playerTracks} from={playerAlbum()} title={cd.title} />
       )}
       {/* On an iPhone, Amperfy still a click away. */}
       {ownPlayer && (

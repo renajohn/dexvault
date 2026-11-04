@@ -161,18 +161,38 @@ const drawAgain = async (keepNow = true, fresh = false): Promise<void> => {
   // Playing, not kept paused: a band drawn while the radio is paused never starts it (a pause on the Bureau stays a pause).
   const playing = keepNow && radioPlaying() && player.getState().playing;
   const now = playing ? state.songs.slice(0, 1) : [];
-  const keep = fresh ? [] : ids(state.songs.slice(now.length));
+  // Songs put in by hand (Play next, Play last) stay in their places, whatever the criteria: none drawn in their stead.
+  const view = player.getState();
+  const hand = new Map<number, PlayerTrack>(playing
+    ? view.tracks.slice(view.index + 1).flatMap((track, at) => (track.queued ? [[at, track] as [number, PlayerTrack]] : []))
+    : []);
+  const handIds = [...hand.values()].map(track => track.songId);
+  const keep = fresh ? [] : ids(state.songs.slice(now.length).filter(song => !handIds.includes(song.songId)));
   set({ status: 'drawing' });
   try {
-    const draw = await radioService.next(criteria, state.pool, BAND - now.length, ids(now), keep);
+    const draw = await radioService.next(criteria, state.pool, BAND - now.length - hand.size, [...ids(now), ...handIds], keep);
     if (ticket !== drawing) return;
     learn(draw.songs);
-    const songs = [...now, ...draw.songs];
-    if (playing && radioPlaying() && !player.setUpcoming(draw.songs.map(trackOf), radioAlbum(state.prompt, now[0]))) {
+    // The songs drawn in the places of the others; those put by hand where they were, or after them all when
+    // fewer were drawn than places to fill.
+    const drawn = [...draw.songs];
+    const upcoming: Array<{ song: RadioSong; track: PlayerTrack }> = [];
+    const placed = new Set<PlayerTrack>();
+    for (let at = 0; at < draw.songs.length + hand.size; at++) {
+      const mine = hand.get(at);
+      if (mine) { upcoming.push({ song: songOfTrack(mine), track: mine }); placed.add(mine); continue; }
+      const one = drawn.shift();
+      if (!one) break;
+      upcoming.push({ song: one, track: trackOf(one) });
+    }
+    for (const mine of hand.values()) if (!placed.has(mine)) upcoming.push({ song: songOfTrack(mine), track: mine });
+    const songs = [...now, ...upcoming.map(one => one.song)];
+    if (playing && radioPlaying() && !player.setUpcoming(upcoming.map(one => one.track), radioAlbum(state.prompt, now[0]))) {
       // An appliance takes only songs added at the end: the new band played there anew, from where the song playing is.
       const view = player.getState();
       own(radioAlbum(state.prompt).title);
-      player.playAlbum(radioAlbum(state.prompt, now[0]), songs.map(trackOf), 0, view.position);
+      // Those put in by hand keep what they are.
+      player.playAlbum(radioAlbum(state.prompt, now[0]), [...now.map(trackOf), ...upcoming.map(one => one.track)], 0, view.position);
     }
     set({ songs, status: 'ready', poolSize: draw.poolSize, fitting: draw.fitting, missingFiches: draw.missingFiches });
   } catch {
@@ -261,11 +281,36 @@ export const radio = {
       player.next();
       return;
     }
-    told(songId, 'skipped');
+    const view = player.getState();
+    const track = playing ? view.tracks[view.index + at] : undefined;
+    // Put in by hand: no song of the radio's to tell the server of.
+    if (!track?.queued) told(songId, 'skipped');
     const songs = state.songs.filter(song => song.songId !== songId);
-    if (playing) player.setUpcoming(songs.slice(1).map(trackOf));
+    // Playing: taken out of the player's tracks, those put in by hand keeping what they are.
+    if (playing) player.removeTrack(view.index + at);
     set({ songs });
     refill();
+  },
+
+  /**
+   * A song of the band dragged to another place. The band in the player (the
+   * radio playing, or paused): its tracks move, the band following them, the
+   * song playing staying first. Not in the player: the band alone, ▶ playing
+   * it in its new order.
+   */
+  move: (from: number, to: number): void => {
+    const { songs } = state;
+    if (from === to || from < 0 || to < 0 || from >= songs.length || to >= songs.length) return;
+    const view = player.getState();
+    const inPlayer = radioPlaying(view) && view.tracks.slice(view.index).map(track => track.songId).join('|') === ids(songs).join('|');
+    if (inPlayer) {
+      if (from === 0 || to === 0) return;
+      player.moveTrack(view.index + from, view.index + to);
+      return;
+    }
+    const moved = [...songs];
+    moved.splice(to, 0, ...moved.splice(from, 1));
+    set({ songs: moved });
   },
 
   /** ▶ / ⏸: the band played as one album from its first song, or paused and played on. */
@@ -314,17 +359,17 @@ export const radio = {
  * radio left for an album, stopped) is told, played when half heard or more;
  * the band follows the player's tracks and is refilled as they go.
  */
-let last: { songId: string; position: number; duration: number; own: boolean } | null = null;
+let last: { songId: string; position: number; duration: number; own: boolean; queued: boolean } | null = null;
 
 const follow = () => {
   const view = player.getState();
   const isRadio = radioPlaying(view);
   const track = isRadio ? view.tracks[view.index] : undefined;
   // Told by the device that started the radio alone: two following one appliance would tell each song twice.
-  if (last && last.songId !== track?.songId && last.own) {
+  if (last && last.songId !== track?.songId && last.own && !last.queued) {
     told(last.songId, last.duration > 0 && last.position >= last.duration / 2 ? 'played' : 'skipped');
   }
-  last = track ? { songId: track.songId, position: view.position, duration: view.duration || track.durationSec || 0, own: view.album?.title === ownTitle } : null;
+  last = track ? { songId: track.songId, position: view.position, duration: view.duration || track.durationSec || 0, own: view.album?.title === ownTitle, queued: Boolean(track.queued) } : null;
   if (!isRadio) return;
   // A radio this device did not start (another one's, on an appliance the bar follows): its prompt is the album's name.
   const playedPrompt = view.album?.title.startsWith('Radio · ') ? view.album.title.slice('Radio · '.length) : null;

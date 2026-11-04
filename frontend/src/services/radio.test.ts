@@ -217,6 +217,58 @@ describe('the radio', () => {
     expect(server.next).toHaveBeenLastCalledWith({ moods: ['upbeat'] }, expect.anything(), BAND, [], []);
   });
 
+  it('follows a song moved by hand in the player: the band in the same order', async () => {
+    await radio.listen('upbeat');
+    radio.play();
+    // s5 moved to play next, from the tracks' window.
+    expect(player.moveTrack(4, 1)).toBe(true);
+    expect(radio.getState().songs.slice(0, 4).map(one => one.songId)).toEqual(['s1', 's5', 's2', 's3']);
+    expect(radio.getState().songs).toHaveLength(BAND);
+  });
+
+  it('moves a song dragged in the band: through the player while the radio plays, the song playing staying first', async () => {
+    await radio.listen('upbeat');
+    radio.play();
+    radio.move(4, 1);
+    expect(player.getState().tracks.slice(0, 4).map(track => track.songId)).toEqual(['s1', 's5', 's2', 's3']);
+    expect(radio.getState().songs.slice(0, 4).map(one => one.songId)).toEqual(['s1', 's5', 's2', 's3']);
+    radio.move(2, 0);
+    radio.move(0, 3);
+    expect(player.getState().tracks[0].songId).toBe('s1');
+    expect(server.next).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves a song dragged in a band not played yet, ▶ playing it in its new order', async () => {
+    await radio.listen('upbeat');
+    radio.move(0, 2);
+    expect(radio.getState().songs.slice(0, 3).map(one => one.songId)).toEqual(['s2', 's3', 's1']);
+    radio.play();
+    expect(player.getState().tracks.slice(0, 3).map(track => track.songId)).toEqual(['s2', 's3', 's1']);
+  });
+
+  it('keeps a song put in by hand in its place as the band is drawn again, and never tells it to the server', async () => {
+    await radio.listen('upbeat');
+    radio.play();
+    const norah = { songId: 'n1', title: 'Don’t Know Why', disc: 1, no: 1, durationSec: 186 };
+    player.enqueue([norah], 'next', { id: 7, title: 'Come Away With Me', artist: 'Norah Jones', cover: null });
+    expect(radio.getState().songs[1]).toMatchObject({ songId: 'n1', artist: 'Norah Jones' });
+
+    await radio.redraw({ moods: [], energyMin: 6 });
+    // Ten in all: the song playing, n1, and eight drawn; n1 among those not to draw again, and kept second.
+    const [, , count, ahead, keep] = server.next.mock.calls.at(-1)!;
+    expect(count).toBe(BAND - 2);
+    expect(ahead).toEqual(['s1', 'n1']);
+    expect(keep).not.toContain('n1');
+    expect(player.getState().tracks[1]).toMatchObject({ songId: 'n1', queued: true });
+    expect(radio.getState().songs[1].songId).toBe('n1');
+
+    // Heard through: not the radio's, nothing told.
+    player.next();
+    hear(180);
+    player.next();
+    expect(server.left).not.toHaveBeenCalledWith('n1', expect.anything());
+  });
+
   it('saves the band and as many more drawn as asked as a mixtape', async () => {
     await radio.listen('upbeat');
     const band = radio.getState().songs.map(one => one.songId);

@@ -19,7 +19,11 @@ vi.mock('./musicService', () => ({
     }),
   },
 }));
+const ripOrder = vi.hoisted(() => ({ songIds: ['s1', 's2', 's3'] }));
 vi.mock('../utils/playAlbum', () => ({
+  // The album as it comes again, in its own order: where the way back of a detour finds the track it left.
+  loadPlayable: vi.fn(async (id: number) => ({ album: { id, title: `Album ${id}`, artist: '', cover: null },
+    tracks: ripOrder.songIds.map((songId, at) => ({ songId, title: songId, disc: 1, no: at + 1, durationSec: 200 })) })),
   playAlbumById: vi.fn(async (id: number, options: PlayOptions, index = 0, _shuffle = false, disc = 0) => {
     if (!list.ripped.has(id)) return false;
     plays.push({ id, disc, options, index });
@@ -263,13 +267,25 @@ describe('the tracks dialog of Listen Next', () => {
 
     expect(await listenNextQueue.jumpTo('2:0', 5)).toBe(true);
     expect(playing()).toMatchObject({ id: 2, index: 5 });
-    expect(listenNextQueue.session().detour).toEqual({ key: '2:0', back: { key: '3:0', index: 0 } });
+    expect(listenNextQueue.session().detour).toEqual({ key: '2:0', back: { key: '3:0', index: 0, songId: 's1' } });
     expect(list.ids).toEqual([1, 3]);
 
     // Over: back to album 3 where it was left, the detour done with.
     expect(await end('ended')).toBe(true);
     expect(playing()).toMatchObject({ id: 3, index: 0 });
     expect(listenNextQueue.session().detour).toBeNull();
+  });
+
+  it('goes back to the track left in the album as it comes again, its tracks moved by hand meanwhile', async () => {
+    await listenNextQueue.start('2:0');
+    list.ids = [1, 3];
+    await end('ended');
+    expect(await listenNextQueue.jumpTo('2:0', 5)).toBe(true);
+    // The track left, s1, is the third of album 3 as it comes again.
+    ripOrder.songIds = ['s3', 's2', 's1'];
+    await end('ended');
+    expect(playing()).toMatchObject({ id: 3, index: 2 });
+    ripOrder.songIds = ['s1', 's2', 's3'];
   });
 
   it('keeps the way back of the first detour through a second one', async () => {
@@ -280,7 +296,7 @@ describe('the tracks dialog of Listen Next', () => {
     }));
     await listenNextQueue.jumpTo('1:0', 2);
     await listenNextQueue.jumpTo('2:0', 0);
-    expect(listenNextQueue.session().detour).toEqual({ key: '2:0', back: { key: '3:0', index: 0 } });
+    expect(listenNextQueue.session().detour).toEqual({ key: '2:0', back: { key: '3:0', index: 0, songId: 's1' } });
     await end('ended');
     expect(playing().id).toBe(3);
   });

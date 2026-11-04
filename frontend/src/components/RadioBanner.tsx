@@ -9,6 +9,10 @@ import musicService from '../services/musicService';
 import type { RadioCriteria, RadioPool, RadioSong } from '../services/radioService';
 import { coverReady, thumbProps } from '../utils/thumb';
 import { useSlideText } from '../utils/slideText';
+import { DndContext, TouchSensor, closestCenter, useSensor, useSensors, type Announcements, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { MousePointerSensor } from './shared/NextBanner';
 import './RadioBanner.css';
 
 /** The albums' stars a pool can start from, by halves. */
@@ -172,14 +176,22 @@ const SaveFoot: React.FC<{ saving: boolean; disabled: boolean; onSave: (close: (
   );
 };
 
+/**
+ * A card of the band, which a drag moves along the others (a mouse past a
+ * few pixels, a finger held a moment); the song playing stays first.
+ */
 const RadioCard: React.FC<{ song: RadioSong; now: boolean; playing: boolean; thinking: boolean }> = ({ song, now, playing, thinking }) => {
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: song.songId, disabled: now || thinking });
+  const style: React.CSSProperties = { transform: CSS.Translate.toString(transform), transition: transition || undefined };
   const cover = musicService.getImageUrl(song.cover);
   const [failed, setFailed] = useState(false);
   // A movement says its own name, its work under it; a song its artist.
   const title = song.work && song.movement ? song.movement : song.title;
   const under = song.work ?? song.artist;
   return (
-    <div className={`next-banner__card cover-host radio-card${now ? ' radio-card--now' : ''}`} data-song={song.songId}>
+    <div ref={setNodeRef} style={style} {...listeners}
+      className={`next-banner__card cover-host radio-card${now ? ' radio-card--now' : ' next-banner__card--sortable'}${isDragging ? ' next-banner__card--dragging' : ''}`}
+      data-song={song.songId} aria-roledescription={now ? undefined : 'sortable'}>
       <div className={`next-banner__image next-banner__image--music${thinking && !now ? ' radio-card__image--thinking' : ''}`}>
         {cover && !failed ? (
           <img {...thumbProps(cover)} decoding="async" className="cover-img" onLoad={coverReady} alt={song.album}
@@ -237,6 +249,22 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
 
   const thinking = state.status === 'hearing' || state.status === 'drawing';
   const { songs, pool } = state;
+  // A mouse drags past a few pixels, for a click to stay a click; a finger holds first, for a swipe to scroll the band.
+  const sensors = useSensors(
+    useSensor(MousePointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
+  const titleOf = (id: string | number | undefined) => songs.find(song => song.songId === String(id))?.title ?? 'The song';
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => `${titleOf(active.id)} picked up.`,
+    onDragOver: ({ active, over }) => (over ? `${titleOf(active.id)} over ${titleOf(over.id)}.` : `${titleOf(active.id)} is no longer over a song.`),
+    onDragEnd: ({ active, over }) => (over ? `${titleOf(active.id)} put where ${titleOf(over.id)} was.` : `${titleOf(active.id)} put back.`),
+    onDragCancel: ({ active }) => `${titleOf(active.id)} put back where it was.`,
+  };
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    radio.move(songs.findIndex(song => song.songId === active.id), songs.findIndex(song => song.songId === over.id));
+  };
   const empty = state.status === 'ready' && songs.length === 0;
   const recent = state.recent.filter(one => one !== state.prompt);
   const criteria = heardAs(state.criteria);
@@ -357,7 +385,10 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
           {state.fitting ? `${count(state.fitting)} songs fit, all heard lately: they come back after half of them.` : 'No song of it fits these words.'}
         </Notice>
       ) : (songs.length > 0 || thinking) && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}
+          accessibility={{ announcements, screenReaderInstructions: { draggable: 'Drag a song to another place in the band.' } }}>
         <div className="next-banner__carousel">
+          <SortableContext items={songs.filter((_, at) => !(radioInPlayer && at === 0)).map(song => song.songId)} strategy={horizontalListSortingStrategy}>
           <div className={`next-banner__track radio-banner__track${thinking ? ' radio-banner__track--thinking' : ''}`}>
             {songs.length > 0
               ? songs.map((song, at) => <RadioCard key={song.songId} song={song} now={radioInPlayer && at === 0} playing={playing} thinking={thinking} />)
@@ -367,7 +398,9 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
                 </div>
               ))}
           </div>
+          </SortableContext>
         </div>
+        </DndContext>
       )}
 
       {state.missingFiches > 0 && !thinking && (

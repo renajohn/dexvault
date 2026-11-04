@@ -932,6 +932,22 @@
   visibility: visible;
 }
 
+/* A track put next or last in what plays: under the pointer only, while something is in the player. */
+.track-queue-host {
+  display: inline-flex;
+  margin: -6px -4px -6px 12px;
+}
+
+.track-queue:not(.track-queue-open) {
+  visibility: hidden;
+}
+
+.track-item:hover .track-queue,
+.track-selected .track-queue,
+.track-queue:focus-visible {
+  visibility: visible;
+}
+
 .track-favourite:not(.track-favourite-on) {
   visibility: hidden;
 }

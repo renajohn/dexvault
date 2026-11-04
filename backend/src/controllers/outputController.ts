@@ -49,6 +49,7 @@ const tracksOf = (value: unknown): PlayerTrack[] | null => {
       ...(track.suffix != null ? { suffix: text(track.suffix, 8).toLowerCase() } : {}),
       ...(track.lossless != null ? { lossless: Boolean(track.lossless) } : {}),
       ...(track.format != null ? { format: text(track.format, 12) } : {}),
+      ...(track.queued ? { queued: true } : {}),
     });
   }
   return tracks;
@@ -168,6 +169,30 @@ const outputController = {
       res.json({ appended: await session.append(tracks, (body.albumKey as string | undefined) ?? null) });
     } catch (error) {
       fail(res, error, `Appending on ${outputs.nameOf(session.id)}`, session);
+    }
+  },
+
+  /**
+   * POST { tracks, albumKey?, current?, seen? }: the tracks after the one playing there, in place of those
+   * there (another order, one taken out, some put next or last), those added since the page saw `seen`
+   * tracks kept after them; { count }. 404 nothing plays there,
+   * 409 another album than `albumKey` or another track than `current` plays, 400 tracks that are not.
+   */
+  queue: async (req: Request, res: Response): Promise<void> => {
+    const session = sessionOf(req, res);
+    if (!session) return;
+    const body = (req.body || {}) as Record<string, unknown>;
+    const tracks = Array.isArray(body.tracks) && body.tracks.length === 0 ? [] : tracksOf(body.tracks);
+    if (!tracks) { res.status(400).json({ error: 'Which tracks?' }); return; }
+    if (body.albumKey != null && typeof body.albumKey !== 'string') { res.status(400).json({ error: 'albumKey is the title of the album playing' }); return; }
+    if (body.current != null && typeof body.current !== 'string') { res.status(400).json({ error: 'current is the song playing' }); return; }
+    if (body.seen != null && !(Number.isInteger(body.seen) && (body.seen as number) >= 0)) { res.status(400).json({ error: 'seen is how many tracks the page saw' }); return; }
+    if (session.state().index + 1 + tracks.length > MAX_TRACKS) { res.status(400).json({ error: `At most ${MAX_TRACKS} tracks in a play` }); return; }
+    try {
+      res.json({ count: await session.queueUp(tracks, (body.albumKey as string | undefined) ?? null, (body.current as string | undefined) ?? null,
+        (body.seen as number | undefined) ?? null) });
+    } catch (error) {
+      fail(res, error, `Queueing on ${outputs.nameOf(session.id)}`, session);
     }
   },
 

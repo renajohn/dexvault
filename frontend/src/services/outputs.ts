@@ -359,6 +359,22 @@ const outputs = {
     return unless(undo, send('POST', `${encodeURIComponent(id)}/append`, albumKey ? { tracks, albumKey } : { tracks }) as Promise<{ appended: number }>);
   },
 
+  /**
+   * The tracks after the one playing there, in place of those there: another
+   * order, one taken out, some put next or last. `albumKey` and `current`, the
+   * album and the song playing as the page saw them, for the server to refuse
+   * (409) once they changed. Shown at once, taken back if refused.
+   */
+  queue: (id: string, upcoming: PlayerTrack[], albumKey: string, current: string, seen: number): Promise<{ count: number }> => {
+    const undo = guess(id, output => {
+      const session = output.session;
+      if (!session) return output;
+      const tracks = [...session.tracks.slice(0, session.index + 1), ...upcoming];
+      return { ...output, session: { ...session, tracks, count: tracks.length } };
+    });
+    return unless(undo, send('POST', `${encodeURIComponent(id)}/queue`, { tracks: upcoming, albumKey, current, seen }) as Promise<{ count: number }>);
+  },
+
   /** The volume (never above its ceiling, the server sees to it) or the sound off. */
   volume: async (id: string, change: { volume?: number; muted?: boolean }): Promise<OutputState> => {
     const undo = guess(id, output => ({ ...output, ...(change.volume !== undefined ? { volume: Math.min(output.maxVolume, change.volume) } : {}),

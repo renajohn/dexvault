@@ -1,7 +1,7 @@
 import musicService from './musicService';
 import { LISTEN_NEXT_LEFT_EVENT, player, registerQueue, reportOutputError, type PlayerAlbum, type PlayOptions } from './player';
 import outputs, { type OutputError } from './outputs';
-import { playAlbumById } from '../utils/playAlbum';
+import { loadPlayable, playAlbumById } from '../utils/playAlbum';
 import { readStored, writeStored } from '../utils/safeStorage';
 import { entryKey, keyOf, parseEntryKey, type EntryKey } from '../utils/listenNextEntry';
 
@@ -53,6 +53,8 @@ const departed = new Set<EntryKey>();
 export interface DetourBack {
   key: EntryKey;
   index: number;
+  /** The track left, for the way back to find it in the album as it comes, its tracks moved by hand meanwhile. */
+  songId?: string;
 }
 
 /**
@@ -81,7 +83,8 @@ const readSession = (): ListenNextSession => {
     const value = raw ? JSON.parse(raw) : null;
     if (!value || !Array.isArray(value.albums) || !Array.isArray(value.heard)) return emptySession();
     const detour = value.detour && (value.detour.key ?? value.detour.albumId) != null && value.detour.back
-      ? { key: asKey(value.detour.key ?? value.detour.albumId), back: { key: asKey(value.detour.back.key ?? value.detour.back.albumId), index: value.detour.back.index ?? 0 } }
+      ? { key: asKey(value.detour.key ?? value.detour.albumId), back: { key: asKey(value.detour.back.key ?? value.detour.back.albumId), index: value.detour.back.index ?? 0,
+        ...(typeof value.detour.back.songId === 'string' ? { songId: value.detour.back.songId } : {}) } }
       : null;
     return { ...emptySession(), startedAt: value.startedAt ?? 0, albums: value.albums.map(asKey), heard: value.heard.map(asKey), detour };
   } catch {
@@ -187,12 +190,28 @@ const play = async (key: EntryKey, index = 0, options: PlayOptions = optionsFor(
   return started;
 };
 
+/**
+ * Where the way back starts in the album as it comes again: the track left,
+ * found by its song (the tracks moved by hand meanwhile are in their own
+ * order again), else its place.
+ */
+const indexBack = async (back: DetourBack): Promise<number> => {
+  if (!back.songId) return back.index;
+  const { albumId, disc } = parseEntryKey(back.key);
+  try {
+    const found = (await loadPlayable(albumId, { listenNext: true, disc })).tracks.findIndex(track => track.songId === back.songId);
+    return found >= 0 ? found : back.index;
+  } catch {
+    return back.index;
+  }
+};
+
 /** An entry out of the list played to its end, then back to the track Listen Next was left on. */
 const detourOptions = (id: EntryKey, back: DetourBack): PlayOptions => ({
   queue: 'listenNext',
   onAlbumEnd: async () => {
     noteSession(session => { session.detour = null; });
-    if (await play(back.key, back.index)) return true;
+    if (await play(back.key, await indexBack(back))) return true;
     const ids = await listIds();
     order = withCurrent(ids, order, back.key);
     listed = ids;
@@ -284,7 +303,8 @@ export const listenNextQueue = {
       return play(key, index);
     }
     // Out of the list: back where Listen Next was once it is over, the first detour's place kept.
-    const back = readSession().detour?.back ?? { key: currentKey, index: player.getState().index };
+    const left = player.getState();
+    const back = readSession().detour?.back ?? { key: currentKey, index: left.index, songId: left.tracks[left.index]?.songId };
     const started = await play(key, index, detourOptions(key, back));
     if (started) noteSession(session => { session.detour = { key, back }; });
     return started;

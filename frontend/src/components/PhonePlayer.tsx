@@ -25,6 +25,8 @@ import { MixtapeEntries, NewMixtapeDialog } from './MixtapeMenu';
 import type { AlbumActions, DiscHead } from './useAlbumAtRest';
 import { seedFavourite, setFavourite, useFavourite } from '../services/favourites';
 import { readStored, writeStored } from '../utils/safeStorage';
+import { inAlbumOrder } from '../utils/queueOrder';
+import { MdQueueMusic } from 'react-icons/md';
 import SwipeRow from './SwipeRow';
 import toast from './shared/Toast';
 import './PhonePlayer.css';
@@ -128,6 +130,20 @@ export interface PhonePlayerProps {
   door?: React.ReactNode;
   /** A mixtape at rest: a track slid to the left goes out, one held moves (its work whole). */
   editing?: MixtapeEditing | null;
+  /** What plays: its tracks to come held move, and a track's menu puts it next or last (PhoneQueue). */
+  queue?: PhoneQueue | null;
+}
+
+/**
+ * The tracks of what plays, or of an album at rest, put in the order of the
+ * play by hand. `movable`: the tracks from `first` on (those after the one
+ * playing) held lift and move, `move` taking the place they leave and the
+ * one they go to. `entries`: what a track's menu offers first (Play next,
+ * Play last, Take out), none for a track that has nothing to offer.
+ */
+export interface PhoneQueue {
+  movable?: { first: number; move: (from: number, to: number) => void } | null;
+  entries: (index: number) => React.ReactNode | null;
 }
 
 /** Held this long, a mixtape's track lifts, to be drawn to another place. */
@@ -140,7 +156,7 @@ const LIFT_MS = 450;
  * to it alone: the list does not scroll, no line slides, the full screen is
  * not drawn down, and the touch that ends it plays nothing.
  */
-const useLiftToMove = (list: HTMLElement | null, editing: MixtapeEditing | null | undefined) => {
+const useLiftToMove = (list: HTMLElement | null, editing: Pick<MixtapeEditing, 'move'> | null | undefined) => {
   // The latest, read as a unit is let go: a new one each render must not undo a hold under way.
   const editingRef = useRef(editing);
   editingRef.current = editing;
@@ -351,6 +367,11 @@ export interface PhoneTrack {
   popular?: boolean;
   /** A file of the rip on no track of the CD: after the CD's, under "Bonus". */
   extra?: boolean;
+  /** Its number on its disc, to tell an order changed by hand. */
+  no?: number;
+  /** Put there by hand from another album (Play next, Play last): its artist after its title. */
+  queued?: boolean;
+  artist?: string;
 }
 
 /** Set once the first line has shown, on a phone, that the tracks slide. */
@@ -366,7 +387,9 @@ const SWIPE_HINT_KEY = 'dexvault-player-tracks-swipe-hint';
  */
 const TrackLine: React.FC<{ track: PhoneTrack; name?: string; no: number; now: boolean; playing: boolean; play?: () => void; hint: boolean; onNewMixtape: () => void;
   /** A mixtape's song: slid to the left, it goes out of it, in place of the ♥ (which its menu keeps). */
-  takeOut?: () => void; unit?: number }> = ({ track, name, no, now, playing, play, hint, onNewMixtape, takeOut, unit }) => {
+  takeOut?: () => void; unit?: number;
+  /** Put next, last, or taken out of what plays: first in its menu, which a slide to the right opens. */
+  queueEntries?: React.ReactNode }> = ({ track, name, no, now, playing, play, hint, onNewMixtape, takeOut, unit, queueEntries }) => {
   const favourite = useFavourite(track.songId);
   const [menu, setMenu] = useState(false);
   const songId = track.songId;
@@ -380,7 +403,10 @@ const TrackLine: React.FC<{ track: PhoneTrack; name?: string; no: number; now: b
         {track.popular && <span className="now-playing-tracks__popular" title="One of the album's most listened tracks"><span className="visually-hidden">Popular: </span></span>}
         {now ? <NowPlayingBars playing={playing} /> : no}
       </span>
-      <span className="now-playing-tracks__title">{name ?? track.title}</span>
+      <span className="now-playing-tracks__title">
+        {name ?? track.title}
+        {track.queued && track.artist && <span className="now-playing-tracks__by"> · {track.artist}</span>}
+      </span>
       {favourite && <BsHeartFill className="now-playing-tracks__favourite" aria-label="Favourite" />}
       <span className="now-playing-tracks__time">{track.durationSec ? time(track.durationSec) : ''}</span>
     </button>
@@ -388,10 +414,12 @@ const TrackLine: React.FC<{ track: PhoneTrack; name?: string; no: number; now: b
   if (!songId) return <li>{line()}</li>;
   return (
     <SwipeRow as="li" enabled hint={hint} {...(unit != null ? { 'data-unit': unit } : {})}
-      deed={{ label: 'Mixtape', icon: <BsCassetteFill />, onSelect: () => setMenu(true), tone: 'plain' }}
+      deed={queueEntries ? { label: 'More', icon: <MdQueueMusic />, onSelect: () => setMenu(true), tone: 'plain' }
+        : { label: 'Mixtape', icon: <BsCassetteFill />, onSelect: () => setMenu(true), tone: 'plain' }}
       leftDeed={takeOut ? { label: 'Take out', icon: <BsTrash />, onSelect: takeOut, tone: 'plain' }
         : { label: favourite ? 'Not favourite' : 'Favourite', icon: favourite ? <BsHeart /> : <BsHeartFill />, onSelect: toggleFavourite, tone: 'gold' }}>
       <Menu open={menu} onOpenChange={setMenu} label={track.title} trigger={props => line(props as unknown as React.ComponentProps<'button'>)}>
+        {queueEntries && <>{queueEntries}<Menu.Separator /></>}
         <MixtapeEntries songIds={[songId]} title={track.title} onNew={onNewMixtape} />
       </Menu>
     </SwipeRow>
@@ -486,7 +514,12 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   // A mixtape at rest: its tracks held move.
   const editing = props.editing ?? null;
   const [tracksElement, setTracksElement] = useState<HTMLDivElement | null>(null);
-  useLiftToMove(tracksElement, editing);
+  // What plays: its tracks to come held move too, numbered from the first of them, the place let go on read as the
+  // one the track goes before (the end past the last).
+  const movable = editing ? null : props.queue?.movable ?? null;
+  useLiftToMove(tracksElement, editing ?? (movable ? {
+    move: (from, to) => movable.move(movable.first + from, movable.first + (to > from ? to - 1 : to)),
+  } : null));
   // What Navidrome said of the tracks' hearts as they were read, unless a heart is known better already.
   useEffect(() => { props.tracks?.forEach(track => seedFavourite(track.songId, track.starred, true)); }, [props.tracks]);
   // Its tracks shown: Navidrome's hearts of now. A session started on the Salon an hour ago, a heart given since
@@ -794,13 +827,14 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
   const discHeadsSeen = full && view === 'tracks' && Boolean(props.album) && (props.tracks ?? []).some(one => (one.disc ?? 1) !== 1);
   useEffect(() => { if (discHeadsSeen && discSwipeHint) writeStored(DISC_SWIPE_HINT_KEY, '1'); }, [discHeadsSeen, discSwipeHint]);
   // The tracks by disc, when they are on more than one; else all in one list with no head.
-  const discNumbers = [...new Set((props.tracks ?? []).map(one => one.disc ?? 1))].sort((a, b) => a - b);
+  // Put in another order by hand: one list, numbered by the places.
+  const discNumbers = inAlbumOrder(props.tracks ?? []) ? [...new Set((props.tracks ?? []).map(one => one.disc ?? 1))].sort((a, b) => a - b) : [];
   const discGroups = (discNumbers.length > 1 ? discNumbers : [null]).map(disc => ({
     disc,
     tracks: (props.tracks ?? []).map((track, index) => ({ track, index })).filter(one => disc == null || (one.track.disc ?? 1) === disc),
   }));
   const tracksList = hasTracks && (
-    <div ref={setTracksElement} className={`now-playing-tracks now-playing-scroll${editing ? ' now-playing-tracks--mixtape' : ''}`}>
+    <div ref={setTracksElement} className={`now-playing-tracks now-playing-scroll${editing || movable ? ' now-playing-tracks--mixtape' : ''}`}>
       {/* Always there, so the tracks do not move as the album starts: what is left. At rest the line under the
           title says its length already: nothing more here. */}
       <div className="now-playing-tracks__head">
@@ -822,7 +856,8 @@ const PhonePlayer: React.FC<PhonePlayerProps> = props => {
                   hint={swipeHint && one.songId === hintSongId}
                   onNewMixtape={() => one.songId && setNaming({ songId: one.songId, title: one.title })}
                   takeOut={editing ? () => editing.takeOut(i) : undefined}
-                  unit={editing && !works[no] ? editing.unitOf[i] : undefined} />
+                  unit={editing ? (!works[no] ? editing.unitOf[i] : undefined) : movable && i >= movable.first ? i - movable.first : undefined}
+                  queueEntries={props.queue?.entries(i) ?? undefined} />
               );
               const lines: React.ReactNode[] = [];
               for (let no = 0; no < group.tracks.length; no++) {

@@ -300,6 +300,7 @@ app.get('/api/outputs', outputController.list);
 app.get('/api/outputs/events', outputController.events);
 app.post('/api/outputs/:id/play', outputController.play);
 app.post('/api/outputs/:id/append', outputController.append);
+app.post('/api/outputs/:id/queue', outputController.queue);
 app.post('/api/outputs/:id/listen-next', outputController.listenNext);
 app.post('/api/outputs/:id/toggle', outputController.toggle);
 app.post('/api/outputs/:id/next', outputController.next);

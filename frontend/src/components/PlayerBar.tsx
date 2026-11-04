@@ -17,6 +17,8 @@ import PlayerFold from './PlayerFold';
 import NowPlayingDisc, { LeftAlbumDisc } from './NowPlayingDisc';
 import { useAlbumActions, useAlbumAtRest } from './useAlbumAtRest';
 import { useMixtapeAtRest } from './useMixtapeAtRest';
+import { playingQueue, restQueue } from './QueueEntries';
+import { wordsAlbumOf } from '../utils/queueOrder';
 import { useMedia } from '../utils/useNarrow';
 import { amperfyUrl, isAppleMobile } from '../utils/navidrome';
 // Listen Next registers itself with the player, to go on after a reload whatever the page; the bar asks it what comes next.
@@ -221,6 +223,7 @@ const PlayerBar: React.FC = () => {
           infoOf={mixtapeAtRest ? null : { albumId: Number(restAlbum.id), known: restAlbum }}
           rest={{ albumId: restAlbum.id, line: atRest.line, playable: atRest.playable }} album={atRest.actions}
           starsOf={mixtapeAtRest ? null : restAlbum.id} editing={mixtapeAtRest?.editing ?? null}
+          queue={atRest.queueFrom ? restQueue(atRest.tracks, atRest.queueFrom) : null}
           door={out ? <NowPlayingDisc exceptAlbumId={restAlbum.id} onOpen={leaveForPlaying} className="now-playing-door" /> : null}
           out />
       ) : last.current && (() => {
@@ -240,10 +243,10 @@ const PlayerBar: React.FC = () => {
                 seek: seconds => player.seek(seconds), resume: () => player.resume(), stop: () => player.stop(),
                 playTrack: at => player.playTrack(at),
               }}
-              lyricsOf={album.id != null ? { albumId: album.id, disc: track.disc, no: track.no } : null} timingSongId={track.songId}
+              lyricsOf={wordsAlbumOf(album, track) != null ? { albumId: wordsAlbumOf(album, track)!, disc: track.disc, no: track.no } : null} timingSongId={track.songId}
               guideOf={track.albumId ?? album.id} heartsOf={track.artist == null ? album.id ?? null : null}
               starsOf={track.artist == null ? album.id ?? null : null} mixtape={{ songId: track.songId, title: track.title }}
-              tracks={tracks} index={index} onAllTracks={fromListenNext ? () => setTracksOpen(true) : null} album={nowActions}
+              tracks={tracks} index={index} queue={playingQueue(index)} onAllTracks={fromListenNext ? () => setTracksOpen(true) : null} album={nowActions}
               onAmperfy={isAppleMobile() && album.navidromeId ? () => {
                 // Not both at once: DexVault's player pauses, and Amperfy starts the album.
                 player.toggle(false);
