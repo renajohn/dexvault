@@ -695,6 +695,19 @@ const Album = {
     const albums = await Album.searchAll(rest, withNoCd, mixtapes);
     if (albums.length === 0 || allowed.length === 2) return albums;
     const want = allowed[0];
+    const classical = await Album.classicalOf(albums);
+    return albums.filter(album => classical.get(album.id) === want);
+  },
+
+  /**
+   * Which albums are classical, as the shelves tell them: the section the
+   * owner set by hand, else their genres, else the roles of their performers
+   * when they have none. Never their tags alone: MusicBrainz files Abbey Road
+   * under "classical".
+   */
+  classicalOf: async (albums: Array<Pick<AlbumFormatted, 'id' | 'genres'>>): Promise<Map<number, boolean>> => {
+    const classical = new Map<number, boolean>();
+    if (albums.length === 0) return classical;
     const ids = albums.map(album => album.id);
     const marks = ids.map(() => '?').join(',');
     const all = <T>(sql: string): Promise<T[]> => new Promise((resolve, reject) =>
@@ -710,13 +723,13 @@ const Album = {
       performersOf.set(track.album_id, [...(performersOf.get(track.album_id) || []), ...(Array.isArray(list) ? list : [])]);
     }
     const sectionOf = new Map(sections.map(row => [row.item_id, row.section]));
-    return albums.filter(album => {
+    for (const album of albums) {
       const section = sectionOf.get(album.id);
-      const isClassical = section === 'classical' || section === 'music'
+      classical.set(album.id, section === 'classical' || section === 'music'
         ? section === 'classical'
-        : isClassicalAlbum(album.genres || [], performersOf.get(album.id) || []);
-      return isClassical === want;
-    });
+        : isClassicalAlbum(album.genres || [], performersOf.get(album.id) || []));
+    }
+    return classical;
   },
 
   /**

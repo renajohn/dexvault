@@ -24,3 +24,8 @@ if (!('ResizeObserver' in globalThis)) {
 if (!('IntersectionObserver' in globalThis)) {
   (globalThis as Record<string, unknown>).IntersectionObserver = NoopObserver;
 }
+
+// Nor does it scroll: a component that brings an element into view (a score's bookmarks) would throw on a click.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}

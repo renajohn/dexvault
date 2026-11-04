@@ -9,8 +9,8 @@ import './field.css';
  */
 
 interface FieldLook {
-  /** sm in a bar or an edit in place (28 px), md in a form (36 px). */
-  size?: 'sm' | 'md';
+  /** sm in a bar or an edit in place (28 px), md in a form (36 px), title a heading edited in place (the radio's prompt). */
+  size?: 'sm' | 'md' | 'title';
   /** What is in it will not do: a red edge; say why beside it. */
   isInvalid?: boolean;
 }
@@ -23,7 +23,7 @@ export interface TextFieldProps extends Omit<React.InputHTMLAttributes<HTMLInput
 }
 
 const fieldClass = (base: string, size: FieldLook['size'], isInvalid: boolean | undefined, className?: string) =>
-  [base, size === 'sm' && `${base}--sm`, isInvalid && `${base}--invalid`, className].filter(Boolean).join(' ');
+  [base, size !== 'md' && `${base}--${size}`, isInvalid && `${base}--invalid`, className].filter(Boolean).join(' ');
 
 /** A field of one line: words, a number, a date, an address, a search. */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(({

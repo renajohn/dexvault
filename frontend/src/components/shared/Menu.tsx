@@ -258,6 +258,21 @@ const Choice: React.FC<ChoiceProps> = ({ selected, value, muted, onSelect, hint,
   );
 };
 
+interface CheckProps extends Omit<ItemProps, 'icon' | 'danger' | 'onSelect'> {
+  checked: boolean;
+  onToggle: () => void;
+}
+
+/** One of several that add up, ticked or not: the menu stays open for the others. */
+const Check: React.FC<CheckProps> = ({ checked, onToggle, hint, disabled, title, children }) => (
+  <button type="button" role="menuitemcheckbox" aria-checked={checked} className="menu-item" disabled={disabled}
+    title={title} tabIndex={-1} onClick={onToggle} onMouseMove={event => event.currentTarget.focus({ preventScroll: true })}>
+    <span className="menu-item__check" aria-hidden="true"><BsCheck2 /></span>
+    <span className="menu-item__label">{children}</span>
+    {hint != null && <span className="menu-item__hint">{hint}</span>}
+  </button>
+);
+
 const Section: React.FC<{ title: string }> = ({ title }) => <div className="menu-section" role="presentation">{title}</div>;
 
 const Separator: React.FC = () => <div className="menu-separator" role="separator" />;
@@ -270,6 +285,6 @@ export const MenuChevron: React.FC<{ open?: boolean }> = ({ open }) => (
   </svg>
 );
 
-const Menu = Object.assign(MenuRoot, { Item, Choice, Section, Separator });
+const Menu = Object.assign(MenuRoot, { Item, Choice, Check, Section, Separator });
 
 export default Menu;

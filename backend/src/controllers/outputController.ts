@@ -151,6 +151,26 @@ const outputController = {
     else await session.playAlbum(album, tracks, count(body.index), seconds(body.position));
   }, { plays: true }),
 
+  /**
+   * POST { tracks, albumKey? }: tracks added at the end of the radio playing there, what plays untouched;
+   * { appended }. 404 nothing plays there, 409 an album plays (one with a DexVault id) or another radio than
+   * `albumKey` (the title it was played with), 400 tracks that are not.
+   */
+  append: async (req: Request, res: Response): Promise<void> => {
+    const session = sessionOf(req, res);
+    if (!session) return;
+    const body = (req.body || {}) as Record<string, unknown>;
+    const tracks = tracksOf(body.tracks);
+    if (!tracks) { res.status(400).json({ error: 'Which tracks?' }); return; }
+    if (body.albumKey != null && typeof body.albumKey !== 'string') { res.status(400).json({ error: 'albumKey is the title of the radio playing' }); return; }
+    if (session.state().count + tracks.length > MAX_TRACKS) { res.status(400).json({ error: `At most ${MAX_TRACKS} tracks in a play` }); return; }
+    try {
+      res.json({ appended: await session.append(tracks, (body.albumKey as string | undefined) ?? null) });
+    } catch (error) {
+      fail(res, error, `Appending on ${outputs.nameOf(session.id)}`, session);
+    }
+  },
+
   // POST { key? } or { albumId?, disc? }: Listen Next played there, from that entry, else from the top
   listenNext: command('Playing Listen Next', async (session, req) => {
     const body = (req.body || {}) as Record<string, unknown>;

@@ -65,8 +65,12 @@ const MAX_WORKS = 6;
 const MAX_TRACKS = 40;
 const FRESH_MS = 60 * 1000;
 
-interface IndexedAlbum extends SearchAlbum {
+export interface IndexedAlbum extends SearchAlbum {
   artists: string[];
+  /** The owner's stars in DexVault, halves included; what the radio's pool draws from. */
+  stars: number | null;
+  genres: string[];
+  year: number | null;
   /** The album's artists and its songs' own, the composer of a pianist's sonatas among them. */
   everyArtist: string[];
   works: SearchWork[];
@@ -125,7 +129,10 @@ const albums = async (): Promise<IndexedAlbum[]> => {
       const popular = popularTracks(ranks.get(album.id) || [], files.length);
       const songs = songsOf({ id: album.id, title: album.title, cover: album.cover ?? null }, files, popular);
       const everyArtist = [...new Set([...album.artist, ...songs.map(song => song.artist).filter(Boolean)])];
-      const indexed: IndexedAlbum = { albumId: album.id, title: album.title, artist: album.artist[0] || '', artists: album.artist, everyArtist, cover: album.cover ?? null, songs, works: [] };
+      const indexed: IndexedAlbum = {
+        albumId: album.id, title: album.title, artist: album.artist[0] || '', artists: album.artist, everyArtist, cover: album.cover ?? null, songs, works: [],
+        stars: album.userRating ?? null, genres: album.genres || [], year: album.releaseYear ?? null,
+      };
       indexed.works = worksOf(indexed);
       built.push(indexed);
     }
@@ -179,6 +186,9 @@ const mixtapeSearchService = {
       tracks: foundTracks,
     };
   },
+
+  /** Every album that plays with its songs and its works: the radio draws from them too. */
+  albums: (): Promise<IndexedAlbum[]> => albums(),
 
   /** For tests: nothing read yet. */
   forget: (): void => { index = null; building = null; },

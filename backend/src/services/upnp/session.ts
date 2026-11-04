@@ -1165,6 +1165,32 @@ export class OutputSession {
     return this.playAlbum(album, tracks, index, at, turn);
   }
 
+  /**
+   * Tracks added at the end of what plays, a radio refilled as it goes:
+   * the track playing and its place untouched, the one after it given as
+   * next when the last was playing, so that the appliance follows on with
+   * no gap. Only to a play the page made itself (an album with no DexVault
+   * id: a radio), and to the one `albumKey` names (its title) when given:
+   * never to an album or Listen Next started since on another page.
+   */
+  append(tracks: PlayerTrack[], albumKey: string | null = null): Promise<number> {
+    return this.run(async () => {
+      if (!this.album) throw Object.assign(new Error('Nothing plays there'), { status: 404 });
+      if (this.album.id != null || this.queue === 'listenNext') throw Object.assign(new Error('What plays there is an album, not a radio'), { status: 409 });
+      if (albumKey != null && albumKey !== this.album.title) throw Object.assign(new Error('Another radio plays there'), { status: 409 });
+      this.tracks = [...this.tracks, ...tracks];
+      if (this.onDevice && this.status === 'playing') {
+        await this.postNext().catch(error => {
+          // Away for now: the next track is given when it answers, as for any play.
+          if (!(error instanceof OutputUnreachableError)) throw error;
+        });
+      }
+      this.save();
+      this.emit(true);
+      return tracks.length;
+    });
+  }
+
   /** Pauses or plays on; `playing` forces one or the other. Not on the appliance any more: Resume. */
   toggle(playing?: boolean): Promise<void> {
     // ⏸ on a play on its way (the bar's ring): it gives up, and the command under way stops at its next step.

@@ -12,6 +12,8 @@ import { NextBanner, NextBannerPending, NextBannerSlot, CollectionHeader, EmptyS
 import { hasMatchScores, useBestMatch } from './shared/search/bestMatch';
 import { useOpenItem } from '../services/openItem';
 import { BsChevronDown, BsDisc, BsHeadphones, BsShuffle } from 'react-icons/bs';
+import RadioBanner from './RadioBanner';
+import { BannerModeSwitch, useBannerMode } from './BannerMode';
 import './MusicSearch.css';
 import { readStored, writeStored } from '../utils/safeStorage';
 import { findById, useDetailSteps } from '../utils/detailSteps';
@@ -285,6 +287,8 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
   }, [refreshListenNextAlbums]);
 
   // Playing Listen Next from its banner: ▶, Repeat, the albums leaving it once played.
+  const [bannerMode, chooseBannerMode] = useBannerMode();
+  const bannerSwitch = <BannerModeSwitch value={bannerMode} onChange={chooseBannerMode} />;
   const listenNext = useListenNextPlay(listenNextAlbums, refreshListenNextAlbums, albums => setListenNextAlbums(albums as Album[]));
 
   const [nextClassical, setNextClassical] = useState<ClassicalChoice>(() => {
@@ -1264,12 +1268,16 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
 
       {/* Listen Next Banner - show when there are albums OR when we have albums in collection to suggest;
           its place held until its lists are read, then filled or slid away. */}
-      <NextBannerSlot show={!searchCriteria?.searchText && (!listenNextRead || listenNextAlbums.length > 0 || allCds.length > 0)}>
-      {listenNextRead ? (
+      <NextBannerSlot show={!searchCriteria?.searchText && (bannerMode === 'radio' || !listenNextRead || listenNextAlbums.length > 0 || allCds.length > 0)}>
+      {bannerMode === 'radio' ? (
+        // The radio: what one asks for, played in DexVault's player; Listen Next is left as it is.
+        <RadioBanner heading={bannerSwitch} />
+      ) : listenNextRead ? (
         <NextBanner
           items={listenNext.items}
           type="music"
           title="Listen Next"
+          heading={bannerSwitch}
           className="listen-next"
           icon={<BsHeadphones className="next-banner__icon" aria-hidden="true" />}
           headerControls={(
@@ -1361,7 +1369,7 @@ const MusicSearch = forwardRef<any, MusicSearchProps>(({
         />
       ) : (
         // Its header and its strip as the banner will have them, as high, its lengths not read yet.
-        <NextBannerPending type="music" title="Listen Next" className="listen-next"
+        <NextBannerPending type="music" title="Listen Next" className="listen-next" heading={bannerSwitch}
           icon={<BsHeadphones className="next-banner__icon" aria-hidden="true" />}
           headerControls={(
             <span className="listen-next-head">

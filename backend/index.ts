@@ -11,6 +11,7 @@ import movieController from './src/controllers/movieController';
 import analyticsController from './src/controllers/analyticsController';
 import musicController from './src/controllers/musicController';
 import mixtapeController from './src/controllers/mixtapeController';
+import radioController from './src/controllers/radioController';
 import musicService from './src/services/musicService';
 import bookController from './src/controllers/bookController';
 import outputController from './src/controllers/outputController';
@@ -297,6 +298,7 @@ app.get('/api/music/navidrome/waveform/:id', playerController.waveform);
 app.get('/api/outputs', outputController.list);
 app.get('/api/outputs/events', outputController.events);
 app.post('/api/outputs/:id/play', outputController.play);
+app.post('/api/outputs/:id/append', outputController.append);
 app.post('/api/outputs/:id/listen-next', outputController.listenNext);
 app.post('/api/outputs/:id/toggle', outputController.toggle);
 app.post('/api/outputs/:id/next', outputController.next);
@@ -390,6 +392,13 @@ app.get('/api/music/mixtapes/search', mixtapeController.search);
 app.get('/api/music/mixtapes/:albumId', mixtapeController.get);
 app.patch('/api/music/mixtapes/:albumId', mixtapeController.update);
 app.delete('/api/music/mixtapes/:albumId', mixtapeController.remove);
+
+// Radio: a prompt played endlessly from the songs' fiches
+app.post('/api/radio/criteria', radioController.criteria);
+app.post('/api/radio/next', radioController.next);
+app.post('/api/radio/left', radioController.left);
+app.get('/api/radio/fiches', radioController.fiches);
+app.post('/api/radio/fiches', radioController.askFiches);
 
 // Book routes
 app.get('/api/books', bookController.getAllBooks);

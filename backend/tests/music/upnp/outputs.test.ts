@@ -125,6 +125,26 @@ describe('with it', () => {
     expect((await request(app).post(`/api/outputs/${WIIM}/play`).send({ album: albumOf(8), tracks: [{ songId: '../x' }] })).status).toBe(400);
   });
 
+  it('adds tracks to the radio playing there, and refuses what is not', async () => {
+    const radio = { id: null, title: 'Radio · upbeat', artist: 'Radio', cover: null };
+    const more = tracksOf(9, 2).map(track => ({ ...track, songId: `r${track.songId}` }));
+    expect((await request(app).post('/api/outputs/uuid:nobody/append').send({ tracks: more })).status).toBe(404);
+    expect((await request(app).post(`/api/outputs/${ONKYO}/append`).send({ tracks: more })).status).toBe(404);
+    await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7 }).expect(200);
+    expect((await request(app).post(`/api/outputs/${ONKYO}/append`).send({ tracks: more })).status).toBe(409);
+
+    await request(app).post(`/api/outputs/${ONKYO}/play`).send({ album: radio, tracks: tracksOf(8, 2), index: 1, position: 20 }).expect(200);
+    expect((await request(app).post(`/api/outputs/${ONKYO}/append`).send({ tracks: more, albumKey: 'Radio · autre' })).status).toBe(409);
+    expect((await request(app).post(`/api/outputs/${ONKYO}/append`).send({ tracks: [{ songId: '../x' }] })).status).toBe(400);
+    expect((await request(app).post(`/api/outputs/${ONKYO}/append`).send({ tracks: [] })).status).toBe(400);
+    expect((await request(app).post(`/api/outputs/${ONKYO}/append`).send({ tracks: more, albumKey: 3 })).status).toBe(400);
+    const res = await request(app).post(`/api/outputs/${ONKYO}/append`).send({ tracks: more, albumKey: radio.title });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ appended: 2 });
+    expect((await request(app).get('/api/outputs')).body.find((one: { id: string }) => one.id === ONKYO).session)
+      .toMatchObject({ index: 1, count: 4, position: 20, status: 'playing', album: { id: null, title: radio.title } });
+  });
+
   it('carries a play over from one appliance to the other, the first paused', async () => {
     await request(app).post(`/api/outputs/${ONKYO}/play`).send({ albumId: 7, index: 1 }).expect(200);
     onkyo.advance(20);

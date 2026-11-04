@@ -1,0 +1,247 @@
+/*
+ * The Listen Next banner in Radio mode (variant Cloud). It keeps the banner's
+ * frame, header and strip (shared.css); its own is the hue its songs give it
+ * (--radio-hue: blue for calm, warm for upbeat) and where its parts lie.
+ */
+.next-banner.radio-banner {
+  --radio-hue: 38;
+  padding-bottom: 14px;
+  background: linear-gradient(180deg, hsl(var(--radio-hue) 60% 14% / 0.95), hsl(var(--radio-hue) 45% 9% / 0.9) 70%, var(--dv-page));
+  border-top: 1px solid hsl(var(--radio-hue) 60% 40% / 0.35);
+  border-bottom: 1px solid hsl(var(--radio-hue) 60% 40% / 0.2);
+  transition: background 0.8s ease, border-color 0.8s ease;
+}
+
+.radio-banner .next-banner__header {
+  margin-bottom: 6px;
+}
+
+.radio-banner__head {
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.radio-banner__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dv-text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.radio-banner__end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.radio-banner__button.ui-button {
+  min-width: 40px;
+  padding: 0 11px;
+}
+
+.radio-banner__prompt {
+  margin-top: 4px;
+  max-width: 900px;
+}
+
+.radio-banner__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.radio-banner__label {
+  margin: 0 2px 0 8px;
+  color: var(--dv-text-faint);
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.radio-banner__label:first-child {
+  margin-left: 0;
+}
+
+/* The pool's pill takes the band's hue at its edge: where the songs come from. */
+.menu-pill.radio-banner__pool {
+  border-color: hsl(var(--radio-hue) 80% 60% / 0.45);
+}
+
+.radio-pool-menu {
+  min-width: 300px;
+}
+
+.radio-pool-menu__stars {
+  padding: 0 10px 6px 34px;
+}
+
+.radio-pool-menu__foot {
+  padding: 4px 10px 6px;
+  color: var(--dv-text-faint);
+  font-size: 12px;
+}
+
+.radio-banner__notice {
+  margin-top: 16px;
+}
+
+.radio-banner__idle {
+  margin: 14px 0 6px;
+  color: var(--dv-text-muted);
+  font-size: 13px;
+}
+
+.radio-banner__track {
+  min-height: 0;
+}
+
+/* A card: the cover, its tags, its energy, and under it what plays. */
+.radio-card .next-banner__image {
+  cursor: default;
+}
+
+.radio-card--now .next-banner__image,
+.radio-card--now:hover .next-banner__image {
+  box-shadow: 0 0 0 3px var(--dv-gold), 0 8px 22px rgba(0, 0, 0, 0.5);
+}
+
+.radio-card__bars {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+}
+
+.radio-card__tags {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  align-items: flex-start;
+}
+
+.radio-card__energy {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  width: 6px;
+  height: 46px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--dv-glass-image);
+  box-shadow: var(--dv-edge-image);
+}
+
+.radio-card__energy i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(0deg, hsl(210 70% 60%), hsl(40 90% 55%), hsl(10 90% 55%));
+  background-size: 100% 46px;
+  background-position: bottom;
+}
+
+.radio-card__caption {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+
+.radio-card__caption b,
+.radio-card__caption span {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.radio-card__caption b {
+  font-weight: 600;
+  color: var(--dv-text);
+}
+
+.radio-card__caption span {
+  color: var(--dv-text-muted);
+}
+
+/* While the LLM chooses, a sheen passes over the covers to go. */
+.radio-card__image--thinking::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: radio-sheen 1.1s infinite;
+}
+
+@keyframes radio-sheen {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+
+.radio-banner__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  color: var(--dv-text-faint);
+  font-size: 12px;
+}
+
+.radio-banner__queued {
+  color: var(--dv-text-muted);
+}
+
+.radio-save__hint {
+  margin: 10px 0 0;
+  color: var(--dv-text-muted);
+  font-size: 12.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .next-banner.radio-banner { transition: none; }
+  .radio-card__image--thinking::after { animation: none; }
+}
+
+@media (max-width: 600px) {
+  /* Listen Next's own header lies on one line on a phone; the radio's breaks before its length. */
+  .next-banner.radio-banner .radio-banner__head {
+    flex-wrap: wrap;
+    column-gap: 10px;
+  }
+  .next-banner.radio-banner .next-banner__title-section::after {
+    display: none;
+  }
+  /* On a phone: the switch and ▶ ↻ on the first line, the length on the next. */
+  .radio-banner__summary {
+    order: 3;
+    flex-basis: 100%;
+    font-size: 12px;
+  }
+  .radio-banner__end .ui-button--quiet .ui-button__label {
+    display: none;
+  }
+  .radio-banner .next-banner__icon {
+    display: none;
+  }
+  .radio-banner__chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-right: -16px;
+    padding-right: 16px;
+    scrollbar-width: none;
+  }
+  .radio-banner__chips > * {
+    flex-shrink: 0;
+  }
+}

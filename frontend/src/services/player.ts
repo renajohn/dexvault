@@ -48,6 +48,8 @@ export interface PlayerAlbum {
   cover: string | null;
   /** One disc of the album, played from Listen Next alone; absent for the whole album. */
   disc?: number | null;
+  /** The radio: an album of songs drawn as it goes, which grows at its end while it plays. */
+  radio?: boolean;
 }
 
 /** Where a play was left, kept in the browser: Navidrome's own saved queue is shared with Amperfy. */
@@ -447,6 +449,19 @@ const playCarried = (index: number, position: number): boolean => {
     album, tracks: state.tracks, index: Math.max(0, Math.min(index, state.tracks.length - 1)), position, listenNext: state.queue === 'listenNext',
   }).then(() => { if (state.album === was && !state.playing) stopHere(); }, reportOutputError);
   return true;
+};
+
+/**
+ * Songs added at the end of what an appliance plays (the radio refilled
+ * there). Another album playing there by now (409) or none (404): nothing to
+ * add to, said by no one; anything else, said.
+ */
+const appendThere = (id: string, tracks: PlayerTrack[]) => {
+  heard();
+  outputs.append(id, tracks, view.album?.title).catch(error => {
+    const code = (error as OutputError)?.code;
+    if (code !== 404 && code !== 409) reportOutputError(error);
+  });
 };
 
 const onRenderer = (work: (id: string) => Promise<unknown>): boolean => {
@@ -1082,6 +1097,42 @@ export const player = {
     revealBar();
   },
 
+  /**
+   * The tracks after the one playing, in place of those there: the radio's
+   * songs to come, drawn again or one taken out; `album`, its name as it now
+   * is (a new prompt). The track playing goes on where it is; the next one
+   * loads beside it. On an appliance only songs added at the end go (the
+   * server appends them to what it plays); false when that cannot be done.
+   */
+  setUpcoming: (upcoming: PlayerTrack[], album?: PlayerAlbum): boolean => {
+    if (carrying) return false;
+    const id = player.rendererId();
+    if (id) {
+      const ahead = view.tracks.slice(view.index + 1);
+      const kept = ahead.every((track, at) => upcoming[at]?.songId === track.songId);
+      if (!view.album || !kept) return false;
+      const more = upcoming.slice(ahead.length);
+      if (more.length > 0) appendThere(id, more);
+      return true;
+    }
+    if (!state.album) return false;
+    const kept = state.tracks.slice(0, state.index + 1);
+    const tracks = [...kept, ...upcoming].map((track, at) => ({ ...track, disc: 1, no: at + 1 }));
+    set(album ? { tracks, album: { ...state.album, ...album } } : { tracks });
+    // Kept at once: a reload plays on in the radio as it now is.
+    writeResume(here(state.index, current()?.currentTime || state.position));
+    preloadNext();
+    if (album) updateMediaSession();
+    return true;
+  },
+
+  /** Tracks at the end of the album playing, without stopping it: the radio refilled as it goes, here or on an appliance. */
+  appendTracks: (more: PlayerTrack[]): boolean => {
+    const current = player.rendererId() ? view : state;
+    if (more.length === 0) return Boolean(current.album);
+    return player.setUpcoming([...current.tracks.slice(current.index + 1), ...more]);
+  },
+
   /** Pauses or plays on; `playing` forces one or the other, as the Mac's keys ask. */
   toggle: (playing?: boolean) => {
     if (carrying && playing !== false) {
@@ -1341,6 +1392,9 @@ const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 };
+
+/** Told of every change of what the bar shows, outside React: the radio follows its tracks so. */
+export const subscribePlayer = subscribe;
 
 /** A slice of the player's state; a component re-renders only when its slice changes. */
 export function usePlayer<T>(select: (state: PlayerState) => T): T {

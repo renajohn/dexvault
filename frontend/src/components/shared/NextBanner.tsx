@@ -64,6 +64,8 @@ interface NextBannerProps {
   canReorder?: (item: NextBannerItem) => boolean;
   /** A class of the banner's own. */
   className?: string;
+  /** In place of the title's words: a switch between the banner's modes (Listen Next | Radio). */
+  heading?: React.ReactNode;
 }
 
 /**
@@ -108,12 +110,13 @@ export const NextBannerPending: React.FC<{
   /** The banner will end with Help me choose (onSmartFill): held too, with what lies under it. */
   smartFill?: boolean;
   smartFillFoot?: React.ReactNode;
-}> = ({ type, title, icon, className = '', headerControls, footer, smartFill = false, smartFillFoot }) => (
+  heading?: React.ReactNode;
+}> = ({ type, title, icon, className = '', headerControls, footer, smartFill = false, smartFillFoot, heading }) => (
   <div className={`next-banner next-banner--pending ${className}`} aria-busy="true">
     <div className="next-banner__header">
       <div className="next-banner__title-section">
         {icon ?? <BannerStar />}
-        <h2 className="next-banner__title">{title}</h2>
+        {heading ?? <h2 className="next-banner__title">{title}</h2>}
         {headerControls}
       </div>
     </div>
@@ -251,6 +254,7 @@ const NextBanner: React.FC<NextBannerProps> = ({
   onReorder,
   canReorder,
   className = '',
+  heading,
   getKey = item => item.id
 }) => {
   const bannerRef = useRef<HTMLDivElement>(null);
@@ -347,7 +351,7 @@ const NextBanner: React.FC<NextBannerProps> = ({
       <div className="next-banner__header">
         <div className="next-banner__title-section">
           {renderIcon()}
-          <h2 className="next-banner__title">{title}</h2>
+          {heading ?? <h2 className="next-banner__title">{title}</h2>}
           {headerControls ?? (
             <span className="next-banner__count">
               {items.length} {items.length === 1 ? itemLabel : itemLabelPlural}

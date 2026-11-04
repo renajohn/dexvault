@@ -347,6 +347,17 @@ const outputs = {
     ? playingFrom(output, output.session.album, output.session.tracks, index)
     : output)),
   seek: (id: string, position: number) => command(id, 'seek', { position }),
+  /**
+   * Songs added at the end of the album playing there, without stopping it
+   * (the radio refilled); `albumKey`, its title, for the server to refuse
+   * (409) once another album plays. Shown at once, taken back if refused.
+   */
+  append: (id: string, tracks: PlayerTrack[], albumKey?: string): Promise<{ appended: number }> => {
+    const undo = guess(id, output => (output.session
+      ? { ...output, session: { ...output.session, tracks: [...output.session.tracks, ...tracks], count: output.session.count + tracks.length } }
+      : output));
+    return unless(undo, send('POST', `${encodeURIComponent(id)}/append`, albumKey ? { tracks, albumKey } : { tracks }) as Promise<{ appended: number }>);
+  },
 
   /** The volume (never above its ceiling, the server sees to it) or the sound off. */
   volume: async (id: string, change: { volume?: number; muted?: boolean }): Promise<OutputState> => {

@@ -4,6 +4,8 @@ import AlbumGuide, { AlbumGuideFormatted, GuideSource } from '../models/albumGui
 import albumStoryService, { AlbumStoryResult } from './albumStoryService';
 import musicService from './musicService';
 import { getConfig, requestFailure } from './coverScanService';
+import { inTurn } from '../utils/localLlmQueue';
+import trackFicheService from './trackFicheService';
 import logger from '../logger';
 
 /**
@@ -178,14 +180,6 @@ const writeWithLocalLlm = async (albumId: number): Promise<{ text: string; model
   return { text, model: getConfig().model };
 };
 
-/** One model, one request at a time: a guide asked for by hand waits behind the auto-writer, never beside it. */
-let queue: Promise<unknown> = Promise.resolve();
-const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
-  const next = queue.then(work, work);
-  queue = next.catch(() => undefined);
-  return next;
-};
-
 const isClassical = (genres: string[] | null | undefined): boolean =>
   (genres || []).some(genre => CLASSICAL_GENRES.some(keyword => genre.toLowerCase().includes(keyword)));
 
@@ -236,6 +230,8 @@ const albumGuideService = {
       try {
         // Keep going while there is something to write, one album at a time.
         while (await albumGuideService.writeMissing().catch(() => null) !== null) { /* next album */ }
+        // Then the radio's fiches of the songs with none, albums added or ripped since among them.
+        await trackFicheService.writeMissing().catch((error: Error) => logger.warn(`Radio fiches: ${error.message}`));
       } finally {
         running = false;
       }
