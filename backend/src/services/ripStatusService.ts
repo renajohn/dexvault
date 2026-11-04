@@ -56,12 +56,20 @@ export interface RipStatus {
 
 export const LOSSLESS = new Set(['flac', 'alac', 'wav', 'aif', 'aiff', 'ape', 'wv']);
 
-/** An .m4a is ALAC when Navidrome reports a bit depth, AAC otherwise. */
+/**
+ * An .m4a is ALAC or AAC, and Navidrome says neither: it gives AAC a bit depth
+ * of 16 too. Its bitrate tells them apart, AAC at 320 kbps at most, ALAC at
+ * 16 bits and 44.1 kHz well above 400; without one, a bit depth means ALAC.
+ */
+const ALAC_MIN_KBPS = 400;
+const isAlac = (song: Pick<NavidromeSong, 'bitRate' | 'bitDepth'>): boolean =>
+  song.bitRate ? song.bitRate >= ALAC_MIN_KBPS : Boolean(song.bitDepth);
+
 export const isLossless = (song: NavidromeSong): boolean =>
-  LOSSLESS.has(song.suffix) || (song.suffix === 'm4a' && Boolean(song.bitDepth));
+  LOSSLESS.has(song.suffix) || (song.suffix === 'm4a' && isAlac(song));
 
 export const formatName = (song: NavidromeSong): string =>
-  (song.suffix === 'm4a' ? (song.bitDepth ? 'alac' : 'aac') : song.suffix).toUpperCase();
+  (song.suffix === 'm4a' ? (isAlac(song) ? 'alac' : 'aac') : song.suffix).toUpperCase();
 
 /** "Abbey Road (Remastered 2009)" and "Abbey Road [Disc 1]" are Abbey Road. */
 const cleanTitle = (title: string): string =>

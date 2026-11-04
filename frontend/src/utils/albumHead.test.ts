@@ -26,9 +26,12 @@ describe('ripSummary', () => {
     expect(ripSummary(rip)).toEqual({ state: 'lossy', format: 'FLAC, MP3', files: 2 });
   });
 
-  it('knows an .m4a with a bit depth as ALAC, without as AAC', () => {
+  it('knows an .m4a as ALAC by its bitrate, Navidrome giving AAC a bit depth too', () => {
     expect(ripSummary({ configured: true, found: true, tracks: [file({ suffix: 'm4a' })] })?.state).toBe('lossless');
-    expect(ripSummary({ configured: true, found: true, tracks: [file({ suffix: 'm4a', bitDepth: null })] })?.state).toBe('lossy');
+    const aac = ripSummary({ configured: true, found: true, tracks: [file({ suffix: 'm4a', bitRate: 256 })] });
+    expect(aac?.state).toBe('lossy');
+    expect(aac?.format).toContain('AAC');
+    expect(ripSummary({ configured: true, found: true, tracks: [file({ suffix: 'm4a', bitRate: null, bitDepth: null })] })?.state).toBe('lossy');
   });
 
   it('has nothing to say of a CD that is not ripped', () => {

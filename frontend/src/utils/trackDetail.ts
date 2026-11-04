@@ -34,10 +34,21 @@ export const ripFileFor = (files: RipTrackFile[], disc: number, track: number): 
 
 const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'stereo' };
 
-/** "FLAC · 16-bit · 44.1 kHz · stereo", what tells a CD-quality rip at a glance. */
+/**
+ * An .m4a is ALAC at 400 kbps or more: Navidrome gives AAC a bit depth of 16
+ * too, and AAC stops at 320. Without a bitrate, a bit depth means ALAC.
+ */
+export const isAlac = (file: Pick<RipTrackFile, 'bitRate' | 'bitDepth'>): boolean =>
+  file.bitRate ? file.bitRate >= 400 : Boolean(file.bitDepth);
+
+/** "FLAC", "ALAC", "AAC": an .m4a named by what it holds. */
+export const formatName = (file: RipTrackFile): string =>
+  (file.suffix === 'm4a' ? (isAlac(file) ? 'alac' : 'aac') : file.suffix).toUpperCase();
+
+/** "FLAC · 16-bit · 44.1 kHz · stereo", what tells a CD-quality rip at a glance; no bit depth for AAC. */
 export const ripFormat = (file: RipTrackFile): string => [
-  file.suffix.toUpperCase(),
-  file.bitDepth ? `${file.bitDepth}-bit` : null,
+  formatName(file),
+  file.bitDepth && formatName(file) !== 'AAC' ? `${file.bitDepth}-bit` : null,
   file.samplingRate ? `${(file.samplingRate / 1000).toLocaleString('en', { maximumFractionDigits: 1 })} kHz` : null,
   file.channelCount ? CHANNELS[file.channelCount] || `${file.channelCount} channels` : null,
 ].filter(Boolean).join(' · ');

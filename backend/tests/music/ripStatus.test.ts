@@ -63,6 +63,16 @@ describe('rip status', () => {
     expect(await statusOf(id)).toMatchObject({ state: 'lossy', formats: ['AAC'] });
   });
 
+  it('lit un .m4a d’iTunes à 256 kbps comme de l’AAC, même avec la profondeur de 16 bits que Navidrome lui donne', async () => {
+    const title = `Back to Black ${Math.random().toString(36).slice(2, 8)}`;
+    const id = await insertAlbum({ title, artist: ['Amy Winehouse'] });
+    jest.spyOn(navidromeService, 'getAlbums').mockResolvedValue([album('nd-aac', title, 'Amy Winehouse')]);
+    jest.spyOn(navidromeService, 'getSongs').mockResolvedValue([1, 2].map(track =>
+      ({ albumId: 'nd-aac', suffix: 'm4a', bitDepth: 16, bitRate: 256, discNumber: 1, track })));
+
+    expect(await statusOf(id)).toMatchObject({ state: 'lossy', formats: ['AAC'] });
+  });
+
   it('juge le rip sur les pistes du CD : un bonus acheté à part en AAC le laisse lossless', async () => {
     const title = `This Is the Life ${Math.random().toString(36).slice(2, 8)}`;
     const id = await insertAlbum({ title, artist: ['Amy Macdonald'] });
