@@ -503,7 +503,7 @@ class MusicService {
     }
   }
 
-  /** The CDs a query finds; with `withNoCd`, as MusicDex with Digital on, the digital albums and wishes too. */
+  /** The CDs a query finds; with `withNoCd`, as MusicDex shows them, the digital albums and wishes too. */
   async searchAlbums(query: string, { withNoCd = false, mixtapes = false }: { withNoCd?: boolean; mixtapes?: boolean } = {}): Promise<unknown> {
     try {
       const baseUrl = await this.getBaseUrl();

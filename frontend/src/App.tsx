@@ -47,13 +47,13 @@ interface SearchCriteria {
   searchText: string;
 }
 
-/** The old Digital page's tabs, as MusicDex with Digital on: Buy, or words of the search. */
+/** The old Digital page's tabs, in MusicDex: Buy, or words of the search. */
 const DIGITAL_TAB_SEARCHES: Record<string, string> = { nocd: 'cd:no', lossy: 'file:lossy', physical: 'ripped:no' };
 
 const DigitalRedirect = () => {
   const tab = new URLSearchParams(useLocation().search).get('tab') || 'buy';
   const search = DIGITAL_TAB_SEARCHES[tab];
-  return <Navigate to={search ? `/musicdex?digital=1&search=${encodeURIComponent(search)}` : '/musicdex?digital=1&filter=buy'} replace />;
+  return <Navigate to={search ? `/musicdex?search=${encodeURIComponent(search)}` : '/musicdex?filter=buy'} replace />;
 };
 
 /** The page's section: MusicDex's view of the mixtapes is MusicDex. */
@@ -454,7 +454,7 @@ function AppContent() {
     navigate('/bookdex');
   };
 
-  // Navidrome, read again from ⚙︎: the store MusicDex shows with Digital on, not read here otherwise.
+  // Navidrome, read again from ⚙︎: the store MusicDex shows, not read here otherwise.
   const navidrome = useDigitalLibrary(false);
   const handleSyncNavidrome = async () => {
     const error = await navidrome.sync();
@@ -774,9 +774,9 @@ function AppContent() {
           />
           <Route path="/musicdex" element={<MusicDexPage ref={musicDexRef} searchCriteria={searchCriteria} />} />
           <Route path={MIXTAPES_PATH} element={<MusicDexPage ref={musicDexRef} searchCriteria={searchCriteria} />} />
-          {/* The Digital page is MusicDex with Digital on: its tabs are filters there. */}
+          {/* The Digital page is MusicDex: its tabs are filters there. */}
           <Route path="/musicdex/digital" element={<DigitalRedirect />} />
-          <Route path="/musicdex/rip" element={<Navigate to="/musicdex?digital=1" replace />} />
+          <Route path="/musicdex/rip" element={<Navigate to="/musicdex" replace />} />
           <Route path="/bookdex" element={<BookDexPage ref={bookDexRef} searchCriteria={searchCriteria} />} />
           <Route path="/scores" element={<ScoresPage searchCriteria={searchCriteria} />} />
           <Route path="/scores/:id/read" element={<ScoreReader />} />

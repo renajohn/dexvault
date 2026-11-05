@@ -32,7 +32,7 @@ interface MusicThumbnailProps {
   listenNextTitle?: string;
   dataItemId?: number | string;
   dataFirstLetter?: string;
-  /** How the album stands in Navidrome, with Digital on; undefined with it off, and no mark is shown. */
+  /** How the album stands in Navidrome; undefined, and no mark is shown. */
   digital?: AlbumDigital;
   /** In Buy: why, and the bookmark and ✕ under the pointer in place of Listen Next. */
   buy?: { reason: string | null; wished: boolean; onWish: () => void; onDismiss?: () => void };

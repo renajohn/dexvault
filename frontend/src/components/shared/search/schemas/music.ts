@@ -1,7 +1,6 @@
 import musicService from '../../../../services/musicService';
 import { MOODS, STYLES } from '../../../../services/radioService';
 import { openItem } from '../../../../services/openItem';
-import { isDigitalOn } from '../../../../utils/digitalLibrary';
 import { suggestFrom, yesNo, type SearchGuess, type SearchKey, type SearchSchema } from '../schema';
 
 /**
@@ -13,15 +12,14 @@ import { suggestFrom, yesNo, type SearchGuess, type SearchKey, type SearchSchema
  * answering when a third of its songs with a fiche do), all through
  * backend/src/utils/albumSearchFilters.ts, which understands `-key:` and
  * `!key:`, yes/no and the old words, commas as "or" and the aliases below.
- * The page itself reads cd:, file:, ripped:, favourites: (Digital on) in
- * utils/musicSearchWords.ts. The backend's mixtape: is not offered: the
- * mixtapes have their own view of MusicDex (/musicdex/mixtapes).
- * The values come from the collection, the digital albums and the wishes too
- * when Digital is on, as the page shows them; the moods and the styles are
+ * The backend's mixtape: is not offered: the mixtapes have their own view of
+ * MusicDex (/musicdex/mixtapes).
+ * The values come from the collection, the digital albums and the wishes,
+ * as the page shows them; the moods and the styles are
  * the radio's closed lists.
  */
 const fromMusic = (field: string) => suggestFrom(
-  (f, typed) => musicService.getAutocompleteSuggestions(f, typed, { withNoCd: isDigitalOn() }),
+  (f, typed) => musicService.getAutocompleteSuggestions(f, typed, { withNoCd: true }),
   field,
 );
 
@@ -75,7 +73,7 @@ const keys: SearchKey[] = [
   { key: 'rated', group: 'Your stars', type: 'bool', desc: 'You have given it stars', values: yesNo('Rated, any number of stars', 'Not rated yet: what is left to listen to') },
   { key: 'favourites', aliases: ['favorites', 'fav'], group: 'Your stars', type: 'bool', desc: 'A track of it is a favourite (♥ in Navidrome)', values: yesNo('A track of it is a favourite', 'No track of it is a favourite') },
   // CD and files
-  { key: 'cd', group: 'CD and files', type: 'bool', desc: 'You have the CD', values: yesNo('CDs only', 'No CD: files or wishes, with Digital on') },
+  { key: 'cd', group: 'CD and files', type: 'bool', desc: 'You have the CD', values: yesNo('CDs only', 'No CD: files or wishes') },
   { key: 'ripped', group: 'CD and files', type: 'bool', desc: 'Its CD is in Navidrome', values: yesNo('CDs in Navidrome', 'CDs not ripped yet') },
   { key: 'file', group: 'CD and files', type: 'enum', desc: 'How good its files in Navidrome are', example: 'file:lossy', values: [
     { value: 'lossless', desc: 'FLAC, ALAC: as on the CD' },
@@ -94,7 +92,7 @@ interface FoundAlbum {
 
 /** The albums whose words hold the letters, as the page would find them, to open. */
 const findAlbums = async (typed: string): Promise<SearchGuess[]> => {
-  const found = await musicService.searchAlbums(typed, { withNoCd: isDigitalOn() }) as FoundAlbum[];
+  const found = await musicService.searchAlbums(typed, { withNoCd: true }) as FoundAlbum[];
   return (Array.isArray(found) ? found : []).map(album => ({
     id: album.id,
     label: album.title,

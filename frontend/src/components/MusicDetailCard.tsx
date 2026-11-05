@@ -147,7 +147,7 @@ interface MusicDetailCardProps {
   /** The album before or after this one on the page; none at either end. */
   onPrevious?: (() => void) | null;
   onNext?: (() => void) | null;
-  /** How the album stands in Navidrome, with Digital on; undefined with it off. */
+  /** How the album stands in Navidrome; undefined when not known. */
   digital?: AlbumDigital;
   /** Puts an album with no CD on the wish list, or takes it off. */
   onWish?: (() => void) | null;
@@ -307,7 +307,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   const [community, setCommunity] = useState<CommunityRatings>(communityOf(cd));
   const [refreshingMb, setRefreshingMb] = useState<boolean>(false);
   const [mbError, setMbError] = useState<string | null>(null);
-  // With Digital on, each track's stars, heart and plays of the last 90 days, by "disc-number".
+  // Each track's stars, heart and plays of the last 90 days, by "disc-number".
   const [digitalTracks, setDigitalTracks] = useState<Map<string, DigitalTrack>>(new Map());
   // The other albums of the collection holding some of its tracks, the most first.
   const [overlaps, setOverlaps] = useState<AlbumOverlap[]>([]);
@@ -750,7 +750,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   const shapeText = [shape, released, labels, original && `first ${original}`].filter(Boolean).join(' · ');
   const shapeLine = shapeText ? <div className="album-head-shape">{shapeText}</div> : null;
 
-  /** How to listen to it: the rip in Navidrome, or with Digital on, the CD missing and the files. */
+  /** How to listen to it: the rip in Navidrome, or the CD missing and the files. */
   const listenLines = () => (digital === undefined ? (
     rip?.configured !== false && <div className="album-head-line">{ripText}</div>
   ) : (

@@ -5,7 +5,7 @@ import { isAppleMobile } from './navidrome';
 import { LISTEN_NEXT_CHANGED_EVENT } from '../components/useAlbumAtRest';
 
 /**
- * The music as files, in Navidrome, as MusicDex shows it with Digital on:
+ * The music as files, in Navidrome, as MusicDex shows it:
  * how good each album's files are, which album of DexVault it is, and whether
  * to buy its CD. Kept while the app is open and in the browser, so coming
  * back shows it at once, brought up to date behind it.
@@ -14,9 +14,6 @@ import { LISTEN_NEXT_CHANGED_EVENT } from '../components/useAlbumAtRest';
 /** A full sync rereads Navidrome and takes editions from the rips: on coming back, at most this often. */
 const SYNC_EVERY_MS = 5 * 60 * 1000;
 
-/** Digital on or off in MusicDex, remembered in the browser: the search and its suggestions follow it. */
-export const DIGITAL_ON_KEY = 'dexvault-musicdex-digital';
-export const isDigitalOn = (): boolean => readStored(DIGITAL_ON_KEY) === '1';
 const STORED_KEY = 'dexvault.digital';
 
 interface DigitalState {

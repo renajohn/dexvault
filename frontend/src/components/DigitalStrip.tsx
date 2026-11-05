@@ -6,10 +6,9 @@ import Chip from './shared/Chip';
 import useNarrow from '../utils/useNarrow';
 
 /**
- * The head of MusicDex with Digital on, laid in the collection's own head:
- * Buy after the Digital switch, the other filters being words of the search
- * (cd:, file:, ripped:); below, only when there is one, what
- * DexVault did at the last sync and what needs doing.
+ * The head of MusicDex, laid in the collection's own head: Buy, the other
+ * filters being words of the search (cd:, file:, ripped:); below, only when
+ * there is one, what DexVault did at the last sync and what needs doing.
  */
 
 export type DigitalFilter = 'all' | 'buy';

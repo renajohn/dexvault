@@ -874,7 +874,7 @@
   align-items: center;
 }
 
-/* A track's stars, heart and plays, with Digital on. */
+/* A track's stars, heart and plays. */
 .track-digital {
   display: inline-flex;
   gap: 8px;
