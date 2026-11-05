@@ -742,6 +742,19 @@
   z-index: 10;
 }
 
+/*
+ * Risen, a card leaves the strip it stood on: still hovered there, or the
+ * pointer on its lower edge would let it fall and rise again, over and over.
+ */
+.next-banner__card:hover::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+}
+
 /* A card dragged into a new order: it follows the pointer at once, above the others, which make room for it. */
 /*
  * A banner's card is drawn, not read: a mouse pressed on it and moved, a
