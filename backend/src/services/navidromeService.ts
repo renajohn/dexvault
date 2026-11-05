@@ -149,6 +149,27 @@ export interface NavidromeTrackFile {
   starred?: boolean;
 }
 
+/** A song a player says it plays, as getNowPlaying lists them. */
+export interface NavidromeNowPlaying {
+  songId: string;
+  title: string;
+  artist: string;
+  album: string;
+  albumId: string | null;
+  discNumber: number;
+  track: number;
+  durationSec: number | null;
+  user: string;
+  player: string | null;
+  /** Since the player said the song started. */
+  minutesAgo: number;
+}
+
+type RawNowPlaying = {
+  id: string; title?: string; artist?: string; album?: string; albumId?: string; discNumber?: number; track?: number;
+  duration?: number; username?: string; playerName?: string; minutesAgo?: number;
+};
+
 type RawAlbum = { id: string; name: string; artist?: string; year?: number; musicBrainzId?: string; songCount?: number; userRating?: number; starred?: string };
 type RawAlbumSong = {
   id?: string; title?: string; artist?: string; track?: number; discNumber?: number; duration?: number; suffix?: string; bitRate?: number;
@@ -236,6 +257,29 @@ const navidromeService = {
    */
   scrobble: async (id: string, submission: boolean): Promise<void> => {
     await request('scrobble', { id, submission: String(submission), time: Date.now() });
+  },
+
+  /**
+   * What every account and player is playing, as the players told Navidrome
+   * (a scrobble with submission false): DexVault's own player, an appliance
+   * it drives, Amperfy, Navidrome's web player. Navidrome cannot tell paused
+   * from playing: an entry stays until the player says another song starts.
+   */
+  getNowPlaying: async (): Promise<NavidromeNowPlaying[]> => {
+    const body = await request<{ nowPlaying?: { entry?: RawNowPlaying[] } }>('getNowPlaying');
+    return (body.nowPlaying?.entry || []).map(entry => ({
+      songId: entry.id,
+      title: entry.title || '',
+      artist: entry.artist || '',
+      album: entry.album || '',
+      albumId: entry.albumId || null,
+      discNumber: entry.discNumber || 1,
+      track: entry.track || 0,
+      durationSec: entry.duration ?? null,
+      user: entry.username || '',
+      player: entry.playerName || null,
+      minutesAgo: entry.minutesAgo ?? 0,
+    }));
   },
 
   /** Gives an album, a song or an artist 1 to 5 stars, or takes them away with 0. */

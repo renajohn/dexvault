@@ -4,6 +4,8 @@ import { registerSearchAlbums } from './tools/searchAlbums';
 import { registerSearchBooks } from './tools/searchBooks';
 import { registerGetMovie } from './tools/getMovie';
 import { registerGetAlbum } from './tools/getAlbum';
+import { registerGetAlbumStory } from './tools/getAlbumStory';
+import { registerGetNowPlaying } from './tools/getNowPlaying';
 import { registerGetBook } from './tools/getBook';
 import { registerGetCollectionStats } from './tools/getCollectionStats';
 import { registerListWishlist } from './tools/listWishlist';
@@ -29,6 +31,8 @@ export const createMcpServer = (): McpServer => {
   registerSearchBooks(server);
   registerGetMovie(server);
   registerGetAlbum(server);
+  registerGetAlbumStory(server);
+  registerGetNowPlaying(server);
   registerGetBook(server);
   registerGetCollectionStats(server);
   registerListWishlist(server);

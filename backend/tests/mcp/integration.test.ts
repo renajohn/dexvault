@@ -10,6 +10,10 @@ import Collection from '../../src/models/collection';
 import MovieCollection from '../../src/models/movieCollection';
 import Album from '../../src/models/album';
 import Track from '../../src/models/track';
+import AlbumGuide from '../../src/models/albumGuide';
+import AlbumStory from '../../src/models/albumStory';
+import navidromeService from '../../src/services/navidromeService';
+import ripStatusService from '../../src/services/ripStatusService';
 import AlbumCollection from '../../src/models/albumCollection';
 import Book from '../../src/models/book';
 import BookComment from '../../src/models/bookComment';
@@ -50,6 +54,8 @@ const setupDatabase = async (): Promise<void> => {
   await MovieCollection.createTable();
   await Album.createTable();
   await Track.createTable();
+  await AlbumGuide.createTable();
+  await AlbumStory.createTable();
   await AlbumCollection.createTable();
   await Book.createTable();
   await BookComment.createTable();
@@ -260,6 +266,22 @@ const seedFixtures = async () => {
     titleStatus: 'wish',
   });
 
+  // The Wall's third track, its guide and its story, as the card shows them.
+  const wall = await new Promise<{ id: number }>((resolve, reject) =>
+    getDatabase().get(`SELECT id FROM albums WHERE title = 'The Wall'`, (err: Error | null, row: { id: number }) => (err ? reject(err) : resolve(row))));
+  await Track.create({
+    cdId: wall.id, discNumber: 1, trackNumber: 3, title: 'Another Brick in the Wall, Part 1', durationSec: 191,
+    performers: [{ name: 'David Gilmour', role: 'guitar' }],
+  });
+  await AlbumGuide.save(wall.id, '### Avant d\'écouter\n\nUn opéra rock.', 'claude');
+  await AlbumStory.save(wall.id, {
+    found: true, reason: null, lang: 'en', title: 'The Wall', url: 'https://en.wikipedia.org/wiki/The_Wall',
+    wikidataId: null, intro: 'The Wall is the eleventh studio album by Pink Floyd.',
+    sections: [{ heading: 'Recording', level: 2, text: 'Recorded in France.' }],
+    works: [], links: [{ lang: 'en', title: 'The Wall', url: 'https://en.wikipedia.org/wiki/The_Wall' }],
+    fetchedAt: new Date().toISOString(),
+  });
+
   // Books.
   await Book.create({
     title: 'Norwegian Wood',
@@ -323,16 +345,18 @@ beforeAll(async () => {
 }, 30000);
 
 describe('MCP integration: tool registry', () => {
-  it('exposes the 11 documented tools', async () => {
+  it('exposes the 13 documented tools', async () => {
     const list = await client.listTools();
     const names = list.tools.map(t => t.name).sort();
     expect(names).toEqual(
       [
         'clear_movie_watched',
         'get_album',
+        'get_album_story',
         'get_book',
         'get_collection_stats',
         'get_movie',
+        'get_now_playing',
         'list_watch_next',
         'list_wishlist',
         'mark_movie_watched',
@@ -507,6 +531,52 @@ describe('get_album', () => {
   it('returns isError when album does not exist', async () => {
     const r = await callTool('get_album', { id: 99999 });
     expect(r.isError).toBe(true);
+  });
+
+  it('gives each track its credits and the album its listening guide', async () => {
+    const wall = JSON.parse(textOf(await callTool('search_albums', { format_output: 'json' }))).items.find((i: { title: string }) => i.title === 'The Wall');
+    const parsed = JSON.parse(textOf(await callTool('get_album', { id: wall.id })));
+    expect(parsed.discs[0].tracks[0]).toMatchObject({
+      track_number: 3, title: 'Another Brick in the Wall, Part 1', performers: [{ name: 'David Gilmour', role: 'guitar' }],
+    });
+    expect(parsed.discs[0].tracks[0].work).toBeUndefined();
+    expect(parsed.listening_guide).toContain('Un opéra rock.');
+  });
+});
+
+describe('get_album_story', () => {
+  it('tells the album\'s Wikipedia article as text', async () => {
+    const wall = JSON.parse(textOf(await callTool('search_albums', { format_output: 'json' }))).items.find((i: { title: string }) => i.title === 'The Wall');
+    const parsed = JSON.parse(textOf(await callTool('get_album_story', { id: wall.id })));
+    expect(parsed.found).toBe(true);
+    expect(parsed.article.url).toBe('https://en.wikipedia.org/wiki/The_Wall');
+    expect(parsed.article.text).toBe('The Wall is the eleventh studio album by Pink Floyd.\n\n## Recording\n\nRecorded in France.');
+  });
+
+  it('returns isError when album does not exist', async () => {
+    expect((await callTool('get_album_story', { id: 99999 })).isError).toBe(true);
+  });
+});
+
+describe('get_now_playing', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('says nothing plays when no player told Navidrome', async () => {
+    jest.spyOn(navidromeService, 'isConfigured').mockReturnValue(true);
+    jest.spyOn(navidromeService, 'getNowPlaying').mockResolvedValue([]);
+    expect(JSON.parse(textOf(await callTool('get_now_playing'))).playing).toEqual([]);
+  });
+
+  it('finds the DexVault album of the song a player plays', async () => {
+    const wall = JSON.parse(textOf(await callTool('search_albums', { format_output: 'json' }))).items.find((i: { title: string }) => i.title === 'The Wall');
+    jest.spyOn(navidromeService, 'isConfigured').mockReturnValue(true);
+    jest.spyOn(navidromeService, 'getNowPlaying').mockResolvedValue([{
+      songId: 's3', title: 'Another Brick in the Wall, Part 1', artist: 'Pink Floyd', album: 'The Wall', albumId: 'nd-wall',
+      discNumber: 1, track: 3, durationSec: 191, user: 'Dexvault', player: 'dexvault', minutesAgo: 1,
+    }]);
+    jest.spyOn(ripStatusService, 'navidromeAlbums').mockResolvedValue(new Map([[wall.id, { id: 'nd-wall' } as never]]));
+    const [playing] = JSON.parse(textOf(await callTool('get_now_playing'))).playing;
+    expect(playing).toMatchObject({ where: 'DexVault', album_id: wall.id, track_number: 3, minutes_ago: 1 });
   });
 });
 
