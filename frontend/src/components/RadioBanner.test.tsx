@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { RadioCriteria, RadioPool, RadioSong } from '../services/radioService';
 
 const server = vi.hoisted(() => ({
@@ -115,6 +115,30 @@ describe('the radio banner', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'rock alternatif énergique' })); });
     expect(server.criteria).toHaveBeenLastCalledWith('rock alternatif énergique');
     expect(screen.getByRole('button', { name: 'mélancolique, un jour de pluie' })).toBeTruthy();
+  });
+
+  it('cuts a long recent prompt in its middle, and offers them in a menu on a phone', async () => {
+    const long = 'Je veux de la musique, up beat pour m\'aider à cuisiner car j\'ai flemme';
+    render(<Banner />);
+    const field = screen.getByRole('textbox', { name: 'What to play' });
+    for (const words of [long, 'rock progressif planant']) {
+      fireEvent.change(field, { target: { value: words } });
+      await act(async () => { fireEvent.submit(field.closest('form')!); });
+    }
+    const chip = screen.getByRole('button', { name: long });
+    expect([...chip.querySelectorAll('.middle-cut > span')].map(one => one.textContent)).toEqual(['Je veux de la musique, up beat pour m\'aider à cuisiner car', ' j\'ai flemme']);
+    cleanup();
+
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width: 575px'), addEventListener() {}, removeEventListener() {} }));
+    try {
+      render(<Banner />);
+      expect(screen.queryByRole('button', { name: long })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Recent' }));
+      await act(async () => { fireEvent.click(screen.getByRole('menuitem', { name: long })); });
+      expect(server.criteria).toHaveBeenLastCalledWith(long);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('plays the prompt typed once the field is left, as an iPhone closes its keyboard', async () => {

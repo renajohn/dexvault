@@ -76,6 +76,32 @@
   margin-left: 0;
 }
 
+/* A recent prompt keeps to one line, cut in its middle past its width. */
+.ui-chip.radio-banner__recent {
+  max-width: 280px;
+  min-width: 0;
+}
+
+.radio-banner__recent .ui-chip__label {
+  min-width: 0;
+}
+
+.middle-cut {
+  display: flex;
+  min-width: 0;
+  white-space: pre;
+}
+
+.middle-cut__start {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.middle-cut__end {
+  flex: none;
+}
+
 /* The pool's pill takes the band's hue at its edge: where the songs come from. */
 .menu-pill.radio-banner__pool {
   border-color: hsl(var(--radio-hue) 80% 60% / 0.45);

@@ -42,6 +42,21 @@ export const poolWords = (pool: RadioPool, short = false): string => {
 
 const everything = (pool: RadioPool) => pool.stars == null && !pool.hearts && !pool.popular;
 
+/**
+ * Words cut in their middle when there is no room: the beginning, …, then
+ * their last words, as a prompt is told apart by both ends.
+ */
+const MiddleCut: React.FC<{ words: string }> = ({ words }) => {
+  const at = words.length > 24 ? words.lastIndexOf(' ', words.length - 10) : -1;
+  if (at <= 0) return <>{words}</>;
+  return (
+    <span className="middle-cut">
+      <span className="middle-cut__start">{words.slice(0, at)}</span>
+      <span className="middle-cut__end">{words.slice(at)}</span>
+    </span>
+  );
+};
+
 /** A count as DexVault writes it: 1 190, a narrow space between the thousands. */
 const count = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
 
@@ -376,9 +391,21 @@ const RadioBanner: React.FC<RadioBannerProps> = ({ heading }) => {
             Whole works
           </Chip>
         )}
-        {recent.length > 0 && <span className="radio-banner__label">Recent</span>}
-        {recent.map(words => (
-          <Chip key={words} onClick={() => radio.listen(words, { play: true })} title={`Play “${words}”`}>{words}</Chip>
+        {recent.length > 0 && narrow && (
+          // On a phone the recent prompts are a menu: their words whole, one a line, in the room of a pill.
+          <Menu label="Recent prompts" className="radio-recent-menu" trigger={(props, open) => (
+            <button type="button" {...props} className="menu-pill">Recent<MenuChevron open={open} /></button>
+          )}>
+            {recent.map(words => (
+              <Menu.Item key={words} onSelect={() => radio.listen(words, { play: true })}>{words}</Menu.Item>
+            ))}
+          </Menu>
+        )}
+        {recent.length > 0 && !narrow && <span className="radio-banner__label">Recent</span>}
+        {!narrow && recent.map(words => (
+          <Chip key={words} className="radio-banner__recent" onClick={() => radio.listen(words, { play: true })} title={`Play “${words}”`}>
+            <MiddleCut words={words} />
+          </Chip>
         ))}
       </div>
 
