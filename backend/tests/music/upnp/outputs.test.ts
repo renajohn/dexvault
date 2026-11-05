@@ -299,6 +299,23 @@ describe('with it', () => {
     expect(listed.find((output: { id: string }) => output.id === WIIM)).toMatchObject({ name: 'Bureau', reachable: false });
   });
 
+  it('forgets the UDN an appliance answered to before at the same place, its name, ceiling and play taken over', async () => {
+    await outputs.shutdown();
+    const before = 'uuid:b062d591-0091-d5BB-b000-0009b062d591';
+    await run(`INSERT INTO output_settings (id, name, max_volume, location, device_name, model)
+               VALUES ('${before}', 'Living room', 40, '${onkyo.location}', 'Salon', 'TX-RZ70')`);
+    await run(`INSERT INTO output_sessions (id, state, updated_at)
+               VALUES ('${before}', '${JSON.stringify({ token: 'f'.repeat(64), album: albumOf(7), tracks: tracksOf(7), index: 1, position: 0, queue: 'album' })}', 0)`);
+    await outputs.init(optionsWith([onkyo.location, wiim.location]), overrides);
+    const listed = (await request(app).get('/api/outputs')).body;
+    expect(listed.map((output: { id: string }) => output.id)).toEqual([ONKYO, WIIM]);
+    expect(listed[0]).toMatchObject({ name: 'Living room', maxVolume: 40, reachable: true });
+    expect(outputs.session(ONKYO)!.state()).toMatchObject({ album: { id: 7 }, index: 1 });
+    await outputs.shutdown();
+    expect((await rows<{ id: string }>('SELECT id FROM output_settings')).map(row => row.id).sort()).toEqual([ONKYO, WIIM].sort());
+    expect((await rows<{ id: string }>('SELECT id FROM output_sessions')).map(row => row.id)).toEqual([ONKYO]);
+  });
+
   it('M6: tells every page listening the same play: what the iPhone asks, the Mac sees', async () => {
     const server = app.listen(0);
     const port = (server.address() as AddressInfo).port;

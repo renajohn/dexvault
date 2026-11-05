@@ -177,11 +177,17 @@ class Outputs {
     if (renderer) {
       const { udn, name, model } = renderer.description;
       const known = this.settings.get(udn);
-      if (!known || known.location !== entry.location || known.deviceName !== name || known.model !== model) {
-        const settings = { id: udn, name: known?.name ?? null, maxVolume: known?.maxVolume ?? null, location: entry.location, deviceName: name, model };
+      // The same appliance under another UDN (an Onkyo after an update): the one seen before there is forgotten, its name, ceiling and play taken over.
+      const before = [...this.settings.values()].find(other => other.id !== udn && other.location === entry.location);
+      if (before) this.forget(before.id, udn);
+      if (!known || before || known.location !== entry.location || known.deviceName !== name || known.model !== model) {
+        const settings = {
+          id: udn, name: known?.name ?? before?.name ?? null, maxVolume: known?.maxVolume ?? before?.maxVolume ?? null,
+          location: entry.location, deviceName: name, model,
+        };
         this.settings.set(udn, settings);
         this.write(`INSERT INTO output_settings (id, name, max_volume, location, device_name, model) VALUES (?, ?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET location = excluded.location, device_name = excluded.device_name, model = excluded.model`,
+             ON CONFLICT(id) DO UPDATE SET name = excluded.name, max_volume = excluded.max_volume, location = excluded.location, device_name = excluded.device_name, model = excluded.model`,
         [udn, settings.name, settings.maxVolume, entry.location, name, model]).catch(error => logger.warn(`UPnP settings: ${(error as Error).message}`));
       }
       this.notePower(udn, entry, renderer.description.manufacturer);
@@ -192,6 +198,36 @@ class Outputs {
       }
     }
     this.broadcast('outputs', null);
+  }
+
+  /** An appliance seen before under a UDN it no longer answers to: gone from the list and the base, its play left to the UDN it answers to now. */
+  private forget(id: string, now: string): void {
+    logger.info(`UPnP: ${id} answers as ${now} now, forgotten`);
+    const kept = this.sessions.get(id);
+    if (kept) {
+      kept.poller.stop();
+      kept.session.dispose();
+      this.sessions.delete(id);
+    }
+    const saved = this.saved.get(id);
+    const current = this.sessions.get(now);
+    if (saved && !this.saved.has(now) && !current?.session.state().album) {
+      // Made again with the play once noted, its own holding none.
+      if (current) {
+        current.poller.stop();
+        current.session.dispose();
+        this.sessions.delete(now);
+      }
+      this.saved.set(now, saved);
+      this.write('UPDATE output_sessions SET id = ? WHERE id = ?', [now, id]).catch(error => logger.warn(`UPnP sessions: ${(error as Error).message}`));
+    } else {
+      this.write('DELETE FROM output_sessions WHERE id = ?', [id]).catch(error => logger.warn(`UPnP sessions: ${(error as Error).message}`));
+    }
+    this.saved.delete(id);
+    this.settings.delete(id);
+    this.powers.delete(id);
+    this.told.delete(id);
+    this.write('DELETE FROM output_settings WHERE id = ?', [id]).catch(error => logger.warn(`UPnP settings: ${(error as Error).message}`));
   }
 
   /** A receiver that speaks eISCP: its control made the first time, its power read again with its description. */
