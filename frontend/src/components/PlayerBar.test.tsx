@@ -145,7 +145,7 @@ describe('PlayerBar on an appliance', () => {
     act(() => { takeState(session({ status: 'unreachable', wanted: true, waking: { since: Date.now(), step: 'network', poweredOn: true, unsteady: false } })); });
     renderBar();
     fireEvent.click(screen.getByRole('button', { name: 'Listen elsewhere' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'This computer' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'This device' }));
     expect(commands().at(-1)).toMatchObject({ url: '/api/outputs/uuid%3Asalon/toggle', body: { playing: false } });
     expect(player.getState().output.kind).toBe('local');
     expect(player.getState().album?.id).toBe(7);

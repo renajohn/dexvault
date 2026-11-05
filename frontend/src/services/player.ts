@@ -86,7 +86,7 @@ export interface PlayOptions {
 }
 
 /**
- * Where the music plays: this browser (This computer, This iPhone), or an
+ * Where the music plays: this browser (This device), or an
  * appliance of the house (Salon), which the server plays on and the bar
  * then shows and commands, as its own.
  */
@@ -184,9 +184,8 @@ const readOutput = (): { output: PlayerOutput; at: number } => {
   }
 };
 
-/** What this browser is called as an output. */
-export const localOutputName = (agent = typeof navigator === 'undefined' ? '' : navigator.userAgent): string =>
-  /iPhone/.test(agent) ? 'This iPhone' : /iPad/.test(agent) ? 'This iPad' : isComputer() ? 'This computer' : 'This phone';
+/** What this browser is called as an output: the same on a computer, an iPhone or an iPad. */
+export const localOutputName = (): string => 'This device';
 
 export const sameOutput = (a: PlayerOutput, b: PlayerOutput): boolean =>
   a.kind === b.kind && (a.kind === 'local' || a.id === (b as { id: string }).id);

@@ -202,7 +202,7 @@ interface OutputMenuProps {
 }
 
 /**
- * Where the music plays: this browser (This computer, This iPhone) or an
+ * Where the music plays: this browser (This device) or an
  * appliance of the house (Salon, Bureau), the one it plays on with a gold ✓,
  * one that does not answer greyed, away. What plays goes along to the one
  * chosen, at the same place. Under them, an appliance's volume and its

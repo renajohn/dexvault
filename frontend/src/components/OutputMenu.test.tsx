@@ -58,7 +58,7 @@ describe('OutputMenu', () => {
   it('lists this computer and the appliances, the one playing on with the ✓, one away greyed', () => {
     render(<OutputMenu />);
     open();
-    const here = screen.getByRole('menuitemradio', { name: /This computer/ });
+    const here = screen.getByRole('menuitemradio', { name: /This device/ });
     expect(here).toHaveAttribute('aria-checked', 'true');
     const salon = screen.getByRole('menuitemradio', { name: /Salon/ });
     expect(salon).toHaveAttribute('aria-checked', 'false');
