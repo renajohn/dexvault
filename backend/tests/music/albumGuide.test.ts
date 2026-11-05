@@ -103,6 +103,7 @@ describe('fiche écrite par le LLM local', () => {
     expect(draftAsk.messages[1].content).toContain('plage 1 (3:10) : La primavera: I. Allegro');
     expect(draftAsk.messages[1].content).toContain('Gidon Kremer (violin)');
     expect(draftAsk.messages[1].content).toContain('Publiées en 1725 à Amsterdam par Le Cène.');
+    expect(draftAsk.messages[1].content).not.toContain('Termine par « ### Votre version »');
     expect(post).toHaveBeenCalledTimes(3);
   });
 
@@ -118,6 +119,34 @@ describe('fiche écrite par le LLM local', () => {
     expect((post.mock.calls[0][1] as any).messages[1].content).toContain('Le ton à suivre.');
   });
 
+  it('raconte un album qui a son article plage par plage, avec l’article de chaque chanson qui en a un', async () => {
+    const other = await insertAlbum(['pop rock']);
+    await AlbumGuide.save(other, '### Classique\nPar œuvre.', 'claude');
+    const model = await insertAlbum(['pop rock']);
+    await AlbumGuide.save(model, '### So\n**Plage par plage** :\n- **Plage 1** : le ton pop.', 'claude');
+    const id = await insertAlbum(['pop rock']);
+    mockSources();
+    jest.spyOn(albumStoryService, 'getStory').mockResolvedValue({
+      ...STORY, works: [], title: 'Le quattro stagioni', url: 'https://en.wikipedia.org/wiki/Album',
+      links: [{ lang: 'en', title: 'Album', url: 'https://en.wikipedia.org/wiki/Album' }],
+    } as any);
+    const findSongs = jest.spyOn(albumStoryService, 'findSongArticles').mockImplementation(async (title: string) =>
+      title.startsWith('L’estate') ? [{ lang: 'en', title: 'Summer (song)', url: '' }] : []);
+    const post = mockLlm([{ claim: 'Publiées en 1725', verdict: 'supported', evidence: '' }]);
+
+    await albumGuideService.generate(id);
+
+    expect(findSongs).toHaveBeenCalledTimes(3);
+    expect(findSongs).toHaveBeenCalledWith('La primavera: I. Allegro', 'Vivaldi', 'Le quattro stagioni');
+    const ask = (post.mock.calls[0][1] as any).messages[1].content as string;
+    expect(ask).toContain('### Le quattro stagioni (<année de première parution>), 10 min — plages 1 à 3');
+    expect(ask).toContain('[Wikipédia en : Summer (song) — plage 3 « L’estate: I. Allegro »]');
+    expect(ask).toContain('Plage par plage');
+    expect(ask).toContain('le ton pop.');
+    expect(ask).not.toContain('Par œuvre.');
+    expect(ask).not.toContain('Termine par « ### Votre version »');
+  });
+
   it('refuse d’écrire sans rien sur Wikipedia', async () => {
     const id = await insertAlbum();
     mockSources();
@@ -127,14 +156,14 @@ describe('fiche écrite par le LLM local', () => {
 });
 
 describe('fiches écrites d’office', () => {
-  it('écrit pour un CD classique ajouté depuis, pas pour la pop, un ancien CD ou un CD qui en a déjà une', async () => {
+  it('écrit pour un CD ajouté depuis, classique ou non, pas pour un ancien CD ou un CD qui en a déjà une', async () => {
     const generate = jest.spyOn(albumGuideService, 'generate').mockImplementation(async (albumId: number) =>
       AlbumGuide.save(albumId, 'Fiche', 'local_llm', 'test'));
     const before = await AlbumGuide.albumIds();
 
     const fresh = await insertAlbum(['Baroque']);
-    await insertAlbum(['pop rock']);
-    await insertAlbum(['Classical'], '2026-09-01T10:00:00.000Z');
+    const pop = await insertAlbum(['pop rock']);
+    const old = await insertAlbum(['Classical'], '2026-09-01T10:00:00.000Z');
     const done = await insertAlbum(['Classical']);
     await AlbumGuide.save(done, 'Déjà écrite', 'manual');
 
@@ -142,8 +171,9 @@ describe('fiches écrites d’office', () => {
     let next: number | null;
     while ((next = await albumGuideService.writeMissing()) !== null) written.push(next);
 
-    expect(written.filter(id => !before.has(id))).toContain(fresh);
+    expect(written.filter(id => !before.has(id))).toEqual(expect.arrayContaining([fresh, pop]));
     expect(generate.mock.calls.map(call => call[0])).not.toContain(done);
+    expect(generate.mock.calls.map(call => call[0])).not.toContain(old);
     expect(written).toHaveLength(generate.mock.calls.length);
     expect((await AlbumGuide.get(done))!.text).toBe('Déjà écrite');
   });

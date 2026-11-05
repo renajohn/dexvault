@@ -306,6 +306,38 @@ const fetchAndSave = async (albumId: number): Promise<void> => {
   await AlbumStory.save(albumId, { ...empty, found: true, reason: null, works });
 };
 
+const searchTitles = async (lang: string, query: string): Promise<string[]> => {
+  const response = await axios.get(`https://${lang}.wikipedia.org/w/api.php`, {
+    params: { action: 'query', list: 'search', srsearch: query, srlimit: 3, format: 'json' },
+    headers: { 'User-Agent': userAgent() },
+    timeout: 15000,
+  });
+  return (response.data?.query?.search ?? []).map((hit: { title: string }) => hit.title);
+};
+
+const normalize = (text: string): string =>
+  text.toLowerCase().replace(/[’‘`´]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ').trim();
+
+/**
+ * The article of one song: titled after the song, alone or with its precision
+ * in brackets (« Il pleut » is not « Il pleut sur Bruxelles »), naming the
+ * artist, about a song, and neither the album's article nor a disambiguation page.
+ */
+const findSong = async (lang: string, candidates: string[], song: string, artist: string, albumTitle: string): Promise<Article | null> => {
+  for (const candidate of candidates) {
+    const page = await fetchExtract({ lang, title: candidate }).catch(() => null);
+    if (!page) continue;
+    const title = normalize(page.title);
+    if (title !== normalize(song) && !title.startsWith(`${normalize(song)} (`)) continue;
+    if (normalize(page.title) === normalize(albumTitle) || !page.extract.includes(artist)) continue;
+    if (/\(disambiguation\)|\(homonymie\)/i.test(page.title)) continue;
+    if (/\b(may (also )?refer to|peut (aussi )?(désigner|faire référence à))\b/i.test(page.extract.slice(0, 400))) continue;
+    if (!/song|single|track|chanson/i.test(page.extract.slice(0, 600))) continue;
+    return { lang, title: page.title };
+  }
+  return null;
+};
+
 /**
  * A miss is retried once old, or as soon as the album has been linked to
  * MusicBrainz since. A story kept before both languages were read is read again.
@@ -324,6 +356,17 @@ const albumStoryService = {
   readArticle: async (link: { lang: string; title: string }): Promise<{ intro: string; sections: StorySection[] } | null> => {
     const page = await fetchExtract(link);
     return page ? parseExtract(page.extract) : null;
+  },
+
+  /** A song's articles, in English then in French, the same as the listening guide skill finds. */
+  findSongArticles: async (trackTitle: string, artist: string, albumTitle: string): Promise<ArticleLink[]> => {
+    const song = trackTitle.replace(/\s*\(.*?\)\s*$/, '').replace(/[’‘`´]/g, "'");
+    const english = await findSong('en', [
+      `${song} (${artist} song)`, `${song} (song)`, ...await searchTitles('en', `"${song}" ${artist} song`).catch(() => []),
+    ], song, artist, albumTitle);
+    if (!english) return [];
+    const french = await findSong('fr', (await searchTitles('fr', `${song} ${artist} chanson`).catch(() => [])).slice(0, 1), song, artist, albumTitle);
+    return [english, ...(french ? [french] : [])].map(article => ({ ...article, url: articleUrl(article) }));
   },
 
   /** Answers from the cache, fetching first when the album was never looked up or the miss is old. */

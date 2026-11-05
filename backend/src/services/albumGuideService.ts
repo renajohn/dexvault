@@ -10,7 +10,8 @@ import logger from '../logger';
 
 /**
  * Albums catalogued before guides existed get theirs from Claude; the local
- * LLM writes them for the classical albums added since, and on demand.
+ * LLM writes them for the albums added since, and on demand. A classical disc
+ * is told work by work, any other album track by track.
  */
 const GUIDES_SINCE = '2026-10-08';
 const AUTO_WRITE_EVERY_MS = 30 * 60 * 1000;
@@ -19,9 +20,10 @@ const RETRY_FAILED_AFTER_MS = 24 * 60 * 60 * 1000;
 /** Wikipedia text handed to the model, all articles together: the prompt stays well inside its context. */
 const SOURCE_BUDGET = 24000;
 const MIN_PER_ARTICLE = 4000;
+/** The songs' own articles, on top: where the studio stories are. */
+const SONG_BUDGET = 24000;
+const MIN_PER_SONG = 2500;
 const LLM_TIMEOUT_SEC = 300;
-
-const CLASSICAL_GENRES = ['classical', 'baroque', 'romantic', 'opera', 'chamber', 'choral', 'renaissance', 'impressionis', 'orchestral'];
 
 type Message = { role: 'system' | 'user'; content: string };
 type Claim = { claim: string; verdict: 'supported' | 'contradicted' | 'unsupported'; evidence: string };
@@ -69,7 +71,7 @@ const headingsOf = (story: AlbumStoryResult, title: string, tracks: Track[]): st
   const works = story.url ? [] : story.works.filter(work => work.positions?.length);
   if (works.length === 0) {
     const all = tracks.map((_, i) => i + 1);
-    return [`### ${title}, ${minutes(total(all))} — ${range(all)}`];
+    return [`### ${title} (<année de première parution>), ${minutes(total(all))} — ${range(all)}`];
   }
   return works
     .sort((a, b) => a.positions![0] - b.positions![0])
@@ -94,6 +96,26 @@ const gatherSources = async (story: AlbumStoryResult): Promise<string> => {
   return parts.join('\n\n');
 };
 
+/** The articles of the album's songs that have one, each telling which track it is about. */
+const gatherSongSources = async (album: { title: string; artist?: string[] | null }, tracks: Track[]): Promise<{ text: string; found: number }> => {
+  const artist = (album.artist || [])[0] || '';
+  const found: Array<{ position: number; title: string; link: { lang: string; title: string } }> = [];
+  for (const [i, track] of tracks.entries()) {
+    const links = await albumStoryService.findSongArticles(track.title, artist, album.title).catch(() => []);
+    for (const link of links) found.push({ position: i + 1, title: track.title, link });
+  }
+  const perSong = Math.max(MIN_PER_SONG, Math.floor(SONG_BUDGET / Math.max(1, found.length)));
+
+  const parts: string[] = [];
+  for (const { position, title, link } of found) {
+    const article = await albumStoryService.readArticle(link);
+    if (!article) continue;
+    const text = [article.intro, ...article.sections.map(s => `## ${s.heading}\n${s.text}`)].join('\n');
+    parts.push(`[Wikipédia ${link.lang} : ${link.title} — plage ${position} « ${title} »]\n${text.slice(0, perSong)}`);
+  }
+  return { text: parts.join('\n\n'), found: new Set(found.map(song => song.position)).size };
+};
+
 const SYSTEM = [
   'Tu rédiges en français des fiches « Avant d’écouter » pour un mélomane amateur qui écoute un CD avec attention, le disque en main.',
   'Règle absolue : tout nom, date, instrument, lieu ou anecdote doit figurer dans les SOURCES ou dans la FICHE DU DISQUE. Sinon, ne l’écris pas.',
@@ -101,6 +123,7 @@ const SYSTEM = [
   'Pas de formules creuses (« lecture magistrale », « chef-d’œuvre intemporel »). Phrases courtes et vivantes.',
 ].join(' ');
 
+/** A classical disc, told work by work. */
 const draftPrompt = (disc: string, sources: string, headings: string[], example: AlbumGuideFormatted | null): string => [
   'FICHE DU DISQUE', disc, '',
   'SOURCES (Wikipédia, en français et en anglais)', sources, '',
@@ -113,7 +136,25 @@ const draftPrompt = (disc: string, sources: string, headings: string[], example:
   '**Contexte** : 3 à 4 phrases : qui, quand, pour qui, pourquoi ; ce que l’œuvre ou le disque a changé.',
   '**Forme** : comment c’est construit, ce qui guide l’oreille, en 2 à 3 phrases.',
   '**À guetter** : 2 ou 3 puces « - **Plage N** : … », chacune avec un numéro de plage du disque et un détail sonore précis tiré des sources.',
-  'Termine par « ### Votre version » : une phrase factuelle sur les interprètes de CE disque, puis une seule question d’écoute simple et concrète.',
+  'Pas de section « Votre version », pas de question d’écoute : la fiche finit sur la dernière œuvre.',
+].join('\n');
+
+/** Any other album, told track by track, the way the fiche-ecoute skill writes. */
+const draftTracksPrompt = (disc: string, sources: string, headings: string[], example: AlbumGuideFormatted | null): string => [
+  'FICHE DU DISQUE', disc, '',
+  'SOURCES (Wikipédia : l’album, puis les chansons qui ont un article)', sources, '',
+  ...(example ? [
+    'EXEMPLE DE TON ET DE LONGUEUR (fiche d’un AUTRE disque : n’en reprends aucun fait)', example.text.slice(0, 4000), '',
+  ] : []),
+  'Écris la fiche en Markdown. Reprends tel quel le titre ci-dessous (remplace seulement <année de première parution>) :',
+  headings.join('\n'),
+  'Sous le titre :',
+  '**Contexte** : 4 à 6 phrases : qui, quand, où, avec qui, pourquoi ; ce que l’album a changé. Une anecdote de studio si les sources en donnent une. Ventes et classements : une phrase au plus.',
+  '**Le son** : 3 à 5 phrases : instruments, rythmes, voix, production, comment les plages s’enchaînent.',
+  '**Plage par plage** : une puce « - **Plage N** : *Titre*. … » par plage dont les sources disent quelque chose : d’où vient la chanson, qui joue quoi, ce qui s’est passé en studio, un détail sonore précis à guetter. Les numéros sont ceux de la FICHE DU DISQUE.',
+  'Les plages dont les sources ne disent rien vont ensemble dans une dernière puce « - **Les autres plages** : *Titre* (N), *Titre* (N) ». Jamais de puce de remplissage (durée, place dans le disque, paraphrase du titre).',
+  'Préfère le fait qui surprend au palmarès. Titres en *italique*, citations entre « guillemets », traduites.',
+  'La fiche ne parle jamais de ses sources (jamais « les sources ne disent rien »). Pas de section « Votre version », pas de question d’écoute : la fiche finit sur la dernière plage.',
 ].join('\n');
 
 const verifyPrompt = (disc: string, sources: string, draft: string): string => [
@@ -156,32 +197,35 @@ const writeWithLocalLlm = async (albumId: number): Promise<{ text: string; model
   if (!story.url && story.works.some(work => !work.positions)) story = await albumStoryService.getStory(albumId, { refresh: true });
   if (!story.found) throw new Error('Wikipedia has nothing on this album or its works to write a guide from');
 
-  const sources = await gatherSources(story);
+  // An album with its own article is told track by track; a classical disc, whose works have the articles, work by work.
+  const trackByTrack = Boolean(story.url);
+  const songs = trackByTrack ? await gatherSongSources(album, tracks) : { text: '', found: 0 };
+  const sources = [await gatherSources(story), songs.text].filter(Boolean).join('\n\n');
   const disc = describeDisc(album, tracks);
-  const example = await AlbumGuide.latestByClaude(albumId);
+  const example = await AlbumGuide.latestByClaude(albumId, { trackByTrack });
+  const headings = headingsOf(story, album.title, tracks);
+  const length = trackByTrack ? 5000 : 2500;
 
   const draft = unfence(await chat([
     { role: 'system', content: SYSTEM },
-    { role: 'user', content: draftPrompt(disc, sources, headingsOf(story, album.title, tracks), example) },
-  ], 2500, 0.3));
+    { role: 'user', content: trackByTrack ? draftTracksPrompt(disc, sources, headings, example) : draftPrompt(disc, sources, headings, example) },
+  ], length, 0.3));
 
   const claims = parseClaims(await chat([
     { role: 'system', content: 'Tu es un vérificateur de faits méticuleux. Tu compares mot à mot avec la source.' },
     { role: 'user', content: verifyPrompt(disc, sources, draft) },
-  ], 6000, 0, true));
+  ], trackByTrack ? 9000 : 6000, 0, true));
   const problems = claims.filter(claim => claim.verdict !== 'supported');
 
   const text = problems.length === 0 ? draft : unfence(await chat([
     { role: 'system', content: SYSTEM },
     { role: 'user', content: fixPrompt(draft, problems) },
-  ], 2500, 0.2));
+  ], length, 0.2));
 
-  logger.info(`Album guide for album ${albumId}: ${claims.length} facts checked, ${problems.length} fixed`);
+  logger.info(`Album guide for album ${albumId}: ${trackByTrack ? `${songs.found}/${tracks.length} songs with an article, ` : ''}`
+    + `${claims.length} facts checked, ${problems.length} fixed`);
   return { text, model: getConfig().model };
 };
-
-const isClassical = (genres: string[] | null | undefined): boolean =>
-  (genres || []).some(genre => CLASSICAL_GENRES.some(keyword => genre.toLowerCase().includes(keyword)));
 
 const failedAt = new Map<number, number>();
 
@@ -200,14 +244,13 @@ const albumGuideService = {
       return AlbumGuide.save(albumId, text, 'local_llm', model);
     }),
 
-  /** Writes the missing guides of the classical albums added since guides exist, one album per pass. */
+  /** Writes the missing guides of the albums added since guides exist, one album per pass. */
   writeMissing: async (): Promise<number | null> => {
     const have = await AlbumGuide.albumIds();
     const candidates = (await Album.findAll()).filter(album =>
       album.titleStatus !== 'wish'
       && !have.has(album.id)
       && (album.createdAt || '') >= GUIDES_SINCE
-      && isClassical(album.genres)
       && Date.now() - (failedAt.get(album.id) ?? 0) > RETRY_FAILED_AFTER_MS);
 
     for (const album of candidates) {

@@ -12,8 +12,11 @@ d'intéressant sur chaque titre**, plage par plage. C'est Claude qui l'écrit
 des sources et à l'honnêteté sur ce qu'elles ne disent pas.
 
 Le backend a son propre rédacteur (`backend/src/services/albumGuideService.ts`,
-LLM local, albums classiques ajoutés depuis le 08.10.2026). Cette fiche-ci s'en
-distingue : pas de section « Votre version », et une entrée par plage.
+LLM local, tous les albums ajoutés depuis le 08.10.2026, toutes les 30 min). Pour
+un album qui a son article Wikipédia, il suit ce format-ci (plage par plage, pas
+de « Votre version ») et prend pour exemple la dernière fiche de Claude du même
+genre ; un disque classique est raconté œuvre par œuvre, sans « Votre version » non plus. Une fiche de Claude reste
+meilleure : la réécrire avec ce skill remplace celle du LLM local.
 
 ## Étapes
 

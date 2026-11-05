@@ -70,9 +70,12 @@ const AlbumGuide = {
     new Set((await all<{ album_id: number }>(`SELECT album_id FROM album_guides`)).map(row => row.album_id)),
 
   /** The latest guide Claude wrote for another album: the local LLM takes its tone from it. */
-  latestByClaude: async (exceptAlbumId: number): Promise<AlbumGuideFormatted | null> => {
+  latestByClaude: async (exceptAlbumId: number, { trackByTrack = false } = {}): Promise<AlbumGuideFormatted | null> => {
+    // A track-by-track guide is no model for one told work by work, nor the other way round.
     const row = await get<AlbumGuideRow>(
-      `SELECT * FROM album_guides WHERE source = 'claude' AND album_id != ? ORDER BY updated_at DESC LIMIT 1`,
+      `SELECT * FROM album_guides WHERE source = 'claude' AND album_id != ?
+         AND text ${trackByTrack ? '' : 'NOT '}LIKE '%**Plage par plage**%'
+       ORDER BY updated_at DESC LIMIT 1`,
       [exceptAlbumId]
     );
     return row ? format(row) : null;
