@@ -59,7 +59,7 @@
 }
 
 .player-tracks-stars {
-  align-self: center;
+  margin-top: 6px;
 }
 
 .player-tracks-side-meta h3 {
@@ -331,11 +331,5 @@
   .player-tracks-cover-tag,
   .player-tracks-facts {
     display: none;
-  }
-
-  /* After the name, against the right edge. */
-  .player-tracks-stars {
-    order: 2;
-    margin-left: auto;
   }
 }

@@ -225,13 +225,13 @@ const Tracks: React.FC<{ fromListenNext: boolean }> = ({ fromListenNext }) => {
             {side.album.cover ? <img src={side.album.cover} alt="" /> : <span className="player-tracks-nocover" />}
             {fromListenNext && <span className="player-tracks-cover-tag">{tagOf(side)}</span>}
           </div>
-          {side.album.id != null && !side.album.radio && (
-            <AlbumStarRating className="player-tracks-stars" value={stars[side.album.id] ?? null} size="md"
-              label={`Your stars for ${side.album.title}`} onChange={next => rate(side.album.id!, next)} />
-          )}
           <div className="player-tracks-side-meta">
             <h3>{side.album.title}</h3>
             <div className="player-tracks-artist">{side.album.artist}</div>
+            {side.album.id != null && !side.album.radio && (
+              <AlbumStarRating className="player-tracks-stars" value={stars[side.album.id] ?? null} size="md"
+                label={`Your stars for ${side.album.title}`} onChange={next => rate(side.album.id!, next)} />
+            )}
             <div className="player-tracks-facts">
               {[discsOf(side) > 1 ? `${discsOf(side)} discs` : null, `${side.tracks.length} tracks`, length > 0 ? `${Math.round(length / 60)} min` : null]
                 .filter(Boolean).join(' · ')}
