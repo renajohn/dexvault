@@ -300,7 +300,9 @@ const digitalLibraryService = {
     const navidrome = await ripStatusService.library();
     const album = navidrome.albums.find(candidate => candidate.id === navidromeId);
     if (!album) return null;
-    const standing = (await Album.findByStatus('wish')).filter(wish => matchesOf(wish, [album], navidrome.lengths).length > 0);
+    // Its own wish first: once refreshed from MusicBrainz, its title may no longer match the files'.
+    const standing = (await Album.findByStatus('wish')).filter(wish =>
+      wish.navidromeId === navidromeId || matchesOf(wish, [album], navidrome.lengths).length > 0);
     if (wished && standing.length === 0) {
       const digital = await digitalAlbumService.forNavidromeAlbum(navidromeId)
         ?? (await digitalAlbumService.reconcile(), await digitalAlbumService.forNavidromeAlbum(navidromeId));

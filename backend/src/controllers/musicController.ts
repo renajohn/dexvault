@@ -199,6 +199,16 @@ const musicController = {
   deleteAlbum: async (req: Request, res: Response): Promise<void> => {
     try {
       const id = parseInt(req.params.id as string, 10);
+      // A wish made from files in Navidrome is the digital album itself: taken off the wish list,
+      // it goes back to MusicDex with its stars, notes and guide, instead of being lost with them.
+      const album = await Album.findById(id);
+      if (album?.titleStatus === 'wish' && album.navidromeId && navidromeService.isConfigured()) {
+        const digital = await digitalLibraryService.setWished(album.navidromeId, false);
+        if (digital) {
+          res.json({ message: 'Album taken off the wish list, back among the digital albums', digital: true });
+          return;
+        }
+      }
       const result = await musicService.deleteAlbum(id);
       if (result.deleted) {
         res.json({ message: 'Album deleted successfully' });

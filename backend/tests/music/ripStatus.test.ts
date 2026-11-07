@@ -552,6 +552,32 @@ describe('albums seulement en digital', () => {
     expect(await Album.findById(wishId)).toMatchObject({ titleStatus: 'digital', navidromeId: 'd-hotel' });
   });
 
+  it('rend au digital, au lieu de la supprimer, une wish ôtée de la page Wish List quand Navidrome a ses fichiers', async () => {
+    const name = `Wait for Me ${tag()}`;
+    jest.spyOn(navidromeService, 'getAlbums').mockResolvedValue([album('d-wait', name, 'Moby')]);
+    jest.spyOn(navidromeService, 'getSongs').mockResolvedValue(songs('d-wait', 'mp3'));
+    jest.spyOn(navidromeService, 'getAlbumSongs').mockResolvedValue(files(['Pale Horses']));
+    const { wishAlbumId } = (await request(app).put('/api/music/digital/d-wait/wish')).body;
+    // MusicBrainz gave it the edition's own title: the files' no longer matches.
+    await new Promise<void>((resolve, reject) => getDatabase().run(
+      'UPDATE albums SET title = ? WHERE id = ?', [`[${name}]`, wishAlbumId], err => (err ? reject(err) : resolve())));
+
+    const del = await request(app).delete(`/api/music/albums/${wishAlbumId}`);
+
+    expect(del.status).toBe(200);
+    expect(await Album.findById(wishAlbumId)).toMatchObject({ titleStatus: 'digital', navidromeId: 'd-wait' });
+    expect(await Track.findByCdId(wishAlbumId)).toHaveLength(1);
+  });
+
+  it('supprime pour de bon une wish sans fichiers dans Navidrome', async () => {
+    const wishId = await insertAlbum({ title: `Destroyed ${tag()}`, artist: ['Moby'], status: 'wish' });
+    jest.spyOn(navidromeService, 'getAlbums').mockResolvedValue([]);
+    jest.spyOn(navidromeService, 'getSongs').mockResolvedValue([]);
+
+    expect((await request(app).delete(`/api/music/albums/${wishId}`)).status).toBe(200);
+    expect(await Album.findById(wishId)).toBeNull();
+  });
+
   it('répond 404 pour un album que Navidrome n’a pas', async () => {
     jest.spyOn(navidromeService, 'getAlbums').mockResolvedValue([]);
     jest.spyOn(navidromeService, 'getSongs').mockResolvedValue([]);
