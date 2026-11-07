@@ -8,6 +8,7 @@ import Menu from './shared/Menu';
 import { UpcomingEntries } from './QueueEntries';
 import { IconButton } from './shared/Button';
 import CoverTag from './shared/CoverTag';
+import { AlbumStarRating } from './RecordStarRating';
 import NowPlayingBars from './shared/NowPlayingBars';
 import { Loading } from './shared/Spinner';
 import toast from './shared/Toast';
@@ -182,6 +183,28 @@ const Tracks: React.FC<{ fromListenNext: boolean }> = ({ fromListenNext }) => {
     }
   };
 
+  // The stars of the album on the left, read once from Navidrome (given in Amperfy since), then given here.
+  const sideId = shown ? (shown[focus] || shown[0])?.album.id ?? null : null;
+  const [stars, setStars] = useState<Record<number, number | null>>({});
+  useEffect(() => {
+    if (sideId == null || sideId in stars) return undefined;
+    let live = true;
+    musicService.syncAlbumRating(sideId)
+      .then(({ userRating }) => { if (live) setStars(known => ({ ...known, [sideId]: userRating ?? null })); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [sideId, stars]);
+  const rate = (id: number, next: number) => {
+    const before = stars[id] ?? null;
+    setStars(known => ({ ...known, [id]: next || null }));
+    musicService.setAlbumRating(id, next)
+      .then(({ userRating }) => setStars(known => ({ ...known, [id]: userRating ?? null })))
+      .catch(error => {
+        setStars(known => ({ ...known, [id]: before }));
+        toast(`The stars were not kept: ${(error as Error).message}`, { tone: 'danger' });
+      });
+  };
+
   if (!shown) return <Dialog.Body><Loading>Loading the tracks…</Loading></Dialog.Body>;
   const side = shown[focus] || shown[0];
   const tagOf = (one: Shown) => {
@@ -202,6 +225,10 @@ const Tracks: React.FC<{ fromListenNext: boolean }> = ({ fromListenNext }) => {
             {side.album.cover ? <img src={side.album.cover} alt="" /> : <span className="player-tracks-nocover" />}
             {fromListenNext && <span className="player-tracks-cover-tag">{tagOf(side)}</span>}
           </div>
+          {side.album.id != null && !side.album.radio && (
+            <AlbumStarRating className="player-tracks-stars" value={stars[side.album.id] ?? null} size="md"
+              label={`Your stars for ${side.album.title}`} onChange={next => rate(side.album.id!, next)} />
+          )}
           <div className="player-tracks-side-meta">
             <h3>{side.album.title}</h3>
             <div className="player-tracks-artist">{side.album.artist}</div>
