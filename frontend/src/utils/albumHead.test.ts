@@ -22,8 +22,14 @@ describe('ripSummary', () => {
   });
 
   it('reads a rip with an MP3 among the files as lossy, naming what it mixes', () => {
-    const rip = { configured: true, found: true, tracks: [file(), file({ track: 2, suffix: 'mp3', bitDepth: null, samplingRate: null })] };
-    expect(ripSummary(rip)).toEqual({ state: 'lossy', format: 'FLAC, MP3', files: 2 });
+    const rip = { configured: true, found: true, tracks: [file(), file({ track: 2, suffix: 'mp3', bitRate: 320, bitDepth: null, samplingRate: null })] };
+    expect(ripSummary(rip)).toEqual({ state: 'lossy', format: 'FLAC, MP3', files: 2, label: 'MP3 320' });
+  });
+
+  it('names a lossy rip as the grid does, its bitrate weighed by length', () => {
+    const mp3 = (over: Partial<RipTrackFile>) => file({ suffix: 'mp3', bitDepth: null, ...over });
+    const rip = { configured: true, found: true, tracks: [mp3({ bitRate: 128, durationSec: 300 }), mp3({ track: 2, bitRate: 96, durationSec: 100 })] };
+    expect(ripSummary(rip)?.label).toBe('MP3 120');
   });
 
   it('knows an .m4a as ALAC by its bitrate, Navidrome giving AAC a bit depth too', () => {

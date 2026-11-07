@@ -688,7 +688,7 @@ const MusicDetailCard: React.FC<MusicDetailCardProps> = ({ cd, onClose, onEdit, 
   else ripText = (
     <>
       <span className={summary.state === 'lossless' ? 'album-head-lossless' : 'album-head-lossy'}>
-        {summary.state === 'lossless' ? 'Lossless' : 'Lossy'}
+        {summary.state === 'lossless' ? 'Lossless' : summary.label || 'Lossy'}
       </span>
       <span className="album-head-muted">
         {trackCount > 0 && ` · ${summary.files} of ${trackCount} tracks`}

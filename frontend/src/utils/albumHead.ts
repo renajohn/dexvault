@@ -25,9 +25,21 @@ export interface RipSummary {
   /** "FLAC · 16-bit · 44.1 kHz · stereo" when the files agree, else the formats they mix: "FLAC, MP3". */
   format: string;
   files: number;
+  /** A lossy rip as the grid's tag says it: "MP3 128", the compressed formats and their bitrate weighed by length. */
+  label?: string;
   /** The files on no track of the CD, bonus tracks bought apart: "4 bonus (AAC)". */
   extras?: string;
 }
+
+/** "MP3 128": the backend's way (qualityOf), a VBR file's quiet track weighing less than the album. */
+const lossyLabel = (compressed: RipTrackFile[]): string => {
+  const names = [...new Set(compressed.map(formatName))].join('+');
+  const length = compressed.reduce((sum, file) => sum + (file.durationSec || 0), 0);
+  const bitRate = length > 0
+    ? Math.round(compressed.reduce((sum, file) => sum + (file.bitRate || 0) * (file.durationSec || 0), 0) / length)
+    : Math.round(compressed.reduce((sum, file) => sum + (file.bitRate || 0), 0) / compressed.length);
+  return bitRate > 0 ? `${names} ${bitRate}` : names;
+};
 
 /**
  * How the rip stands, judged by its files on the CD's tracks: `extras`, the
@@ -39,8 +51,10 @@ export const ripSummary = (rip: RipTracks, extras: RipTrackFile[] = []): RipSumm
   const onCd = rip.tracks.filter(file => !apart.has(file));
   const files = onCd.length > 0 ? onCd : rip.tracks;
   const formats = [...new Set(files.map(ripFormat))];
+  const lossless = files.every(isLossless);
   return {
-    state: files.every(isLossless) ? 'lossless' : 'lossy',
+    state: lossless ? 'lossless' : 'lossy',
+    ...(lossless ? {} : { label: lossyLabel(files.filter(file => !isLossless(file))) }),
     format: formats.length === 1 ? formats[0] : [...new Set(files.map(formatName))].join(', '),
     files: files.length,
     ...(onCd.length > 0 && extras.length > 0 ? { extras: `${extras.length} bonus (${[...new Set(extras.map(formatName))].join(', ')})` } : {}),

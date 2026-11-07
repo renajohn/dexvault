@@ -250,7 +250,7 @@ const AlbumInfo: React.FC<AlbumInfoProps> = ({ albumId, known = null }) => {
     : !summary ? <span className="album-info-muted">{hasCd ? 'Not ripped yet.' : 'No files yet.'}</span>
     : (
       <>
-        <span className={summary.state === 'lossless' ? 'album-info-lossless' : 'album-info-lossy'}>{summary.state === 'lossless' ? 'Lossless' : 'Lossy'}</span>
+        <span className={summary.state === 'lossless' ? 'album-info-lossless' : 'album-info-lossy'}>{summary.state === 'lossless' ? 'Lossless' : summary.label || 'Lossy'}</span>
         <span className="album-info-muted">
           {trackCount > 0 ? ` · ${summary.files} of ${trackCount} tracks` : ` · ${summary.files} tracks`}
           {' · '}{summary.format}

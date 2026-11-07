@@ -258,14 +258,14 @@ describe('MusicDetailCard', () => {
     expect(screen.queryByRole('button', { name: 'Apple Music' })).not.toBeInTheDocument();
   });
 
-  it('marks a lossy rip, still to be ripped again', async () => {
+  it('marks a lossy rip with its format and bitrate, as the grid does', async () => {
     (musicService.getNavidromeTracks as any).mockResolvedValue({
-      ...ripped, tracks: ripped.tracks.map(file => ({ ...file, suffix: 'mp3', bitDepth: null, samplingRate: null })),
+      ...ripped, tracks: ripped.tracks.map(file => ({ ...file, suffix: 'mp3', bitRate: 128, bitDepth: null, samplingRate: null })),
     });
     render(<MusicDetailCard cd={cd()} onClose={() => {}} onDelete={() => {}} />);
 
-    await waitFor(() => expect(screen.getByText('Lossy')).toBeInTheDocument());
-    expect(screen.getByText('Lossy')).toHaveClass('album-head-lossy');
+    await waitFor(() => expect(screen.getByText('MP3 128')).toBeInTheDocument());
+    expect(screen.getByText('MP3 128')).toHaveClass('album-head-lossy');
   });
 
   it('falls back to Apple Music when the CD is not ripped', async () => {
